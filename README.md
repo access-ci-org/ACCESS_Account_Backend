@@ -1,5 +1,69 @@
 # ACCESS Account API
 
+API for ACCESS CI accounts and registration.
+
+## Getting Started
+
+### Prerequisites
+
+- Python 3.13 or higher
+- [uv](https://github.com/astral-sh/uv) package manager
+
+### Installation
+
+1. Clone the repository:
+```bash
+git clone git@github.com:access-ci-org/ACCESS_Account_Backend.git
+cd ACCESS_Account_Backend
+```
+
+2. Install dependencies using uv:
+```bash
+uv sync
+```
+
+### Configuration
+
+The API requires several environment variables to be set. Create a `.env` file in the project root:
+
+```bash
+# Required: JWT secret key for signing tokens
+# Generate a secure random string (e.g., using: openssl rand -hex 32)
+JWT_SECRET_KEY=your-secure-secret-key-here
+
+# Optional: JWT configuration (defaults shown)
+JWT_ALGORITHM=HS256
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES=60
+JWT_ISSUER=https://account.access-ci.org
+JWT_AUDIENCE=https://account.access-ci.org
+
+# Optional: Application configuration
+DEBUG=false
+FRONTEND_URL=http://localhost:3000
+```
+
+**Important:** The `JWT_SECRET_KEY` is required and must be set. The application will fail to start without it.
+
+### Running the Development Server
+
+Start the development server:
+
+```bash
+uv run python main.py
+```
+
+The API will be available at `http://localhost:8000`.
+
+### API Documentation
+
+Once the server is running, you can access the interactive API documentation:
+
+- **Swagger UI**: http://localhost:8000/docs
+- **ReDoc**: http://localhost:8000/redoc
+- **OpenAPI JSON**: http://localhost:8000/openapi.json
+
+All API routes are prefixed with `/api/v1`.
+
 ## Authentication
 
 Users can authenticate to the Account API using two methods, which provide different levels of privilege:

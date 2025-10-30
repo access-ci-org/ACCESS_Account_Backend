@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, status
+from fastapi import FastAPI, APIRouter, Depends, status
 from fastapi.responses import JSONResponse, RedirectResponse
 from urllib.parse import urlencode
 
@@ -27,9 +27,12 @@ app = FastAPI(
     version="0.1.0",
 )
 
+# Create router with /api/v1 prefix
+router = APIRouter(prefix="/api/v1")
+
 
 # Auth Routes
-@app.post(
+@router.post(
     "/auth/send-otp",
     tags=["Authentication"],
     summary="Send OTP to email",
@@ -49,7 +52,7 @@ async def send_otp(request: SendOTPRequest):
     pass
 
 
-@app.post(
+@router.post(
     "/auth/verify-otp",
     response_model=JWTResponse,
     tags=["Authentication"],
@@ -83,7 +86,7 @@ async def verify_otp(request: VerifyOTPRequest):
     return JWTResponse(jwt=token)
 
 
-@app.post(
+@router.post(
     "/auth/login",
     tags=["Authentication"],
     summary="Start CILogon authentication",
@@ -102,7 +105,7 @@ async def start_login(request: LoginRequest):
     pass
 
 
-@app.get(
+@router.get(
     "/auth/login",
     tags=["Authentication"],
     summary="Complete CILogon authentication",
@@ -147,7 +150,7 @@ async def complete_login(token: str):
 
 
 # Account Routes
-@app.post(
+@router.post(
     "/account",
     tags=["Account"],
     summary="Create new account",
@@ -169,7 +172,7 @@ async def create_account(
     pass
 
 
-@app.get(
+@router.get(
     "/account/{username}",
     tags=["Account"],
     summary="Get account profile",
@@ -190,7 +193,7 @@ async def get_account(
     pass
 
 
-@app.post(
+@router.post(
     "/account/{username}",
     tags=["Account"],
     summary="Update account profile",
@@ -216,7 +219,7 @@ async def update_account(
     pass
 
 
-@app.post(
+@router.post(
     "/account/{username}/password",
     tags=["Account"],
     summary="Set or update password",
@@ -241,7 +244,7 @@ async def update_password(
 
 
 # Identity Routes
-@app.get(
+@router.get(
     "/account/{username}/identity",
     tags=["Identity"],
     summary="Get linked identities",
@@ -264,7 +267,7 @@ async def get_identities(
     pass
 
 
-@app.post(
+@router.post(
     "/account/{username}/identity",
     tags=["Identity"],
     summary="Link new identity",
@@ -288,7 +291,7 @@ async def link_identity(
     pass
 
 
-@app.delete(
+@router.delete(
     "/account/{username}/identity/{identity_id}",
     tags=["Identity"],
     summary="Delete linked identity",
@@ -315,7 +318,7 @@ async def delete_identity(
 
 
 # SSH Key Routes
-@app.get(
+@router.get(
     "/account/{username}/ssh-key",
     tags=["SSH Keys"],
     summary="Get SSH keys",
@@ -336,7 +339,7 @@ async def get_ssh_keys(
     pass
 
 
-@app.post(
+@router.post(
     "/account/{username}/ssh-key",
     tags=["SSH Keys"],
     summary="Add SSH key",
@@ -360,7 +363,7 @@ async def add_ssh_key(
     pass
 
 
-@app.delete(
+@router.delete(
     "/account/{username}/ssh-key/{key_id}",
     tags=["SSH Keys"],
     summary="Delete SSH key",
@@ -383,7 +386,7 @@ async def delete_ssh_key(
 
 
 # Reference Data Routes
-@app.get(
+@router.get(
     "/academic-status",
     tags=["Reference Data"],
     summary="Get academic statuses",
@@ -400,7 +403,7 @@ async def get_academic_statuses(
     pass
 
 
-@app.get(
+@router.get(
     "/country",
     tags=["Reference Data"],
     summary="Get countries",
@@ -417,7 +420,7 @@ async def get_countries(
     pass
 
 
-@app.get(
+@router.get(
     "/domain/{domain}",
     tags=["Reference Data"],
     summary="Get domain information",
@@ -437,6 +440,10 @@ async def get_domain_info(
 ):
     # TODO: Implement domain info retrieval logic
     pass
+
+
+# Include router in the app
+app.include_router(router)
 
 
 def main():

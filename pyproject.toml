@@ -1,0 +1,9 @@
+[project]
+name = "access-ci-account-api"
+version = "0.1.0"
+description = "API for ACCESS CI accounts and registration"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi[standard]>=0.120.2",
+]

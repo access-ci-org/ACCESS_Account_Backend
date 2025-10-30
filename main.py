@@ -21,18 +21,46 @@ from auth import (
 )
 from config import FRONTEND_URL
 
-app = FastAPI(title="ACCESS Account API")
+app = FastAPI(
+    title="ACCESS Account API",
+    description="API for ACCESS CI accounts and registration",
+    version="0.1.0",
+)
 
 
 # Auth Routes
-@app.post("/auth/send-otp")
+@app.post(
+    "/auth/send-otp",
+    tags=["Authentication"],
+    summary="Send OTP to email",
+    description="Send a one-time password (OTP) to the specified email, if it exists. "
+    "In order to avoid revealing whether the email has an associated account, "
+    "we send the OTP regardless of whether the domain is allowed by ACCESS. "
+    "Prohibited domains will be flagged after the user enters the OTP.",
+    responses={
+        200: {"description": "The OTP was sent"},
+        400: {
+            "description": "The OTP could not be sent (e.g., due to a malformed email address)"
+        },
+    },
+)
 async def send_otp(request: SendOTPRequest):
-    """Send a one-time password (OTP) to the specified email."""
     # TODO: Implement OTP sending logic
     pass
 
 
-@app.post("/auth/verify-otp", response_model=JWTResponse)
+@app.post(
+    "/auth/verify-otp",
+    response_model=JWTResponse,
+    tags=["Authentication"],
+    summary="Verify OTP",
+    description="Verify an OTP provided by the user.",
+    responses={
+        200: {"description": "The OTP is valid. Returns a JWT of type 'otp'"},
+        400: {"description": "The request body is malformed"},
+        403: {"description": "The OTP is invalid"},
+    },
+)
 async def verify_otp(request: VerifyOTPRequest):
     """Verify an OTP provided by the user."""
     # TODO: Implement actual OTP verification logic
@@ -55,14 +83,38 @@ async def verify_otp(request: VerifyOTPRequest):
     return JWTResponse(jwt=token)
 
 
-@app.post("/auth/login")
+@app.post(
+    "/auth/login",
+    tags=["Authentication"],
+    summary="Start CILogon authentication",
+    description="Start the CILogon authentication flow. "
+    "The preferred IDP can be included in the request body. "
+    "Otherwise, the user is prompted to select an IDP by CILogon.",
+    responses={
+        307: {"description": "Redirect to the CILogon URL to start the login process"},
+        400: {
+            "description": "The redirect could not be sent (e.g., due to a malformed email address)"
+        },
+    },
+)
 async def start_login(request: LoginRequest):
-    """Start the CILogon authentication flow."""
     # TODO: Implement CILogon flow initiation
     pass
 
 
-@app.get("/auth/login")
+@app.get(
+    "/auth/login",
+    tags=["Authentication"],
+    summary="Complete CILogon authentication",
+    description="Receive the CILogon token after a successful login, and redirect to the front end URL.",
+    responses={
+        307: {
+            "description": "Redirect to the account frontend URL with query string parameters: "
+            "jwt (a JWT of type 'login'), first_name (the given_name OIDC claim), "
+            "and last_name (the family_name OIDC claim)"
+        },
+    },
+)
 async def complete_login(token: str):
     """Receive the CILogon token after a successful login."""
     # TODO: Implement actual CILogon token handling
@@ -95,138 +147,294 @@ async def complete_login(token: str):
 
 
 # Account Routes
-@app.post("/account")
+@app.post(
+    "/account",
+    tags=["Account"],
+    summary="Create new account",
+    description="Create a new account.",
+    responses={
+        200: {"description": "The account was created"},
+        400: {
+            "description": "The input failed validation (e.g., the organization does not match "
+            "the e-mail domain or an account for that email address already exists)"
+        },
+        403: {"description": "The JWT is invalid"},
+    },
+)
 async def create_account(
     request: CreateAccountRequest,
     token: TokenPayload = Depends(require_otp_or_login),
 ):
-    """Create a new account."""
     # TODO: Implement account creation logic
     pass
 
 
-@app.get("/account/{username}")
+@app.get(
+    "/account/{username}",
+    tags=["Account"],
+    summary="Get account profile",
+    description="Get the profile for the given account.",
+    responses={
+        200: {"description": "Return the profile information for the user"},
+        403: {
+            "description": "The JWT is invalid or the user does not have permission to access the account"
+        },
+        404: {"description": "The requested user does not exist"},
+    },
+)
 async def get_account(
     username: str,
     token: TokenPayload = Depends(require_username_access),
 ):
-    """Get the profile for the given account."""
     # TODO: Implement account retrieval logic
     pass
 
 
-@app.post("/account/{username}")
+@app.post(
+    "/account/{username}",
+    tags=["Account"],
+    summary="Update account profile",
+    description="Update the profile information for an account. "
+    "If email is different from the email in the Authorization header, "
+    "a valid emailJWT of type 'otp' must be provided to prove that the user owns the new email address.",
+    responses={
+        200: {"description": "The account profile was updated"},
+        400: {
+            "description": "The input failed validation (e.g., the organization does not match the e-mail domain)"
+        },
+        403: {
+            "description": "The JWT is invalid or the user does not have permission to update the account"
+        },
+    },
+)
 async def update_account(
     username: str,
     request: UpdateAccountRequest,
     token: TokenPayload = Depends(require_username_access),
 ):
-    """Update the profile information for an account."""
     # TODO: Implement account update logic
     pass
 
 
-@app.post("/account/{username}/password")
+@app.post(
+    "/account/{username}/password",
+    tags=["Account"],
+    summary="Set or update password",
+    description="Set or update the password for the account in the ACCESS IDP.",
+    responses={
+        200: {"description": "The password was updated"},
+        400: {
+            "description": "The password does not conform to the ACCESS password policy"
+        },
+        403: {
+            "description": "The JWT is invalid or the user does not have permission to update the password"
+        },
+    },
+)
 async def update_password(
     username: str,
     request: UpdatePasswordRequest,
     token: TokenPayload = Depends(require_own_username_access),
 ):
-    """Set or update the password for the account in the ACCESS IDP."""
     # TODO: Implement password update logic
     pass
 
 
 # Identity Routes
-@app.get("/account/{username}/identity")
+@app.get(
+    "/account/{username}/identity",
+    tags=["Identity"],
+    summary="Get linked identities",
+    description="Get a list of identities associated with this account.",
+    responses={
+        200: {
+            "description": "Return the list of linked identities and associated IDPs"
+        },
+        403: {
+            "description": "The JWT is invalid or the user does not have permission to access the account"
+        },
+        404: {"description": "The requested user does not exist"},
+    },
+)
 async def get_identities(
     username: str,
     token: TokenPayload = Depends(require_username_access),
 ):
-    """Get a list of identities associated with this account."""
     # TODO: Implement identity retrieval logic
     pass
 
 
-@app.post("/account/{username}/identity")
+@app.post(
+    "/account/{username}/identity",
+    tags=["Identity"],
+    summary="Link new identity",
+    description="Start the process of linking a new identity. "
+    "Redirects to CILogon to start the linking flow.",
+    responses={
+        307: {
+            "description": "Redirect to CILogon to start the linking flow. "
+            "At the end of the flow, CILogon redirects back to /auth/login with the OIDC token"
+        },
+        403: {
+            "description": "The JWT is invalid or the user does not have permission to modify the account"
+        },
+    },
+)
 async def link_identity(
     username: str,
     token: TokenPayload = Depends(require_own_username_access),
 ):
-    """Start the process of linking a new identity."""
     # TODO: Implement identity linking flow
     pass
 
 
-@app.delete("/account/{username}/identity/{identity_id}")
+@app.delete(
+    "/account/{username}/identity/{identity_id}",
+    tags=["Identity"],
+    summary="Delete linked identity",
+    description="Delete a linked identity.",
+    responses={
+        200: {"description": "The linked identity was deleted"},
+        400: {
+            "description": "The specified identity cannot be deleted "
+            "(e.g., it is the last one associated with this account)"
+        },
+        403: {
+            "description": "The JWT is invalid or the user does not have permission to modify the account"
+        },
+        404: {"description": "The requested identity does not exist"},
+    },
+)
 async def delete_identity(
     username: str,
     identity_id: int,
     token: TokenPayload = Depends(require_own_username_access),
 ):
-    """Delete a linked identity."""
     # TODO: Implement identity deletion logic
     pass
 
 
 # SSH Key Routes
-@app.get("/account/{username}/ssh-key")
+@app.get(
+    "/account/{username}/ssh-key",
+    tags=["SSH Keys"],
+    summary="Get SSH keys",
+    description="Get a list of SSH keys associated with this account.",
+    responses={
+        200: {"description": "Return the list of linked SSH keys"},
+        403: {
+            "description": "The JWT is invalid or the user does not have permission to access the account"
+        },
+        404: {"description": "The requested user does not exist"},
+    },
+)
 async def get_ssh_keys(
     username: str,
     token: TokenPayload = Depends(require_username_access),
 ):
-    """Get a list of SSH keys associated with this account."""
     # TODO: Implement SSH key retrieval logic
     pass
 
 
-@app.post("/account/{username}/ssh-key")
+@app.post(
+    "/account/{username}/ssh-key",
+    tags=["SSH Keys"],
+    summary="Add SSH key",
+    description="Add a new SSH key to the account.",
+    responses={
+        200: {"description": "The key was added successfully"},
+        400: {
+            "description": "The provided key is not valid or is already associated with another account"
+        },
+        403: {
+            "description": "The JWT is invalid or the user does not have permission to modify the account"
+        },
+    },
+)
 async def add_ssh_key(
     username: str,
     request: AddSSHKeyRequest,
     token: TokenPayload = Depends(require_own_username_access),
 ):
-    """Add a new SSH key to the account."""
     # TODO: Implement SSH key addition logic
     pass
 
 
-@app.delete("/account/{username}/ssh-key/{key_id}")
+@app.delete(
+    "/account/{username}/ssh-key/{key_id}",
+    tags=["SSH Keys"],
+    summary="Delete SSH key",
+    description="Delete an SSH key.",
+    responses={
+        200: {"description": "The linked SSH key was deleted"},
+        403: {
+            "description": "The JWT is invalid or the user does not have permission to modify the account"
+        },
+        404: {"description": "The requested key does not exist"},
+    },
+)
 async def delete_ssh_key(
     username: str,
     key_id: int,
     token: TokenPayload = Depends(require_own_username_access),
 ):
-    """Delete an SSH key."""
     # TODO: Implement SSH key deletion logic
     pass
 
 
 # Reference Data Routes
-@app.get("/academic-status")
+@app.get(
+    "/academic-status",
+    tags=["Reference Data"],
+    summary="Get academic statuses",
+    description="Get a list of all possible academic statuses.",
+    responses={
+        200: {"description": "Return a list of possible academic statuses"},
+        403: {"description": "The JWT is invalid"},
+    },
+)
 async def get_academic_statuses(
     token: TokenPayload = Depends(require_otp_or_login),
 ):
-    """Get a list of all possible academic statuses."""
     # TODO: Implement academic status retrieval logic
     pass
 
 
-@app.get("/country")
+@app.get(
+    "/country",
+    tags=["Reference Data"],
+    summary="Get countries",
+    description="Get a list of all possible countries.",
+    responses={
+        200: {"description": "Return a list of possible countries"},
+        403: {"description": "The JWT is invalid"},
+    },
+)
 async def get_countries(
     token: TokenPayload = Depends(require_otp_or_login),
 ):
-    """Get a list of all possible countries."""
     # TODO: Implement country retrieval logic
     pass
 
 
-@app.get("/domain/{domain}")
+@app.get(
+    "/domain/{domain}",
+    tags=["Reference Data"],
+    summary="Get domain information",
+    description="Get information about an email domain, including whether it meets ACCESS eligibility criteria, "
+    "and associated organizations and IDPs, if any.",
+    responses={
+        200: {
+            "description": "Return lists of associated organizations and IDPs for the domain"
+        },
+        403: {"description": "The JWT is invalid"},
+        404: {"description": "The domain is not known to ACCESS/CILogon"},
+    },
+)
 async def get_domain_info(
     domain: str,
     token: TokenPayload = Depends(require_otp_or_login),
 ):
-    """Get information about an email domain."""
     # TODO: Implement domain info retrieval logic
     pass
 

@@ -34,3 +34,9 @@ class UpdatePasswordRequest(BaseModel):
 
 class AddSSHKeyRequest(BaseModel):
     publicKey: str
+
+
+class JWTResponse(BaseModel):
+    """Response model for JWT token."""
+
+    jwt: str

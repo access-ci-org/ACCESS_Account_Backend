@@ -1,6 +1,14 @@
 from fastapi import FastAPI, APIRouter, Depends, status
 from fastapi.responses import JSONResponse, RedirectResponse
 from urllib.parse import urlencode
+import httpx
+
+from config import (
+    IDENTITY_SERVICE_URL,
+    IDENTITY_SERVICE_STATUS_PATH,
+    XS_ACCESS_REQUESTER,
+    XS_ACCESS_API_KEY
+)
 
 from models import (
     SendOTPRequest,
@@ -399,8 +407,35 @@ async def delete_ssh_key(
 async def get_academic_statuses(
     token: TokenPayload = Depends(require_otp_or_login),
 ):
-    # TODO: Implement academic status retrieval logic
-    pass
+    url = f"{IDENTITY_SERVICE_URL}{IDENTITY_SERVICE_STATUS_PATH}"
+
+    headers = {
+        "XA-REQUESTER": XS_ACCESS_REQUESTER,
+        "XA-API-KEY": XS_ACCESS_API_KEY,
+    }
+
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(url, headers=headers)
+            response.raise_for_status()
+        except httpx.HTTPError as exc:
+            return JSONResponse(
+                status_code = 500,
+                content = {"error": f"Failed to fetch academic statuses: {str(exc)}"},  
+            )
+    
+    data = response.json()
+
+    transformed = {
+        "academicStatuses": [
+            {
+            "academicStatusId": item["nsfStatusCodeId"],
+            "name": item["nsfStatusCodeName"]
+            }
+            for item in data
+        ]
+    }
+    return JSONResponse(content = transformed)
 
 
 @router.get(

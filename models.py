@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-
+from typing import List
 
 class SendOTPRequest(BaseModel):
     email: str
@@ -40,3 +40,10 @@ class JWTResponse(BaseModel):
     """Response model for JWT token."""
 
     jwt: str
+
+class AcademicStatus(BaseModel):
+    academicStatusId: int
+    name: str
+
+class AcademicStatusResponse(BaseModel):
+    academicStatuses: List[AcademicStatus]

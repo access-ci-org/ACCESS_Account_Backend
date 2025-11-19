@@ -3,11 +3,12 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from urllib.parse import urlencode
 import httpx
 
+from services.identity_client import IdentityServiceClient
+
 from config import (
-    IDENTITY_SERVICE_URL,
-    IDENTITY_SERVICE_STATUS_PATH,
-    XS_ACCESS_REQUESTER,
-    XS_ACCESS_API_KEY
+    XRAS_IDENTITY_SERVICE_URL,
+    XRAS_IDENTITY_SERVICE_REQUESTER,
+    XRAS_IDENTITY_SERVICE_API_KEY
 )
 
 from models import (
@@ -19,6 +20,8 @@ from models import (
     UpdatePasswordRequest,
     AddSSHKeyRequest,
     JWTResponse,
+    AcademicStatus,
+    AcademicStatusResponse
 )
 from auth import (
     TokenPayload,
@@ -38,7 +41,7 @@ app = FastAPI(
 # Create router with /api/v1 prefix
 router = APIRouter(prefix="/api/v1")
 
-
+identity_client = IdentityServiceClient()
 # Auth Routes
 @router.post(
     "/auth/send-otp",
@@ -396,6 +399,7 @@ async def delete_ssh_key(
 # Reference Data Routes
 @router.get(
     "/academic-status",
+    response_model=AcademicStatusResponse,
     tags=["Reference Data"],
     summary="Get academic statuses",
     description="Get a list of all possible academic statuses.",
@@ -406,36 +410,18 @@ async def delete_ssh_key(
 )
 async def get_academic_statuses(
     token: TokenPayload = Depends(require_otp_or_login),
-):
-    url = f"{IDENTITY_SERVICE_URL}{IDENTITY_SERVICE_STATUS_PATH}"
+) -> AcademicStatusResponse:
+    raw = await identity_client.get_academic_statuses()
 
-    headers = {
-        "XA-REQUESTER": XS_ACCESS_REQUESTER,
-        "XA-API-KEY": XS_ACCESS_API_KEY,
-    }
+    transformed = [
+        AcademicStatus(
+            academicStatusId=item["nsfStatusCodeId"],
+            name=item["nsfStatusCodeName"],
+        )
+        for item in raw
+    ]
 
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.get(url, headers=headers)
-            response.raise_for_status()
-        except httpx.HTTPError as exc:
-            return JSONResponse(
-                status_code = 500,
-                content = {"error": f"Failed to fetch academic statuses: {str(exc)}"},  
-            )
-    
-    data = response.json()
-
-    transformed = {
-        "academicStatuses": [
-            {
-            "academicStatusId": item["nsfStatusCodeId"],
-            "name": item["nsfStatusCodeName"]
-            }
-            for item in data
-        ]
-    }
-    return JSONResponse(content = transformed)
+    return AcademicStatusResponse(academicStatuses=transformed)
 
 
 @router.get(

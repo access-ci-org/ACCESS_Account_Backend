@@ -452,10 +452,18 @@ async def get_countries(
     data = response.json()
 
     # This extracts only the country ID and name from each item.
-    print("Raw country response from identity service:", data)
+    transformed = {
+        "countries": [
+            {
+            "countryId": item["countryId"],
+            "countryName": item["countryName"]
+            }
+            for item in data
+        ]
+    }
 
     # Return the transformed list of countries back
-    return JSONResponse(content = data)
+    return JSONResponse(content = transformed)
 
 
 @router.get(

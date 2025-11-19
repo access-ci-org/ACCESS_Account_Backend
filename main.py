@@ -1,30 +1,40 @@
-from fastapi import FastAPI, APIRouter, Depends, status
-from fastapi.responses import JSONResponse, RedirectResponse
 from urllib.parse import urlencode
 
-from models import (
-    SendOTPRequest,
-    VerifyOTPRequest,
-    LoginRequest,
-    CreateAccountRequest,
-    UpdateAccountRequest,
-    UpdatePasswordRequest,
-    AddSSHKeyRequest,
-    JWTResponse,
-)
+from fastapi import APIRouter, Depends, FastAPI, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
+
 from auth import (
     TokenPayload,
     create_access_token,
     require_otp_or_login,
-    require_username_access,
     require_own_username_access,
+    require_username_access,
 )
-from config import FRONTEND_URL
+from config import CORS_ORIGINS, FRONTEND_URL
+from models import (
+    AddSSHKeyRequest,
+    CreateAccountRequest,
+    JWTResponse,
+    LoginRequest,
+    SendOTPRequest,
+    UpdateAccountRequest,
+    UpdatePasswordRequest,
+    VerifyOTPRequest,
+)
 
 app = FastAPI(
     title="ACCESS Account API",
     description="API for ACCESS CI accounts and registration",
     version="0.1.0",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Create router with /api/v1 prefix

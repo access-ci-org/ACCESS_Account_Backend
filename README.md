@@ -38,6 +38,7 @@ JWT_ISSUER=https://account.access-ci.org
 JWT_AUDIENCE=https://account.access-ci.org
 
 # Optional: Application configuration
+CORS_ORIGINS=http://localhost:3000,https://access-ci-org.github.io
 DEBUG=false
 FRONTEND_URL=http://localhost:3000
 ```

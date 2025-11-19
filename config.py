@@ -18,23 +18,12 @@ DEBUG: bool = config("DEBUG", cast=bool, default=False)
 FRONTEND_URL: str = config("FRONTEND_URL", default="http://localhost:3000")
 
 
-#Identity Service Configuration
-IDENTITY_SERVICE_URL: str = config(
-    "IDENTITY_SERVICE_URL",
-    default = "http://localhost:3007"
-)
-IDENTITY_SERVICE_STATUS_PATH: str = config(
-    "IDENTITY_SERVICE_STATUS_PATH",
-    default = "/profiles/v1/countries"
-)
+# Identity Service Configuration
+XRAS_IDENTITY_SERVICE_URL: str = config("XRAS_IDENTITY_SERVICE_URL")
 
-#Headers for identity service
-XS_ACCESS_REQUESTER: str = config(
-    "XS_ACCESS_REQUESTER",
-    default="XRAS"
-)
+# Fixed path for countries endpoint (not configurable via env)
+XRAS_IDENTITY_SERVICE_COUNTRIES_PATH = "/profiles/v1/countries"
 
-XS_ACCESS_API_KEY: str = config(
-    "XS_ACCESS_API_KEY",
-    default="xras-111"
-)
+# Headers for identity service
+XRAS_IDENTITY_SERVICE_ACCESS_REQUESTER: str = config("XRAS_IDENTITY_SERVICE_ACCESS_REQUESTER")
+XRAS_IDENTITY_SERVICE_ACCESS_API_KEY: str = config("XRAS_IDENTITY_SERVICE_ACCESS_API_KEY")

@@ -22,10 +22,10 @@ from auth import (
 )
 from config import (
     FRONTEND_URL,
-    XS_ACCESS_REQUESTER,
-    XS_ACCESS_API_KEY,
-    IDENTITY_SERVICE_STATUS_PATH,
-    IDENTITY_SERVICE_URL
+    XRAS_IDENTITY_SERVICE_ACCESS_REQUESTER,
+    XRAS_IDENTITY_SERVICE_ACCESS_API_KEY,
+    XRAS_IDENTITY_SERVICE_COUNTRIES_PATH,
+    XRAS_IDENTITY_SERVICE_URL
 )
 
 app = FastAPI(
@@ -425,13 +425,13 @@ async def get_countries(
 ):
     # Build the full URL for the external identity service endpoint
     # This combines the base service URL with the specific path for country data.
-    url = f"{IDENTITY_SERVICE_URL}{IDENTITY_SERVICE_STATUS_PATH}"
+    
+    url = f"{XRAS_IDENTITY_SERVICE_URL.rstrip('/')}{XRAS_IDENTITY_SERVICE_COUNTRIES_PATH}"
 
     # Prepare the headers required by the external identity service.
-    # These values come from .env configuration and authenticate the request.
     headers = {
-        "XA-REQUESTER": XS_ACCESS_REQUESTER, # Value pulled from .env
-        "XA-API-KEY": XS_ACCESS_API_KEY,# API Key 
+        "XA-REQUESTER": XRAS_IDENTITY_SERVICE_ACCESS_REQUESTER,
+        "XA-API-KEY": XRAS_IDENTITY_SERVICE_ACCESS_API_KEY,
     }
 
     # Create an asynchronous HTTP client to send the request
@@ -455,8 +455,8 @@ async def get_countries(
     transformed = {
         "countries": [
             {
-            "countryId": item["countryId"],
-            "countryName": item["countryName"]
+                "countryId": item["countryId"],
+                "countryName": item["countryName"]
             }
             for item in data
         ]

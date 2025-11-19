@@ -1,6 +1,7 @@
 from fastapi import FastAPI, APIRouter, Depends, status
 from fastapi.responses import JSONResponse, RedirectResponse
 from urllib.parse import urlencode
+import httpx # importing httpx library
 
 from models import (
     SendOTPRequest,
@@ -19,7 +20,13 @@ from auth import (
     require_username_access,
     require_own_username_access,
 )
-from config import FRONTEND_URL
+from config import (
+    FRONTEND_URL,
+    XS_ACCESS_REQUESTER,
+    XS_ACCESS_API_KEY,
+    IDENTITY_SERVICE_STATUS_PATH,
+    IDENTITY_SERVICE_URL
+)
 
 app = FastAPI(
     title="ACCESS Account API",
@@ -416,8 +423,39 @@ async def get_academic_statuses(
 async def get_countries(
     token: TokenPayload = Depends(require_otp_or_login),
 ):
-    # TODO: Implement country retrieval logic
-    pass
+    # Build the full URL for the external identity service endpoint
+    # This combines the base service URL with the specific path for country data.
+    url = f"{IDENTITY_SERVICE_URL}{IDENTITY_SERVICE_STATUS_PATH}"
+
+    # Prepare the headers required by the external identity service.
+    # These values come from .env configuration and authenticate the request.
+    headers = {
+        "XA-REQUESTER": XS_ACCESS_REQUESTER, # Value pulled from .env
+        "XA-API-KEY": XS_ACCESS_API_KEY,# API Key 
+    }
+
+    # Create an asynchronous HTTP client to send the request
+    async with httpx.AsyncClient() as client:
+        try:
+            # Send a GET request to the identity service with the headers created.
+            response = await client.get(url, headers=headers)
+            # If the response has an HTTP error status will raise an exception.
+            response.raise_for_status()
+        except httpx.HTTPError as exc:
+            # If anything goes wrong return a 500 error.
+            return JSONResponse(
+                status_code = 500,
+                content = {"error": f"Failed to fetch countries: {str(exc)}"},  
+            )
+    
+    # Parse the response JSON
+    data = response.json()
+
+    # This extracts only the country ID and name from each item.
+    print("Raw country response from identity service:", data)
+
+    # Return the transformed list of countries back
+    return JSONResponse(content = data)
 
 
 @router.get(

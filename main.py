@@ -2,6 +2,7 @@ from fastapi import FastAPI, APIRouter, Depends, status
 from fastapi.responses import JSONResponse, RedirectResponse
 from urllib.parse import urlencode
 import httpx # importing httpx library
+from services.identity_client import IdentityServiceClient # importing IdentityServiceClient
 
 from models import (
     SendOTPRequest,
@@ -12,6 +13,8 @@ from models import (
     UpdatePasswordRequest,
     AddSSHKeyRequest,
     JWTResponse,
+    Country,
+    CountriesResponse,
 )
 from auth import (
     TokenPayload,
@@ -22,10 +25,6 @@ from auth import (
 )
 from config import (
     FRONTEND_URL,
-    XRAS_IDENTITY_SERVICE_ACCESS_REQUESTER,
-    XRAS_IDENTITY_SERVICE_ACCESS_API_KEY,
-    XRAS_IDENTITY_SERVICE_COUNTRIES_PATH,
-    XRAS_IDENTITY_SERVICE_URL
 )
 
 app = FastAPI(
@@ -393,6 +392,8 @@ async def delete_ssh_key(
 
 
 # Reference Data Routes
+identity_client = IdentityServiceClient() # Instance of Client
+
 @router.get(
     "/academic-status",
     tags=["Reference Data"],
@@ -415,6 +416,7 @@ async def get_academic_statuses(
     tags=["Reference Data"],
     summary="Get countries",
     description="Get a list of all possible countries.",
+    response_model=CountriesResponse,
     responses={
         200: {"description": "Return a list of possible countries"},
         403: {"description": "The JWT is invalid"},
@@ -422,48 +424,30 @@ async def get_academic_statuses(
 )
 async def get_countries(
     token: TokenPayload = Depends(require_otp_or_login),
-):
-    # Build the full URL for the external identity service endpoint
-    # This combines the base service URL with the specific path for country data.
-    
-    url = f"{XRAS_IDENTITY_SERVICE_URL.rstrip('/')}{XRAS_IDENTITY_SERVICE_COUNTRIES_PATH}"
+) -> CountriesResponse:
+    # Try to fetch the country list from the Identity Service
+    try:
+        # Call the Identity Service client to get the countries
+        data = await identity_client.get_countries()
+    except httpx.HTTPError as exc:
+        # If the Identity Service fails (network error, timeout, etc.),
+        # return a 500 response with the error message
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Failed to fetch countries: {str(exc)}"},
+        )
 
-    # Prepare the headers required by the external identity service.
-    headers = {
-        "XA-REQUESTER": XRAS_IDENTITY_SERVICE_ACCESS_REQUESTER,
-        "XA-API-KEY": XRAS_IDENTITY_SERVICE_ACCESS_API_KEY,
-    }
+    # Convert the raw data from the service into Country model objects
+    countries = [
+        Country(
+            countryId=item["countryId"],   # The ID of the country
+            countryName=item["countryName"], # The name of the country
+        )
+        for item in data
+    ]
 
-    # Create an asynchronous HTTP client to send the request
-    async with httpx.AsyncClient() as client:
-        try:
-            # Send a GET request to the identity service with the headers created.
-            response = await client.get(url, headers=headers)
-            # If the response has an HTTP error status will raise an exception.
-            response.raise_for_status()
-        except httpx.HTTPError as exc:
-            # If anything goes wrong return a 500 error.
-            return JSONResponse(
-                status_code = 500,
-                content = {"error": f"Failed to fetch countries: {str(exc)}"},  
-            )
-    
-    # Parse the response JSON
-    data = response.json()
-
-    # This extracts only the country ID and name from each item.
-    transformed = {
-        "countries": [
-            {
-                "countryId": item["countryId"],
-                "countryName": item["countryName"]
-            }
-            for item in data
-        ]
-    }
-
-    # Return the transformed list of countries back
-    return JSONResponse(content = transformed)
+    # Return a response model containing the list of countries
+    return CountriesResponse(countries=countries)
 
 
 @router.get(

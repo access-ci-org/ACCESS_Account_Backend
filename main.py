@@ -19,6 +19,8 @@ from models import (
     UpdatePasswordRequest,
     AddSSHKeyRequest,
     JWTResponse,
+    Country,
+    CountriesResponse,
     AcademicStatus,
     AcademicStatusResponse
 )
@@ -29,7 +31,9 @@ from auth import (
     require_username_access,
     require_own_username_access,
 )
-from config import FRONTEND_URL
+from config import (
+    FRONTEND_URL,
+)
 
 app = FastAPI(
     title="ACCESS Account API",
@@ -396,6 +400,8 @@ async def delete_ssh_key(
 
 
 # Reference Data Routes
+identity_client = IdentityServiceClient() # Instance of Client
+
 @router.get(
     "/academic-status",
     response_model=AcademicStatusResponse,
@@ -428,6 +434,7 @@ async def get_academic_statuses(
     tags=["Reference Data"],
     summary="Get countries",
     description="Get a list of all possible countries.",
+    response_model=CountriesResponse,
     responses={
         200: {"description": "Return a list of possible countries"},
         403: {"description": "The JWT is invalid"},
@@ -435,10 +442,21 @@ async def get_academic_statuses(
 )
 async def get_countries(
     token: TokenPayload = Depends(require_otp_or_login),
-):
-    # TODO: Implement country retrieval logic
-    pass
+) -> CountriesResponse:
+    
+    # Call the Identity Service client to get the countries
+    data = await identity_client.get_countries()
 
+    # Convert the raw data from the service into Country model objects
+    return {
+        "countries": [
+            {
+                "countryId": item["countryId"],
+                "countryName": item["countryName"],
+            }
+            for item in data
+        ]
+    }
 
 @router.get(
     "/domain/{domain}",

@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "fastapi[standard]>=0.120.2",
+    "httpx>=0.28.1",
     "PyJWT>=2.8.0",
     "python-multipart>=0.0.9",
 ]

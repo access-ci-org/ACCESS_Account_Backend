@@ -23,4 +23,7 @@ class IdentityServiceClient:
 
     async def get_academic_statuses(self) -> list[dict]:
         return await self._request("GET", "/profiles/v1/nsf_status_codes")
+
+    async def get_countries(self) -> list[dict]:
+        return await self._request("GET", "/profiles/v1/countries")
         

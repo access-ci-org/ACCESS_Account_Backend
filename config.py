@@ -1,8 +1,14 @@
+import os
+
 from starlette.config import Config
 from starlette.datastructures import CommaSeparatedStrings, Secret
 
-# Load environment variables from .env file if it exists
-config = Config(".env")
+# If APP_CONFIG is set, use that as the path to the .env file, or default to .env
+env_file = os.getenv("APP_CONFIG", ".env")
+if "APP_CONFIG" in os.environ and not os.path.isfile(env_file):
+    raise FileNotFoundError(f"The configuration file specified in APP_CONFIG or the default .env does not exist: {env_file}")
+
+config = Config(env_file)
 
 # JWT Configuration
 JWT_SECRET_KEY: Secret = config("JWT_SECRET_KEY", cast=Secret)

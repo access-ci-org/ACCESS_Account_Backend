@@ -1,9 +1,29 @@
+from fastapi.responses import RedirectResponse
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi import APIRouter, Depends, FastAPI, status
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Depends, FastAPI, status
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from services.identity_client import IdentityServiceClient
 
+from config import (
+    XRAS_IDENTITY_SERVICE_BASE_URL,
+    XRAS_IDENTITY_SERVICE_REQUESTER,
+    XRAS_IDENTITY_SERVICE_KEY
+)
+
+from models import (
+    SendOTPRequest,
+    VerifyOTPRequest,
+    LoginRequest,
+    CreateAccountRequest,
+    UpdateAccountRequest,
+    UpdatePasswordRequest,
+    AddSSHKeyRequest,
+    JWTResponse,
+    CountriesResponse,
+    AcademicStatus,
+    AcademicStatusResponse
+)
 from auth import (
     TokenPayload,
     create_access_token,
@@ -12,16 +32,7 @@ from auth import (
     require_username_access,
 )
 from config import CORS_ORIGINS, FRONTEND_URL
-from models import (
-    AddSSHKeyRequest,
-    CreateAccountRequest,
-    JWTResponse,
-    LoginRequest,
-    SendOTPRequest,
-    UpdateAccountRequest,
-    UpdatePasswordRequest,
-    VerifyOTPRequest,
-)
+
 
 app = FastAPI(
     title="ACCESS Account API",
@@ -40,7 +51,7 @@ app.add_middleware(
 # Create router with /api/v1 prefix
 router = APIRouter(prefix="/api/v1")
 
-
+identity_client = IdentityServiceClient()
 # Auth Routes
 @router.post(
     "/auth/send-otp",
@@ -396,8 +407,11 @@ async def delete_ssh_key(
 
 
 # Reference Data Routes
+identity_client = IdentityServiceClient() # Instance of Client
+
 @router.get(
     "/academic-status",
+    response_model=AcademicStatusResponse,
     tags=["Reference Data"],
     summary="Get academic statuses",
     description="Get a list of all possible academic statuses.",
@@ -408,9 +422,18 @@ async def delete_ssh_key(
 )
 async def get_academic_statuses(
     token: TokenPayload = Depends(require_otp_or_login),
-):
-    # TODO: Implement academic status retrieval logic
-    pass
+) -> AcademicStatusResponse:
+    raw = await identity_client.get_academic_statuses()
+
+    transformed = [
+        AcademicStatus(
+            academicStatusId=item["nsfStatusCodeId"],
+            name=item["nsfStatusCodeName"],
+        )
+        for item in raw
+    ]
+
+    return AcademicStatusResponse(academicStatuses=transformed)
 
 
 @router.get(
@@ -418,6 +441,7 @@ async def get_academic_statuses(
     tags=["Reference Data"],
     summary="Get countries",
     description="Get a list of all possible countries.",
+    response_model=CountriesResponse,
     responses={
         200: {"description": "Return a list of possible countries"},
         403: {"description": "The JWT is invalid"},
@@ -425,10 +449,21 @@ async def get_academic_statuses(
 )
 async def get_countries(
     token: TokenPayload = Depends(require_otp_or_login),
-):
-    # TODO: Implement country retrieval logic
-    pass
+) -> CountriesResponse:
+    
+    # Call the Identity Service client to get the countries
+    data = await identity_client.get_countries()
 
+    # Convert the raw data from the service into Country model objects
+    return {
+        "countries": [
+            {
+                "countryId": item["countryId"],
+                "countryName": item["countryName"],
+            }
+            for item in data
+        ]
+    }
 
 @router.get(
     "/domain/{domain}",

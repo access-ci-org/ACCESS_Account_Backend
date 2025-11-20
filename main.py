@@ -1,7 +1,6 @@
 from fastapi import FastAPI, APIRouter, Depends, status
 from fastapi.responses import JSONResponse, RedirectResponse
 from urllib.parse import urlencode
-import httpx # importing httpx library
 from services.identity_client import IdentityServiceClient # importing IdentityServiceClient
 
 from models import (
@@ -425,30 +424,20 @@ async def get_academic_statuses(
 async def get_countries(
     token: TokenPayload = Depends(require_otp_or_login),
 ) -> CountriesResponse:
-    # Try to fetch the country list from the Identity Service
-    try:
-        # Call the Identity Service client to get the countries
-        data = await identity_client.get_countries()
-    except httpx.HTTPError as exc:
-        # If the Identity Service fails (network error, timeout, etc.),
-        # return a 500 response with the error message
-        return JSONResponse(
-            status_code=500,
-            content={"error": f"Failed to fetch countries: {str(exc)}"},
-        )
+    
+    # Call the Identity Service client to get the countries
+    data = await identity_client.get_countries()
 
     # Convert the raw data from the service into Country model objects
-    countries = [
-        Country(
-            countryId=item["countryId"],   # The ID of the country
-            countryName=item["countryName"], # The name of the country
-        )
-        for item in data
-    ]
-
-    # Return a response model containing the list of countries
-    return CountriesResponse(countries=countries)
-
+    return {
+        "countries": [
+            {
+                "countryId": item["countryId"],
+                "countryName": item["countryName"],
+            }
+            for item in data
+        ]
+    }
 
 @router.get(
     "/domain/{domain}",

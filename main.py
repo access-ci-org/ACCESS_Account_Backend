@@ -1,14 +1,13 @@
 from fastapi import FastAPI, APIRouter, Depends, status
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import RedirectResponse
 from urllib.parse import urlencode
-import httpx
 
 from services.identity_client import IdentityServiceClient
 
 from config import (
-    XRAS_IDENTITY_SERVICE_URL,
+    XRAS_IDENTITY_SERVICE_BASE_URL,
     XRAS_IDENTITY_SERVICE_REQUESTER,
-    XRAS_IDENTITY_SERVICE_API_KEY
+    XRAS_IDENTITY_SERVICE_KEY
 )
 
 from models import (

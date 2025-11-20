@@ -1,23 +1,26 @@
 import httpx
 from config import (
-    XRAS_IDENTITY_SERVICE_URL,
+    XRAS_IDENTITY_SERVICE_BASE_URL,
     XRAS_IDENTITY_SERVICE_REQUESTER,
-    XRAS_IDENTITY_SERVICE_API_KEY,
+    XRAS_IDENTITY_SERVICE_KEY,
 )
 
 class IdentityServiceClient:
     def __init__(self):
-        self.base_url = XRAS_IDENTITY_SERVICE_URL
+        self.base_url = XRAS_IDENTITY_SERVICE_BASE_URL
         self.headers = {
             "XA-REQUESTER": XRAS_IDENTITY_SERVICE_REQUESTER,
-            "XA-API-KEY": XRAS_IDENTITY_SERVICE_API_KEY,
+            "XA-API-KEY": XRAS_IDENTITY_SERVICE_KEY,
         }
-
-    async def get_academic_statuses(self) -> list[dict]:
-        url = f"{self.base_url}/profiles/v1/nsf_status_codes"
+    
+    async def _request(self, method: str, path: str) -> dict | list:
+        url = f"{self.base_url}{path}"
 
         async with httpx.AsyncClient() as client:
-            resp = await client.get(url, headers = self.headers)
+            resp = await client.request(method, url, headers=self.headers)
             resp.raise_for_status()
             return resp.json()
+
+    async def get_academic_statuses(self) -> list[dict]:
+        return await self._request("GET", "/profiles/v1/nsf_status_codes")
         

@@ -46,7 +46,6 @@ class Country(BaseModel):
     countryId: int
     countryName: str
 
-
 class CountriesResponse(BaseModel):
     countries: List[Country]
 
@@ -56,3 +55,11 @@ class AcademicStatus(BaseModel):
 
 class AcademicStatusResponse(BaseModel):
     academicStatuses: List[AcademicStatus]
+
+class Domain(BaseModel):
+    domain: str
+    organizations: list[str]
+    idps: list[str]
+
+class DomainResponse(BaseModel):
+    domain: Domain

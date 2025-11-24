@@ -31,7 +31,8 @@ from models import (
     JWTResponse,
     CountriesResponse,
     AcademicStatus,
-    AcademicStatusResponse
+    AcademicStatusResponse,
+    DomainResponse
 )
 
 from auth import (
@@ -576,6 +577,7 @@ async def get_countries(
     summary="Get domain information",
     description="Get information about an email domain, including whether it meets ACCESS eligibility criteria, "
     "and associated organizations and IDPs, if any.",
+    response_model=DomainResponse,
     responses={
         200: {
             "description": "Return lists of associated organizations and IDPs for the domain"
@@ -587,10 +589,24 @@ async def get_countries(
 async def get_domain_info(
     domain: str,
     token: TokenPayload = Depends(require_otp_or_login),
-):
-    # TODO: Implement domain info retrieval logic
-    pass
+) -> DomainResponse:
 
+    # Call the Identity Service client to get the domain information
+    domain_data = await identity_client.get_domain_info(domain)
+
+    print(domain_data)
+
+    # Convert the raw data from the service into Domain model objects
+    return {
+        "domain": [
+            {
+                "domain": domain_item["domain"],
+                "organization": domain_item["organization"],
+                "idps": domain_item["idps"],
+            }
+            for domain_item in domain_data
+        ]
+    }
 
 # Include router in the app
 app.include_router(router)

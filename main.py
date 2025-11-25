@@ -2,10 +2,12 @@ from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import APIRouter, Depends, FastAPI, status, HTTPException
 from urllib.parse import urlencode
+import string
 
 from services.identity_client import IdentityServiceClient
 from services.email_service import send_otp_email_inline
 from services.otp_service import generate_otp, store_otp
+from services.otp_service import verify_stored_otp
 
 from config import (
     XRAS_IDENTITY_SERVICE_BASE_URL,
@@ -103,15 +105,18 @@ async def send_otp(request: SendOTPRequest):
 )
 async def verify_otp(request: VerifyOTPRequest):
     """Verify an OTP provided by the user."""
-    # TODO: Implement actual OTP verification logic
-    # For now, this is a placeholder that assumes the OTP is valid
+    # Validate format
+    email = request.email.lower().strip()
+    otp = request.otp.strip()
 
-    # Verify the OTP (placeholder - implement actual verification)
-    # In production, this should:
-    # 1. Check if the OTP exists and matches the email
-    # 2. Verify the OTP hasn't expired
-    # 3. Verify the OTP hasn't been used already
-    # 4. Return 403 if invalid
+    if "@" not in email:
+        raise HTTPException(400, "Invalid email")
+    
+    if len(otp) != 6 or not all(c in (string.ascii_lowercase + string.digits) for c in otp):
+        raise HTTPException(400, "Invalid OTP format")
+    
+    # Verify against stored OTP
+    verify_stored_otp(email, otp)
 
     # Create a JWT token of type "otp"
     token = create_access_token(

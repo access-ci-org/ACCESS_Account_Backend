@@ -30,3 +30,8 @@ FRONTEND_URL: str = config("FRONTEND_URL", default="http://localhost:3000")
 XRAS_IDENTITY_SERVICE_BASE_URL: str = config("XRAS_IDENTITY_SERVICE_BASE_URL")
 XRAS_IDENTITY_SERVICE_REQUESTER: str = config("XRAS_IDENTITY_SERVICE_REQUESTER")
 XRAS_IDENTITY_SERVICE_KEY: str = config("XRAS_IDENTITY_SERVICE_KEY")
+
+# AWS SES Configuration
+AWS_REGION: str = config("AWS_REGION", default="us-east-2")
+AWS_ACCESS_KEY: Secret = config("AWS_ACCESS_KEY", cast=Secret)
+AWS_SECRET_ACCESS_KEY: Secret = config("AWS_SECRET_ACCESS_KEY", cast=Secret)

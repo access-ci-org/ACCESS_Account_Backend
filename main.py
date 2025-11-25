@@ -1,14 +1,16 @@
 from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi import APIRouter, Depends, FastAPI, status
+from fastapi import APIRouter, Depends, FastAPI, status, HTTPException
 from urllib.parse import urlencode
 
 from services.identity_client import IdentityServiceClient
+from services.email_service import send_otp_email_inline
+from services.otp_service import generate_otp, store_otp
 
 from config import (
     XRAS_IDENTITY_SERVICE_BASE_URL,
     XRAS_IDENTITY_SERVICE_REQUESTER,
-    XRAS_IDENTITY_SERVICE_KEY
+    XRAS_IDENTITY_SERVICE_KEY,
 )
 
 from models import (
@@ -52,6 +54,7 @@ app.add_middleware(
 router = APIRouter(prefix="/api/v1")
 
 identity_client = IdentityServiceClient()
+
 # Auth Routes
 @router.post(
     "/auth/send-otp",
@@ -69,7 +72,20 @@ identity_client = IdentityServiceClient()
     },
 )
 async def send_otp(request: SendOTPRequest):
-    # TODO: Implement OTP sending logic
+    email = request.email.lower().strip()
+
+    if "@" not in email:
+        raise HTTPException(400, "Invalid email")
+
+    otp = generate_otp()
+    store_otp(email, otp)
+
+    try:
+        send_otp_email_inline(email, otp)
+    except Exception as e:
+        print("SES error:", e)
+
+    return {"message": "The OTP was sent"}
     pass
 
 

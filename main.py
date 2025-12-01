@@ -3,9 +3,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi import APIRouter, Depends, FastAPI, status, HTTPException
 from urllib.parse import urlencode
 import string
+import logging 
+from botocore.exceptions import ClientError
 
 from services.identity_client import IdentityServiceClient
-from services.email_service import send_otp_email_inline
+from services.email_service import send_verification_email, ses
 from services.otp_service import generate_otp, store_otp
 from services.otp_service import verify_stored_otp
 
@@ -37,6 +39,17 @@ from auth import (
 )
 from config import CORS_ORIGINS, FRONTEND_URL
 
+# Config logging
+logger = logging.getLogger("access_account_api")
+logger.setLevel(logging.INFO)
+
+handler = logging.StreamHandler()
+formatter = logging.Formatter(
+    "%(asctime)s - %(levelname)s - %(name)s - %(message)s"
+)
+
+handler.setFormatter(formatter)
+logger.addHandler(handler)
 
 app = FastAPI(
     title="ACCESS Account API",
@@ -77,20 +90,53 @@ async def send_otp(request: SendOTPRequest):
     email = request.email.lower().strip()
 
     if "@" not in email:
+        logger.warning(f"Rejected OTP request due to invalid email format: {email}")
         raise HTTPException(400, "Invalid email")
 
     otp = generate_otp()
     store_otp(email, otp)
 
     try:
-        send_otp_email_inline(email, otp)
+        resp = send_verification_email(email, otp)
+        message_id = resp.get("MessageId")
+
+        logger.info(f"Verification email sent successfully: {email}, Message ID: {message_id}")
+
+        return {"success": True}
+    
+    except ses.exceptions.MessageRejected:
+        logger.error(f"SES MessageRejected for email={email}")
+        raise HTTPException(400, "Email was rejected by SES")
+
+    except ses.exceptions.MailFromDomainNotVerifiedException:
+        logger.error(f"SES MailFromDomainNotVerifiedException for email={email}")
+        raise HTTPException(400, "Sender domain is not verified in SES")
+
+    except ses.exceptions.ConfigurationSetDoesNotExistException:
+        logger.error(f"SES ConfigurationSetDoesNotExistException for email={email}")
+        raise HTTPException(400, "SES configuration set does not exist")
+
+    except ses.exceptions.ConfigurationSetSendingPausedException:
+        logger.error(f"SES ConfigurationSetSendingPausedException for email={email}")
+        raise HTTPException(400, "SES configuration set sending is paused")
+
+    except ses.exceptions.AccountSendingPausedException:
+        logger.error(f"SES AccountSendingPausedException for email={email}")
+        raise HTTPException(400, "SES account sending is paused")
+
+    except ses.exceptions.InvalidParameterValue:
+        logger.error(f"SES InvalidParameterValue for email={email}")
+        raise HTTPException(400, "Invalid email or SES parameter value")
+
+    except ClientError as e:
+        code = e.response["Error"]["Code"]
+        logger.exception(f"Unexpected SES error for email={email}: {code}")
+        raise HTTPException(400, f"Email send failed: {code}")
+
     except Exception as e:
-        print("SES error:", e)
-
-    return {"message": "The OTP was sent"}
-    pass
-
-
+        logger.exception(f"Unexpected error sending verification email to {email}")
+        raise HTTPException(400, "Unexpected error sending email")
+    
 @router.post(
     "/auth/verify-otp",
     response_model=JWTResponse,
@@ -110,9 +156,11 @@ async def verify_otp(request: VerifyOTPRequest):
     otp = request.otp.strip()
 
     if "@" not in email:
+        logger.warning(f"Rejected OTP verification due to invalid email format: {email}")
         raise HTTPException(400, "Invalid email")
     
     if len(otp) != 6 or not all(c in (string.ascii_lowercase + string.digits) for c in otp):
+        logger.warning(f"Rejected OTP verification due to invalid OTP format: {otp} for email: {email}")
         raise HTTPException(400, "Invalid OTP format")
     
     # Verify against stored OTP
@@ -125,6 +173,7 @@ async def verify_otp(request: VerifyOTPRequest):
         username=None,  # OTP tokens don't have a username yet
     )
 
+    logger.info(f"OTP verified successfully for email={email}")
     return JWTResponse(jwt=token)
 
 

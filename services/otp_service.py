@@ -1,19 +1,29 @@
-import string, random
+import string
+import secrets
 from datetime import datetime, timedelta, timezone
 from argon2 import PasswordHasher
 from fastapi import HTTPException
+import logging
+
+from argon2.exceptions import (
+    VerifyMismatchError,
+    VerificationError,
+    InvalidHash,
+)
+
+logger = logging.getLogger("access_account_api.otp")
 
 OTP_STORE = {}
 ph = PasswordHasher()
 
 def generate_otp(length=6):
     chars = string.ascii_lowercase + string.digits
-    return "".join(random.choice(chars) for _ in range(length))
+    return "".join(secrets.choice(chars) for _ in range(length))
 
 def store_otp(email, otp):
     OTP_STORE[email] = {
         "hash": ph.hash(otp),
-        "timestamp": datetime.now(timezone.utc).isoformat()
+        "timestamp": datetime.now(timezone.utc)
     }
 
 def verify_stored_otp(email: str, submitted_otp: str) -> None:
@@ -25,23 +35,45 @@ def verify_stored_otp(email: str, submitted_otp: str) -> None:
 
     entry = OTP_STORE.get(email)
     if not entry:
-        raise HTTPException(status_code=403, detail="Invalid OTP")
+        logger.warning(f"OTP verification failed: no OTP found for email={email}")
+        raise HTTPException(status_code=403, detail="Invalid verification code")
     
     # Expiration check (30 minutes)
-    sent_time = datetime.fromisoformat(entry["timestamp"]).astimezone(timezone.utc)
-    expiration_time = sent_time + timedelta(minutes=1)
+    sent_time: datetime = entry["timestamp"]
+    expiration_time = sent_time + timedelta(minutes=30)
     
     if datetime.now(timezone.utc) > expiration_time:
         del OTP_STORE[email]
-        raise HTTPException(status_code=403, detail="OTP has expired")    
+        logger.warning(f"OTP verification failed: OTP expired for email={email}")
+        raise HTTPException(status_code=403, detail="Verification code has expired. Please request a new one.")    
     
     # Verify OTP
     try:
         ph.verify(entry['hash'], submitted_otp)
-    except Exception:
-        # Delete OTP after verification attempt fails
+        logger.info(f"OTP verification succeeded for email={email}")
+    except VerifyMismatchError:
+        # Wrong OTP but valid hash
         del OTP_STORE[email]
-        raise HTTPException(status_code=403, detail="Invalid OTP")
+        logger.warning(f"OTP mismatch for email={email}")
+        raise HTTPException(403, "Invalid verification code")
+
+    except InvalidHash:
+        # Stored hash is corrupted (should never happen unless storage corrupted)
+        del OTP_STORE[email]
+        logger.error(f"OTP verification failed due to invalid hash for email={email}")
+        raise HTTPException(403, "Verification system error. Please request a new code.")
+
+    except VerificationError:
+        # Other argon2 internal error
+        del OTP_STORE[email]
+        logger.exception(f"General Argon2 verification error for email={email}")
+        raise HTTPException(403, "Verification failed. Please request a new code.")
+
+    except Exception as e:
+        # Unexpected issue
+        del OTP_STORE[email]
+        logger.exception(f"Unexpected OTP verification error for email={email}: {e}")
+        raise HTTPException(403, "Invalid verification code")
     
     # Delete OTP after successful verification
-    del OTP_STORE[email]
+    del OTP_STORE.pop(email, None)

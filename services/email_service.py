@@ -1,5 +1,9 @@
 import boto3
+from botocore.exceptions import ClientError
+import logging
 from config import AWS_REGION, AWS_ACCESS_KEY, AWS_SECRET_ACCESS_KEY
+
+logger = logging.getLogger("access_account_api.email")
 
 ses = boto3.client(
     "ses",
@@ -8,13 +12,13 @@ ses = boto3.client(
     aws_secret_access_key=str(AWS_SECRET_ACCESS_KEY),
 )
 
-def send_otp_email_inline(email, otp):
+def send_verification_email(email, otp):
     html = f"""
       <!DOCTYPE html>
         <html>
             <head>
                 <meta charset="UTF-8" />
-                <title>ACCESS One-Time Password</title>
+                <title>ACCESS Verification Code</title>
             </head>
             <body style="margin:0; padding:0; background-color:#f5f7fa; font-family:Arial, sans-serif; color:#2d2d2d;">
 
@@ -37,7 +41,7 @@ def send_otp_email_inline(email, otp):
                             </p>
 
                             <p style="font-size:16px; margin:16px 0; line-height:1.5; text-align:center;">
-                            Use the following one-time password (OTP) to continue signing in to your ACCESS Account.
+                            Use the following verification code to continue signing in to your ACCESS Account. This code is valid for 30 minutes.
                             </p>
                             
                             <div style="text-align:center; margin-top:16px;">
@@ -77,19 +81,21 @@ def send_otp_email_inline(email, otp):
             </body>
         </html>
         """
-
-    resp = ses.send_email(
-        Source="allocations@access-ci.org",
-        Destination={"ToAddresses": [email]},
-        Message={
-            "Subject": {"Data": "Your ACCESS OTP"},
-            "Body": {
-                "Html": {"Data": html},
-                "Text": {"Data": f"Your ACCESS OTP is {otp}"},
+    try:
+        resp = ses.send_email(
+            Source="allocations@access-ci.org",
+            Destination={"ToAddresses": [email]},
+            Message={
+                "Subject": {"Data": "Your ACCESS Email Verification Code"},
+                "Body": {
+                    "Html": {"Data": html},
+                    "Text": {"Data": f"Your verification code is: {otp}"},
+                },
             },
-        },
-    )
+        )
 
-    #print("SES Message ID:", resp.get("MessageId")) For testing purposes
-    return resp
-
+        #print("SES Message ID:", resp.get("MessageId")) For testing purposes
+        return resp
+    except ClientError as e:
+        logger.exception(f"SES ClientError when sending verification email to {email}")
+        raise e 

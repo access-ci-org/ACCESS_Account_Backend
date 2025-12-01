@@ -50,7 +50,6 @@ def verify_stored_otp(email: str, submitted_otp: str) -> None:
     # Verify OTP
     try:
         ph.verify(entry['hash'], submitted_otp)
-        logger.info(f"OTP verification succeeded for email={email}")
     except VerifyMismatchError:
         # Wrong OTP but valid hash
         del OTP_STORE[email]
@@ -76,4 +75,4 @@ def verify_stored_otp(email: str, submitted_otp: str) -> None:
         raise HTTPException(403, "Invalid verification code")
     
     # Delete OTP after successful verification
-    del OTP_STORE.pop(email, None)
+    OTP_STORE.pop(email, None)

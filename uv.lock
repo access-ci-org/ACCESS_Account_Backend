@@ -15,6 +15,7 @@ dependencies = [
     { name = "boto3" },
     { name = "fastapi", extra = ["standard"] },
     { name = "httpx" },
+    { name = "jinja2" },
     { name = "pyjwt" },
     { name = "python-multipart" },
 ]
@@ -25,6 +26,7 @@ requires-dist = [
     { name = "boto3", specifier = ">=1.41.2" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.120.2" },
     { name = "httpx", specifier = ">=0.28.1" },
+    { name = "jinja2", specifier = ">=3.1.6" },
     { name = "pyjwt", specifier = ">=2.8.0" },
     { name = "python-multipart", specifier = ">=0.0.9" },
 ]

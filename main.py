@@ -132,10 +132,6 @@ async def send_otp(request: SendOTPRequest):
         code = e.response["Error"]["Code"]
         logger.exception(f"Unexpected SES error for email={email}: {code}")
         raise HTTPException(400, f"Email send failed: {code}")
-
-    except Exception as e:
-        logger.exception(f"Unexpected error sending verification email to {email}")
-        raise HTTPException(400, "Unexpected error sending email")
     
 @router.post(
     "/auth/verify-otp",

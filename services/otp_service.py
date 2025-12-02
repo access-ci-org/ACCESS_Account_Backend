@@ -11,12 +11,14 @@ from argon2.exceptions import (
     InvalidHash,
 )
 
+from config import OTP_CHARACTER_LENGTH, OTP_LIFETIME_MINUTES
+
 logger = logging.getLogger("access_account_api.otp")
 
 OTP_STORE = {}
 ph = PasswordHasher()
 
-def generate_otp(length=6):
+def generate_otp(length: int = OTP_CHARACTER_LENGTH) -> str:
     chars = string.ascii_lowercase + string.digits
     return "".join(secrets.choice(chars) for _ in range(length))
 
@@ -40,7 +42,7 @@ def verify_stored_otp(email: str, submitted_otp: str) -> None:
     
     # Expiration check (30 minutes)
     sent_time: datetime = entry["timestamp"]
-    expiration_time = sent_time + timedelta(minutes=30)
+    expiration_time = sent_time + timedelta(minutes=OTP_LIFETIME_MINUTES)
     
     if datetime.now(timezone.utc) > expiration_time:
         del OTP_STORE[email]

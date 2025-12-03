@@ -69,12 +69,6 @@ def verify_stored_otp(email: str, submitted_otp: str) -> None:
         del OTP_STORE[email]
         logger.exception(f"General Argon2 verification error for email={email}")
         raise HTTPException(403, "Verification failed. Please request a new code.")
-
-    except Exception as e:
-        # Unexpected issue
-        del OTP_STORE[email]
-        logger.exception(f"Unexpected OTP verification error for email={email}: {e}")
-        raise HTTPException(403, "Invalid verification code")
     
     # Delete OTP after successful verification
     OTP_STORE.pop(email, None)

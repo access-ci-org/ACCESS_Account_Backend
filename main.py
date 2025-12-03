@@ -11,12 +11,6 @@ from services.email_service import send_verification_email, ses
 from services.otp_service import generate_otp, store_otp
 from services.otp_service import verify_stored_otp
 
-from config import (
-    XRAS_IDENTITY_SERVICE_BASE_URL,
-    XRAS_IDENTITY_SERVICE_REQUESTER,
-    XRAS_IDENTITY_SERVICE_KEY,
-)
-
 from models import (
     SendOTPRequest,
     VerifyOTPRequest,

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.2.0...v0.3.0) (2025-12-03)
+
+
+### Features
+
+* send and verify OTPs ([781afc4](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/781afc45de4249389924609a0e7b6e232d64e92f))
+
 ## [0.2.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.1.0...v0.2.0) (2025-11-19)
 
 

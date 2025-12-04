@@ -147,3 +147,9 @@ cython_debug/
 Thumbs.db
 
 scratch/
+
+# DB
+otp_database.db
+*.sqlite
+*.sqlite3
+*.db

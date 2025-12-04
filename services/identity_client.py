@@ -28,7 +28,10 @@ class IdentityServiceClient:
         return await self._request("GET", "/profiles/v1/countries")
 
     async def get_domain(self, domain: str) -> dict:
-        return await self._request("GET", f"/profiles/v1/domain/{domain}")
+        return await self._request(
+        "GET",
+        f"/profiles/v1/organizations?domain={domain}",
+    )
 
     
         

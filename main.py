@@ -5,11 +5,17 @@ from urllib.parse import urlencode
 import string
 import logging 
 from botocore.exceptions import ClientError
+from contextlib import asynccontextmanager
+from fastapi_utilities import repeat_every
 
 from services.identity_client import IdentityServiceClient
 from services.email_service import send_verification_email, ses
-from services.otp_service import generate_otp, store_otp
-from services.otp_service import verify_stored_otp
+from services.otp_service import (
+    generate_otp, 
+    store_otp, 
+    verify_stored_otp,
+    clear_expired_otps,
+)
 
 from models import (
     SendOTPRequest,
@@ -45,11 +51,24 @@ formatter = logging.Formatter(
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 
+# Cron job to clear expired OTPs every minute
+@repeat_every(seconds=60, wait_first=True)
+async def clear_expired_otps_task() -> None:
+    removed = clear_expired_otps()
+    if removed:
+        logger.info("Cron Job removed %d expired OTPs", removed)
+
+
+
 app = FastAPI(
     title="ACCESS Account API",
     description="API for ACCESS CI accounts and registration",
     version="0.1.0",
 )
+
+# Repeat every 30 minutes: clear expired OTPs
+
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -545,7 +564,6 @@ async def get_domain_info(
 ):
     # TODO: Implement domain info retrieval logic
     pass
-
 
 # Include router in the app
 app.include_router(router)

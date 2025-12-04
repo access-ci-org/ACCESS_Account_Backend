@@ -72,3 +72,27 @@ def verify_stored_otp(email: str, submitted_otp: str) -> None:
     
     # Delete OTP after successful verification
     OTP_STORE.pop(email, None)
+
+
+def clear_expired_otps():
+    """ Remove any OTPs entries older than OTP_LIFETIME_MINUTES from OTP_STORE """
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(minutes=OTP_LIFETIME_MINUTES)
+
+    expired_emails: list[str] = [
+        email
+        for email, entry in list(OTP_STORE.items())
+        if entry["timestamp"] < cutoff
+    ]
+
+    for email in expired_emails:
+        OTP_STORE.pop(email, None)
+
+    if expired_emails:
+        logger.info(
+            "Cleared %d expired OTP(s): %s",
+            len(expired_emails),
+            ", ".join(expired_emails),
+        )
+
+    return len(expired_emails)

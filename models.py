@@ -58,8 +58,11 @@ class AcademicStatusResponse(BaseModel):
 
 class Domain(BaseModel):
     domain: str
-    organizations: list[str]
-    idps: list[str]
+    organizations: List[str]
+    idps: List[str]
+
 
 class DomainResponse(BaseModel):
-    domain: Domain
+    domain: str
+    organizations: List[str]
+    idps: List[str]

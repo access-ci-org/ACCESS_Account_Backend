@@ -40,3 +40,6 @@ AWS_SES_SENDER_EMAIL: str = config("AWS_SES_SENDER_EMAIL", default="allocations@
 # OTP Configuration
 OTP_CHARACTER_LENGTH: int = config("OTP_CHARACTER_LENGTH", cast=int, default=6)
 OTP_LIFETIME_MINUTES: int = config("OTP_LIFETIME_MINUTES", cast=int, default=30)
+
+# Database Configuration
+DATABASE_URL: str = config("DATABASE_URL", default="sqlite:///./otp_database.db")

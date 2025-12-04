@@ -3,13 +3,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi import APIRouter, Depends, FastAPI, status, HTTPException
 from urllib.parse import urlencode
 import string
-import logging 
+import logging
+from contextlib import asynccontextmanager
 from botocore.exceptions import ClientError
 
 from services.identity_client import IdentityServiceClient
 from services.email_service import send_verification_email, ses
 from services.otp_service import generate_otp, store_otp
 from services.otp_service import verify_stored_otp
+from database import init_db
+from otpmodel.otp_model import OTPEntry
 
 from models import (
     SendOTPRequest,
@@ -33,6 +36,14 @@ from auth import (
 )
 from config import CORS_ORIGINS, FRONTEND_URL
 
+# Initialize the OTP database
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print("Starting up... Initializing database.")
+    init_db()
+    print("Database initialized.")
+    yield
+
 # Config logging
 logger = logging.getLogger("access_account_api")
 logger.setLevel(logging.INFO)
@@ -49,6 +60,7 @@ app = FastAPI(
     title="ACCESS Account API",
     description="API for ACCESS CI accounts and registration",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(

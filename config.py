@@ -43,3 +43,8 @@ OTP_LIFETIME_MINUTES: int = config("OTP_LIFETIME_MINUTES", cast=int, default=30)
 
 # Database Configuration
 DATABASE_URL: str = config("DATABASE_URL", default="sqlite:///./otp_database.db")
+
+# Cron Job Configuration
+EXPIRED_OTP_CLEANUP_INTERVAL_SECONDS: int = config(
+    "EXPIRED_OTP_CLEANUP_INTERVAL_SECONDS", cast=int, default=60
+)

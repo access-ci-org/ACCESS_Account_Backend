@@ -6,12 +6,18 @@ import string
 import logging
 from contextlib import asynccontextmanager
 from botocore.exceptions import ClientError
+from fastapi_utilities import repeat_every
+from datetime import datetime, timezone, timedelta
+from sqlmodel import select
 
 from services.identity_client import IdentityServiceClient
 from services.email_service import send_verification_email, ses
-from services.otp_service import generate_otp, store_otp
-from services.otp_service import verify_stored_otp
-from database import init_db
+from services.otp_service import (
+    verify_stored_otp,
+    generate_otp,
+    store_otp,
+)
+from database import init_db, get_session
 from otpmodel.otp_model import OTPEntry
 
 from models import (
@@ -27,6 +33,7 @@ from models import (
     AcademicStatus,
     AcademicStatusResponse
 )
+
 from auth import (
     TokenPayload,
     create_access_token,
@@ -34,15 +41,15 @@ from auth import (
     require_own_username_access,
     require_username_access,
 )
-from config import CORS_ORIGINS, FRONTEND_URL
 
-# Initialize the OTP database
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    print("Starting up... Initializing database.")
-    init_db()
-    print("Database initialized.")
-    yield
+from config import (
+    CORS_ORIGINS, 
+    FRONTEND_URL, 
+    OTP_LIFETIME_MINUTES,
+    EXPIRED_OTP_CLEANUP_INTERVAL_SECONDS
+    )
+
+
 
 # Config logging
 logger = logging.getLogger("access_account_api")
@@ -55,6 +62,31 @@ formatter = logging.Formatter(
 
 handler.setFormatter(formatter)
 logger.addHandler(handler)
+
+# cron job to clean up expired OTPs
+@repeat_every(seconds=EXPIRED_OTP_CLEANUP_INTERVAL_SECONDS) # runs every minute
+def clear_expired_otps():
+    logger.info("Running expired OTP cleanup task")
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=OTP_LIFETIME_MINUTES)
+    
+    with get_session() as session:
+        expired = session.exec(
+            select(OTPEntry).where(OTPEntry.created_at < cutoff)
+        ).all()
+
+        for entry in expired:
+            session.delete(entry)
+        session.commit()
+    logger.info(f"Expired OTP cleanup task completed, removed {len(expired)} entries")
+
+# Initialize the OTP database
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print("Starting up... Initializing database.")
+    init_db()
+    print("Database initialized.")
+    await clear_expired_otps()  # Initial cleanup on startup
+    yield
 
 app = FastAPI(
     title="ACCESS Account API",

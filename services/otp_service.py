@@ -13,8 +13,7 @@ from argon2.exceptions import (
 
 from config import OTP_CHARACTER_LENGTH, OTP_LIFETIME_MINUTES
 
-from database import get_session
-from otpmodel.otp_model import OTPEntry
+from database import get_session, OTPEntry
 
 logger = logging.getLogger("access_account_api.otp")
 

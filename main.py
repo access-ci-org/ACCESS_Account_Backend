@@ -1,5 +1,6 @@
 from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import delete
 from fastapi import APIRouter, Depends, FastAPI, status, HTTPException
 from urllib.parse import urlencode
 import string
@@ -8,7 +9,6 @@ from contextlib import asynccontextmanager
 from botocore.exceptions import ClientError
 from fastapi_utilities import repeat_every
 from datetime import datetime, timezone, timedelta
-from sqlmodel import select
 
 from services.identity_client import IdentityServiceClient
 from services.email_service import send_verification_email, ses
@@ -17,8 +17,8 @@ from services.otp_service import (
     generate_otp,
     store_otp,
 )
-from database import init_db, get_session
-from otpmodel.otp_model import OTPEntry
+
+from database import init_db, get_session, OTPEntry
 
 from models import (
     SendOTPRequest,
@@ -70,14 +70,15 @@ def clear_expired_otps():
     cutoff = datetime.now(timezone.utc) - timedelta(minutes=OTP_LIFETIME_MINUTES)
     
     with get_session() as session:
-        expired = session.exec(
-            select(OTPEntry).where(OTPEntry.created_at < cutoff)
-        ).all()
+        
+        # Bulk delete expired OTP entries
+        stmt = delete(OTPEntry).where(OTPEntry.created_at < cutoff)
 
-        for entry in expired:
-            session.delete(entry)
+        result = session.exec(stmt)
         session.commit()
-    logger.info(f"Expired OTP cleanup task completed, removed {len(expired)} entries")
+
+        rows_deleted = result.rowcount or 0
+    logger.info(f"Expired OTP cleanup task completed, removed {rows_deleted} entries")
 
 # Initialize the OTP database
 @asynccontextmanager

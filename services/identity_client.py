@@ -1,4 +1,5 @@
 import httpx
+from urllib.parse import quote
 from config import (
     XRAS_IDENTITY_SERVICE_BASE_URL,
     XRAS_IDENTITY_SERVICE_REQUESTER,
@@ -28,10 +29,11 @@ class IdentityServiceClient:
         return await self._request("GET", "/profiles/v1/countries")
 
     async def get_domain(self, domain: str) -> dict:
+        check_domain = quote(domain, safe="")
         return await self._request(
-        "GET",
-        f"/profiles/v1/organizations?domain={domain}",
-    )
+            "GET",
+            f"/profiles/v1/organizations?domain={check_domain}", 
+        )
 
     
         

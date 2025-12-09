@@ -594,15 +594,10 @@ async def get_domain_info(
     # Call the Identity Service client to get the domain information
     domain_data = await identity_client.get_domain(domain)
 
-    # domain_data is a list of org dicts from XRAS
-    organizations = [
-        org["organization_name"]
-        for org in domain_data
-    ]
-
+    # Include the full organization dictionaries from XRAS
     return {
         "domain": domain,
-        "organizations": organizations,
+        "organizations": domain_data,
         "idps": [],
     }
 # Include router in the app

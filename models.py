@@ -61,8 +61,28 @@ class Domain(BaseModel):
     organizations: List[str]
     idps: List[str]
 
+class Organization(BaseModel):
+    organization_id: int
+    org_type_id: int | None = None
+    organization_abbrev: str | None = None
+    organization_name: str
+    organization_url: str | None = None
+    organization_phone: str | None = None
+    nsf_org_code: str | None = None
+    is_reconciled: bool | None = None
+    amie_name: str | None = None
+    country_id: int | None = None
+    state_id: int | None = None
+    latitude: str | None = None
+    longitude: str | None = None
+    is_msi: bool | None = None
+    is_active: bool | None = None
+    carnegieCategories: List[dict] = []
+    state: str | None = None
+    country: str | None = None
+    org_type: str | None = None
 
 class DomainResponse(BaseModel):
     domain: str
-    organizations: List[str]
+    organizations: List[Organization]
     idps: List[str]

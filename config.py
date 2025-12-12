@@ -6,7 +6,9 @@ from starlette.datastructures import CommaSeparatedStrings, Secret
 # If APP_CONFIG is set, use that as the path to the .env file, or default to .env
 env_file = os.getenv("APP_CONFIG", ".env")
 if "APP_CONFIG" in os.environ and not os.path.isfile(env_file):
-    raise FileNotFoundError(f"The configuration file specified in APP_CONFIG or the default .env does not exist: {env_file}")
+    raise FileNotFoundError(
+        f"The configuration file specified in APP_CONFIG or the default .env does not exist: {env_file}"
+    )
 
 config = Config(env_file)
 
@@ -26,7 +28,7 @@ CORS_ORIGINS: CommaSeparatedStrings = config(
 DEBUG: bool = config("DEBUG", cast=bool, default=False)
 FRONTEND_URL: str = config("FRONTEND_URL", default="http://localhost:3000")
 
-#Identity Service Configuration
+# Identity Service Configuration
 XRAS_IDENTITY_SERVICE_BASE_URL: str = config("XRAS_IDENTITY_SERVICE_BASE_URL")
 XRAS_IDENTITY_SERVICE_REQUESTER: str = config("XRAS_IDENTITY_SERVICE_REQUESTER")
 XRAS_IDENTITY_SERVICE_KEY: str = config("XRAS_IDENTITY_SERVICE_KEY")
@@ -35,7 +37,9 @@ XRAS_IDENTITY_SERVICE_KEY: str = config("XRAS_IDENTITY_SERVICE_KEY")
 AWS_REGION: str = config("AWS_REGION", default="us-east-2")
 AWS_ACCESS_KEY: Secret = config("AWS_ACCESS_KEY", cast=Secret)
 AWS_SECRET_ACCESS_KEY: Secret = config("AWS_SECRET_ACCESS_KEY", cast=Secret)
-AWS_SES_SENDER_EMAIL: str = config("AWS_SES_SENDER_EMAIL", default="allocations@access-ci.org")
+AWS_SES_SENDER_EMAIL: str = config(
+    "AWS_SES_SENDER_EMAIL", default="allocations@access-ci.org"
+)
 
 # OTP Configuration
 OTP_CHARACTER_LENGTH: int = config("OTP_CHARACTER_LENGTH", cast=int, default=6)

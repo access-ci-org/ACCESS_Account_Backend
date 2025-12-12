@@ -1,39 +1,15 @@
-from fastapi.responses import RedirectResponse
-from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import delete
-from fastapi import APIRouter, Depends, FastAPI, status, HTTPException
-from urllib.parse import urlencode
-import string
 import logging
+import string
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
+from urllib.parse import urlencode
+
 from botocore.exceptions import ClientError
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 from fastapi_utilities import repeat_every
-from datetime import datetime, timezone, timedelta
-
-from services.identity_client import IdentityServiceClient
-from services.email_service import send_verification_email, ses
-from services.otp_service import (
-    verify_stored_otp,
-    generate_otp,
-    store_otp,
-)
-
-from database import init_db, get_session, OTPEntry
-
-from models import (
-    SendOTPRequest,
-    VerifyOTPRequest,
-    LoginRequest,
-    CreateAccountRequest,
-    UpdateAccountRequest,
-    UpdatePasswordRequest,
-    AddSSHKeyRequest,
-    JWTResponse,
-    CountriesResponse,
-    AcademicStatus,
-    AcademicStatusResponse,
-    DomainResponse
-)
+from sqlalchemy import delete
 
 from auth import (
     TokenPayload,
@@ -42,36 +18,53 @@ from auth import (
     require_own_username_access,
     require_username_access,
 )
-
 from config import (
-    CORS_ORIGINS, 
-    FRONTEND_URL, 
+    CORS_ORIGINS,
+    EXPIRED_OTP_CLEANUP_INTERVAL_SECONDS,
+    FRONTEND_URL,
     OTP_LIFETIME_MINUTES,
-    EXPIRED_OTP_CLEANUP_INTERVAL_SECONDS
-    )
-
-
+)
+from database import OTPEntry, get_session, init_db
+from models import (
+    AcademicStatus,
+    AcademicStatusResponse,
+    AddSSHKeyRequest,
+    CountriesResponse,
+    CreateAccountRequest,
+    DomainResponse,
+    JWTResponse,
+    LoginRequest,
+    SendOTPRequest,
+    UpdateAccountRequest,
+    UpdatePasswordRequest,
+    VerifyOTPRequest,
+)
+from services.email_service import send_verification_email, ses
+from services.identity_client import IdentityServiceClient
+from services.otp_service import (
+    generate_otp,
+    store_otp,
+    verify_stored_otp,
+)
 
 # Config logging
 logger = logging.getLogger("access_account_api")
 logger.setLevel(logging.INFO)
 
 handler = logging.StreamHandler()
-formatter = logging.Formatter(
-    "%(asctime)s - %(levelname)s - %(name)s - %(message)s"
-)
+formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(name)s - %(message)s")
 
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 
+
 # cron job to clean up expired OTPs
-@repeat_every(seconds=EXPIRED_OTP_CLEANUP_INTERVAL_SECONDS) # runs every minute
+@repeat_every(seconds=EXPIRED_OTP_CLEANUP_INTERVAL_SECONDS)  # runs every minute
 def clear_expired_otps():
     logger.info("Running expired OTP cleanup task")
     cutoff = datetime.now(timezone.utc) - timedelta(minutes=OTP_LIFETIME_MINUTES)
-    
+
     with get_session() as session:
-        
         # Bulk delete expired OTP entries
         stmt = delete(OTPEntry).where(OTPEntry.created_at < cutoff)
 
@@ -81,6 +74,7 @@ def clear_expired_otps():
         rows_deleted = result.rowcount or 0
     logger.info(f"Expired OTP cleanup task completed, removed {rows_deleted} entries")
 
+
 # Initialize the OTP database
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -89,6 +83,7 @@ async def lifespan(app: FastAPI):
     print("Database initialized.")
     await clear_expired_otps()  # Initial cleanup on startup
     yield
+
 
 app = FastAPI(
     title="ACCESS Account API",
@@ -109,6 +104,7 @@ app.add_middleware(
 router = APIRouter(prefix="/api/v1")
 
 identity_client = IdentityServiceClient()
+
 
 # Auth Routes
 @router.post(
@@ -140,10 +136,12 @@ async def send_otp(request: SendOTPRequest):
         resp = send_verification_email(email, otp)
         message_id = resp.get("MessageId")
 
-        logger.info(f"Verification email sent successfully: {email}, Message ID: {message_id}")
+        logger.info(
+            f"Verification email sent successfully: {email}, Message ID: {message_id}"
+        )
 
         return {"success": True}
-    
+
     except ses.exceptions.MessageRejected:
         logger.error(f"SES MessageRejected for email={email}")
         raise HTTPException(400, "Email was rejected by SES")
@@ -172,7 +170,8 @@ async def send_otp(request: SendOTPRequest):
         code = e.response["Error"]["Code"]
         logger.exception(f"Unexpected SES error for email={email}: {code}")
         raise HTTPException(400, f"Email send failed: {code}")
-    
+
+
 @router.post(
     "/auth/verify-otp",
     response_model=JWTResponse,
@@ -192,13 +191,19 @@ async def verify_otp(request: VerifyOTPRequest):
     otp = request.otp.strip()
 
     if "@" not in email:
-        logger.warning(f"Rejected OTP verification due to invalid email format: {email}")
+        logger.warning(
+            f"Rejected OTP verification due to invalid email format: {email}"
+        )
         raise HTTPException(400, "Invalid email")
-    
-    if len(otp) != 6 or not all(c in (string.ascii_lowercase + string.digits) for c in otp):
-        logger.warning(f"Rejected OTP verification due to invalid OTP format: {otp} for email: {email}")
+
+    if len(otp) != 6 or not all(
+        c in (string.ascii_lowercase + string.digits) for c in otp
+    ):
+        logger.warning(
+            f"Rejected OTP verification due to invalid OTP format: {otp} for email: {email}"
+        )
         raise HTTPException(400, "Invalid OTP format")
-    
+
     # Verify against stored OTP
     verify_stored_otp(email, otp)
 
@@ -513,7 +518,8 @@ async def delete_ssh_key(
 
 
 # Reference Data Routes
-identity_client = IdentityServiceClient() # Instance of Client
+identity_client = IdentityServiceClient()  # Instance of Client
+
 
 @router.get(
     "/academic-status",
@@ -556,7 +562,6 @@ async def get_academic_statuses(
 async def get_countries(
     token: TokenPayload = Depends(require_otp_or_login),
 ) -> CountriesResponse:
-    
     # Call the Identity Service client to get the countries
     data = await identity_client.get_countries()
 
@@ -570,6 +575,7 @@ async def get_countries(
             for item in data
         ]
     }
+
 
 @router.get(
     "/domain/{domain}",
@@ -590,7 +596,6 @@ async def get_domain_info(
     domain: str,
     token: TokenPayload = Depends(require_otp_or_login),
 ) -> DomainResponse:
-
     # Call the Identity Service client to get the domain information
     domain_data = await identity_client.get_domain(domain)
 
@@ -600,6 +605,8 @@ async def get_domain_info(
         "organizations": domain_data,
         "idps": [],
     }
+
+
 # Include router in the app
 app.include_router(router)
 

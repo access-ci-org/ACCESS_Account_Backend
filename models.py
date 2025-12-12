@@ -1,5 +1,6 @@
-from pydantic import BaseModel
 from typing import List
+
+from pydantic import BaseModel
 
 
 class SendOTPRequest(BaseModel):
@@ -42,24 +43,30 @@ class JWTResponse(BaseModel):
 
     jwt: str
 
+
 class Country(BaseModel):
     countryId: int
     countryName: str
 
+
 class CountriesResponse(BaseModel):
     countries: List[Country]
+
 
 class AcademicStatus(BaseModel):
     academicStatusId: int
     name: str
 
+
 class AcademicStatusResponse(BaseModel):
     academicStatuses: List[AcademicStatus]
+
 
 class Domain(BaseModel):
     domain: str
     organizations: List[str]
     idps: List[str]
+
 
 class Organization(BaseModel):
     organization_id: int
@@ -81,6 +88,7 @@ class Organization(BaseModel):
     state: str | None = None
     country: str | None = None
     org_type: str | None = None
+
 
 class DomainResponse(BaseModel):
     domain: str

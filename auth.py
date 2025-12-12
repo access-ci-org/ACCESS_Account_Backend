@@ -1,16 +1,17 @@
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-import jwt
 from datetime import datetime, timedelta, timezone
 from typing import Literal
+
+import jwt
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 from config import (
-    JWT_SECRET_KEY,
-    JWT_ALGORITHM,
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES,
-    JWT_ISSUER,
+    JWT_ALGORITHM,
     JWT_AUDIENCE,
+    JWT_ISSUER,
+    JWT_SECRET_KEY,
 )
 
 

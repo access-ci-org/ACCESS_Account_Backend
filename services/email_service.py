@@ -1,15 +1,16 @@
+import logging
+
 import boto3
 from botocore.exceptions import ClientError
-import logging
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from config import (
-    AWS_REGION, 
-    AWS_ACCESS_KEY, 
+    AWS_ACCESS_KEY,
+    AWS_REGION,
     AWS_SECRET_ACCESS_KEY,
     AWS_SES_SENDER_EMAIL,
     OTP_LIFETIME_MINUTES,
-    )
+)
 
 logger = logging.getLogger("access_account_api.email")
 
@@ -28,13 +29,11 @@ ses = boto3.client(
     aws_secret_access_key=str(AWS_SECRET_ACCESS_KEY),
 )
 
+
 def send_verification_email(email, otp):
     # Render Jinja email template
 
-    html_body = template.render(
-        otp=otp,
-        lifetime = OTP_LIFETIME_MINUTES
-    )
+    html_body = template.render(otp=otp, lifetime=OTP_LIFETIME_MINUTES)
 
     text_body = f"Your ACCESS verification code is: {otp}. This code expires in {OTP_LIFETIME_MINUTES} minutes."
     try:
@@ -50,8 +49,8 @@ def send_verification_email(email, otp):
             },
         )
 
-        #print("SES Message ID:", resp.get("MessageId")) For testing purposes
+        # print("SES Message ID:", resp.get("MessageId")) For testing purposes
         return resp
     except ClientError as e:
         logger.exception(f"SES ClientError when sending verification email to {email}")
-        raise e 
+        raise e

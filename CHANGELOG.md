@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.4.0...v0.4.1) (2025-12-12)
+
+
+### Bug Fixes
+
+* add missing dependency on fastapi-utilities ([ae3c9f1](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/ae3c9f1ea65d70dce20c12135e381aabe5a256be))
+
 ## [0.4.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.3.0...v0.4.0) (2025-12-12)
 
 

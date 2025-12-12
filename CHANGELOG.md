@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.3.0...v0.4.0) (2025-12-12)
+
+
+### Features
+
+* store sent OTPs in a SQLite database ([6b03d74](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/6b03d746cb4337698adfc254a734d22b5d1e72a9))
+
 ## [0.3.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.2.0...v0.3.0) (2025-12-03)
 
 

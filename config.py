@@ -52,3 +52,16 @@ DATABASE_URL: str = config("DATABASE_URL", default="sqlite:///./otp_database.db"
 EXPIRED_OTP_CLEANUP_INTERVAL_SECONDS: int = config(
     "EXPIRED_OTP_CLEANUP_INTERVAL_SECONDS", cast=int, default=60
 )
+
+# CILogon
+CILOGON_AUTHORIZATION_URL: str = config(
+    "CILOGON_AUTHORIZATION_URL", default="https://cilogon.org/authorize"
+)
+CILOGON_CLIENT_ID: str = config("CILOGON_CLIENT_ID")
+CILOGON_CLIENT_SECRET: Secret = config("CILOGON_CLIENT_SECRET", cast=Secret)
+CILOGON_TOKEN_URL: str = config(
+    "CILOGON_TOKEN_URL", default="https://cilogon.org/oauth2/token"
+)
+CILOGON_USER_INFO_URL: str = config(
+    "CILOGON_USER_INFO_URL", default="https://cilogon.org/oauth2/userinfo"
+)

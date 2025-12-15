@@ -1,0 +1,64 @@
+from urllib.parse import urlencode
+
+import httpx
+from fastapi import HTTPException, Request
+
+from config import (
+    CILOGON_AUTHORIZATION_URL,
+    CILOGON_CLIENT_ID,
+    CILOGON_CLIENT_SECRET,
+    CILOGON_TOKEN_URL,
+    CILOGON_USER_INFO_URL,
+)
+
+
+class CILogonClient:
+    def __init__(self, request: Request):
+        self.request = request
+
+    def get_oidc_start_url(self, idp: str = None):
+        """Get the URL to start the OIDC auth flow."""
+        params = {
+            "client_id": CILOGON_CLIENT_ID,
+            "response_type": "code",
+            "scope": "openid profile email org.cilogon.userinfo",
+            "redirect_uri": self.request.url_for("complete_login"),
+            "skin": "access",
+        }
+        if idp:
+            params["idphint"] = idp
+        return f"{CILOGON_AUTHORIZATION_URL}?{urlencode(params, doseq=True)}"
+
+    async def get_user_info(self, code: str):
+        """Get an access token, and use it to get user information."""
+        async with httpx.AsyncClient() as client:
+            token_response = await client.post(
+                CILOGON_TOKEN_URL,
+                data={
+                    "grant_type": "authorization_code",
+                    "client_id": CILOGON_CLIENT_ID,
+                    "client_secret": CILOGON_CLIENT_SECRET,
+                    "code": code,
+                    "redirect_uri": self.request.url_for("complete_login"),
+                },
+            )
+
+        if token_response.status_code != 200:
+            raise HTTPException(
+                status_code=token_response.status_code, detail=token_response.json()
+            )
+
+        access_token = token_response.json().get("access_token")
+
+        # Get user information from CILogon using the access token.
+        userinfo_response = await httpx.post(
+            CILOGON_USER_INFO_URL, data={"access_token": access_token}
+        )
+
+        if userinfo_response.status_code != 200:
+            raise HTTPException(
+                status_code=userinfo_response.status_code,
+                detail=userinfo_response.json(),
+            )
+
+        return userinfo_response.json()

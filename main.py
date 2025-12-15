@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode
 
 from botocore.exceptions import ClientError
-from fastapi import APIRouter, Depends, FastAPI, HTTPException, status
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi_utilities import repeat_every
@@ -39,6 +39,7 @@ from models import (
     UpdatePasswordRequest,
     VerifyOTPRequest,
 )
+from services.cilogon_client import CILogonClient
 from services.email_service import send_verification_email, ses
 from services.identity_client import IdentityServiceClient
 from services.otp_service import (
@@ -61,7 +62,7 @@ logger.addHandler(handler)
 # cron job to clean up expired OTPs
 @repeat_every(seconds=EXPIRED_OTP_CLEANUP_INTERVAL_SECONDS)  # runs every minute
 def clear_expired_otps():
-    logger.info("Running expired OTP cleanup task")
+    # logger.info("Running expired OTP cleanup task")
     cutoff = datetime.now(timezone.utc) - timedelta(minutes=OTP_LIFETIME_MINUTES)
 
     with get_session() as session:
@@ -72,7 +73,7 @@ def clear_expired_otps():
         session.commit()
 
         rows_deleted = result.rowcount or 0
-    logger.info(f"Expired OTP cleanup task completed, removed {rows_deleted} entries")
+    # logger.info(f"Expired OTP cleanup task completed, removed {rows_deleted} entries")
 
 
 # Initialize the OTP database
@@ -231,10 +232,13 @@ async def verify_otp(request: VerifyOTPRequest):
             "description": "The redirect could not be sent (e.g., due to a malformed email address)"
         },
     },
+    response_class=RedirectResponse,
 )
-async def start_login(request: LoginRequest):
-    # TODO: Implement CILogon flow initiation
-    pass
+async def start_login(request: Request, login_request: LoginRequest | None = None):
+    """Start the CILogon OIDC authentication flow."""
+    return CILogonClient(request).get_oidc_start_url(
+        idp=login_request.idp if login_request else None
+    )
 
 
 @router.get(
@@ -249,36 +253,30 @@ async def start_login(request: LoginRequest):
             "and last_name (the family_name OIDC claim)"
         },
     },
+    response_class=RedirectResponse,
 )
-async def complete_login(token: str):
+async def complete_login(code: str, request: Request):
     """Receive the CILogon token after a successful login."""
-    # TODO: Implement actual CILogon token handling
-    # For now, this is a placeholder with hardcoded values
-
-    # In production, this should:
-    # 1. Validate the CILogon token
-    # 2. Extract user information from the OIDC claims
-    # 3. Look up the ACCESS username from the database
-    # 4. Redirect to frontend with JWT and user info
+    user_info = await CILogonClient(request).get_user_info(code)
 
     # Create a JWT token of type "login"
-    jwt_token = create_access_token(
-        email="user@example.edu",
+    # TODO: Get ACCESS username from user info
+    # TODO: Figure out how to check that this is the same email address
+    # the user verified.
+    jwt = create_access_token(
+        email=user_info["email"],
         token_type="login",
         username="user",
     )
 
     # Build redirect URL with query parameters
     query_params = {
-        "jwt": jwt_token,
-        "first_name": "John",  # Placeholder - from OIDC given_name claim
-        "last_name": "Doe",  # Placeholder - from OIDC family_name claim
+        "jwt": jwt,
+        "first_name": user_info["given_name"],
+        "last_name": user_info["family_name"],
     }
-    redirect_url = f"{FRONTEND_URL}?{urlencode(query_params)}"
 
-    return RedirectResponse(
-        url=redirect_url, status_code=status.HTTP_307_TEMPORARY_REDIRECT
-    )
+    return f"{FRONTEND_URL}?{urlencode(query_params)}"
 
 
 # Account Routes

@@ -1,5 +1,6 @@
 import logging
 import string
+from asyncio import gather
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode
@@ -9,6 +10,7 @@ from fastapi import APIRouter, Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi_utilities import repeat_every
+from httpx import HTTPStatusError
 from sqlalchemy import delete
 
 from auth import (
@@ -28,6 +30,7 @@ from database import OTPEntry, get_session, init_db
 from models import (
     AcademicStatus,
     AcademicStatusResponse,
+    AccountResponse,
     AddSSHKeyRequest,
     CountriesResponse,
     CreateAccountRequest,
@@ -39,6 +42,7 @@ from models import (
     UpdatePasswordRequest,
     VerifyOTPRequest,
 )
+from services.comanage_registry_client import CoManageRegistryClient
 from services.email_service import send_verification_email, ses
 from services.identity_client import IdentityServiceClient
 from services.otp_service import (
@@ -103,6 +107,7 @@ app.add_middleware(
 # Create router with /api/v1 prefix
 router = APIRouter(prefix="/api/v1")
 
+comanage_client = CoManageRegistryClient()
 identity_client = IdentityServiceClient()
 
 
@@ -316,13 +321,28 @@ async def create_account(
         },
         404: {"description": "The requested user does not exist"},
     },
+    response_model=AccountResponse,
 )
 async def get_account(
     username: str,
     token: TokenPayload = Depends(require_username_access),
 ):
-    # TODO: Implement account retrieval logic
-    pass
+    get_comanage_user = comanage_client.get_user_info(username)
+    try:
+        # TODO: Request Allocations profile and Support data in parallel.
+        [comanage_user] = await gather(get_comanage_user)
+    except HTTPStatusError as err:
+        # TODO: Is this the logic we want?
+        raise HTTPException(err.response.status_code, err.response.text)
+
+    primary_name = comanage_user.get_primary_name()
+    return {
+        "username": username,
+        "first_name": primary_name["given"],
+        "last_name": primary_name["family"],
+        "email": token.sub,  # TODO: Should we use the token email address or get it from CoManage?
+        "time_zone": comanage_user["CoPerson"]["timezone"],
+    }
 
 
 @router.post(

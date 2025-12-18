@@ -10,7 +10,23 @@ from config import (
 )
 
 
-class COManageRegistryClient:
+class CoManageUser(dict):
+    def get_username(self) -> str | None:
+        """Get the username for the current user."""
+        for identifier in self["Identifier"]:
+            if identifier.get("type") == "accessid":
+                return identifier.get("identifier")
+        return None
+
+    def get_primary_name(self) -> dict | None:
+        """Get the primary name dictionary."""
+        for name in self["Name"]:
+            if name["primary_name"] and not name["meta"]["deleted"]:
+                return name
+        return None
+
+
+class CoManageRegistryClient:
     def __init__(
         self,
         base_url=COMANAGE_REGISTRY_BASE_URL,
@@ -89,9 +105,10 @@ class COManageRegistryClient:
         Returns:
             Dictionary containing user information
         """
-        return await self._request(
+        user_info = await self._request(
             "GET", f"api/co/{self.coid}/core/v1/people/{accessid}"
         )
+        return CoManageUser(user_info)
 
     async def get_active_tandc(self) -> dict | None:
         """Return the first active Terms and Conditions element.

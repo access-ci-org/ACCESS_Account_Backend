@@ -24,7 +24,7 @@ class COManageRegistryClient:
         self, method: str, path: str, json: dict | None = None
     ) -> dict | list:
         url = f"{self.base_url}/registry/{path}"
-        auth = httpx.BasicAuth(username=self.username, password=self.password)
+        auth = httpx.BasicAuth(username=self.username, password=str(self.password))
         headers = {"Accept": "application/json", "Content-Type": "application/json"}
 
         async with httpx.AsyncClient(auth=auth) as client:

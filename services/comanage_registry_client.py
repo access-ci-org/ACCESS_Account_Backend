@@ -1,9 +1,10 @@
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 
 import httpx
 
 from config import (
     COMANAGE_REGISTRY_BASE_URL,
+    COMANAGE_REGISTRY_COID,
     COMANAGE_REGISTRY_PASSWORD,
     COMANAGE_REGISTRY_USER,
 )
@@ -15,10 +16,12 @@ class COManageRegistryClient:
         base_url=COMANAGE_REGISTRY_BASE_URL,
         username=COMANAGE_REGISTRY_USER,
         password=COMANAGE_REGISTRY_PASSWORD,
+        coid=COMANAGE_REGISTRY_COID,
     ):
         self.base_url = base_url
         self.username = username
         self.password = password
+        self.coid = coid
 
     async def _request(
         self, method: str, path: str, json: dict | None = None
@@ -43,7 +46,7 @@ class COManageRegistryClient:
         """
         encoded_email = quote(email)
         result = await self._request(
-            "GET", f"co_people.json?coid=2&search.mail={encoded_email}"
+            "GET", f"co_people.json?coid={self.coid}&search.mail={encoded_email}"
         )
 
         if isinstance(result, dict) and "CoPeople" in result:
@@ -86,20 +89,24 @@ class COManageRegistryClient:
         Returns:
             Dictionary containing user information
         """
-        return await self._request("GET", f"api/co/2/core/v1/people/{accessid}")
+        return await self._request(
+            "GET", f"api/co/{self.coid}/core/v1/people/{accessid}"
+        )
 
-    async def get_active_tandc_id(self) -> str | None:
-        """Return the ID of the first active Terms and Conditions element.
+    async def get_active_tandc(self) -> dict | None:
+        """Return the first active Terms and Conditions element.
 
         Returns:
             ID of active Terms and Conditions, or None if not found
         """
-        result = await self._request("GET", "co_terms_and_conditions.json?coid=2")
-
+        params = {"coid": self.coid}
+        result = await self._request(
+            "GET", f"co_terms_and_conditions.json?{urlencode(params)}"
+        )
         if isinstance(result, dict) and "CoTermsAndConditions" in result:
             for tandc in result["CoTermsAndConditions"]:
                 if tandc.get("Status") == "Active":
-                    return str(tandc["Id"])
+                    return tandc
 
         return None
 
@@ -128,7 +135,7 @@ class COManageRegistryClient:
         """
         new_user_data = {
             "CoPerson": {
-                "co_id": "2",
+                "co_id": str(self.coid),
                 "status": "A",
                 "date_of_birth": None,
                 "timezone": None,
@@ -195,7 +202,7 @@ class COManageRegistryClient:
         }
 
         return await self._request(
-            "POST", "api/co/2/core/v1/people", json=new_user_data
+            "POST", f"api/co/{self.coid}/core/v1/people", json=new_user_data
         )
 
     async def create_new_org_identity(self) -> str:
@@ -217,7 +224,7 @@ class COManageRegistryClient:
                     "Title": None,
                     "O": None,
                     "Ou": None,
-                    "CoId": "2",
+                    "CoId": str(self.coid),
                     "ValidFrom": None,
                     "ValidThrough": None,
                     "DateOfBirth": None,
@@ -329,7 +336,9 @@ class COManageRegistryClient:
 
         return await self._request("POST", "identifiers.json", json=identifier_data)
 
-    async def create_new_tandc(self, co_tandc_id: str, co_person_id: str) -> dict:
+    async def create_new_tandc_agreement(
+        self, co_tandc_id: int, co_person_id: int
+    ) -> dict:
         """Create new Terms & Conditions Agreement for the CoPerson record.
 
         Args:
@@ -348,8 +357,8 @@ class COManageRegistryClient:
             "CoTAndCAgreements": [
                 {
                     "Version": "1.0",
-                    "CoTermsAndConditionsId": co_tandc_id,
-                    "Person": {"Type": "CO", "Id": co_person_id},
+                    "CoTermsAndConditionsId": str(co_tandc_id),
+                    "Person": {"Type": "CO", "Id": str(co_person_id)},
                 }
             ],
         }

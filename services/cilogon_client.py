@@ -51,14 +51,21 @@ class CILogonClient:
         access_token = token_response.json().get("access_token")
 
         # Get user information from CILogon using the access token.
-        userinfo_response = await httpx.post(
-            CILOGON_USER_INFO_URL, data={"access_token": access_token}
-        )
-
-        if userinfo_response.status_code != 200:
-            raise HTTPException(
-                status_code=userinfo_response.status_code,
-                detail=userinfo_response.json(),
+        async with httpx.AsyncClient() as client:
+            userinfo_response = await client.get(
+                CILOGON_USER_INFO_URL, 
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Accept": "application/json",
+                },
             )
+            
+            print("Userinfo raw body:", userinfo_response.text)
+
+            if userinfo_response.status_code != 200:
+                raise HTTPException(
+                    status_code=userinfo_response.status_code,
+                    detail=userinfo_response.text,
+                )
 
         return userinfo_response.json()

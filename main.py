@@ -260,13 +260,13 @@ async def complete_login(code: str, request: Request):
     user_info = await CILogonClient(request).get_user_info(code)
 
     # Create a JWT token of type "login"
-    # TODO: Get ACCESS username from user info
-    # TODO: Figure out how to check that this is the same email address
-    # the user verified.
+    user = user_info.get("preferred_username", "user")
+    print(user)
+
     jwt = create_access_token(
         email=user_info["email"],
         token_type="login",
-        username="user",
+        username=user,
     )
 
     # Build redirect URL with query parameters

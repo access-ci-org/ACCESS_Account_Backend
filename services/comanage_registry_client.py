@@ -97,7 +97,7 @@ class COManageRegistryClient:
         """Return the first active Terms and Conditions element.
 
         Returns:
-            ID of active Terms and Conditions, or None if not found
+            Active Terms and Conditions dictionary, or None if not found
         """
         params = {"coid": self.coid}
         result = await self._request(

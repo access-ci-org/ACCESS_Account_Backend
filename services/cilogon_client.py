@@ -59,8 +59,6 @@ class CILogonClient:
                     "Accept": "application/json",
                 },
             )
-            
-            print("Userinfo raw body:", userinfo_response.text)
 
             if userinfo_response.status_code != 200:
                 raise HTTPException(

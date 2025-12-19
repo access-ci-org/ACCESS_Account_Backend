@@ -261,7 +261,6 @@ async def complete_login(code: str, request: Request):
 
     # Create a JWT token of type "login"
     user = user_info.get("preferred_username", "user")
-    print(user)
 
     jwt = create_access_token(
         email=user_info["email"],

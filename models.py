@@ -128,3 +128,13 @@ class Identity(BaseSchema):
 
 class IdentitiesResponse(BaseSchema):
     identities: List[Identity]
+
+
+class SSHKey(BaseSchema):
+    key_id: int
+    hash: str
+    created: str
+
+
+class SSHKeysResponse(BaseSchema):
+    ssh_keys: List[SSHKey]

@@ -40,6 +40,8 @@ from models import (
     JWTResponse,
     LoginRequest,
     SendOTPRequest,
+    SSHKey,
+    SSHKeysResponse,
     TermsAndConditionsResponse,
     UpdateAccountRequest,
     UpdatePasswordRequest,
@@ -53,6 +55,7 @@ from services.otp_service import (
     store_otp,
     verify_stored_otp,
 )
+from services.ssh_key_service import calculate_ssh_fingerprint_sha256
 
 # Config logging
 logger = logging.getLogger("access_account_api")
@@ -515,9 +518,27 @@ async def delete_identity(
 async def get_ssh_keys(
     username: str,
     token: TokenPayload = Depends(require_username_access),
-):
-    # TODO: Implement SSH key retrieval logic
-    pass
+) -> SSHKeysResponse:
+    try:
+        comanage_user = await comanage_client.get_user_info(username)
+    except HTTPStatusError as err:
+        raise HTTPException(err.response.status_code, err.response.text)
+
+    ssh_keys = []
+    for ssh_key in comanage_user.get("SshKey", []):
+        # Skip deleted keys
+        if ssh_key.get("meta", {}).get("deleted"):
+            continue
+
+        ssh_keys.append(
+            SSHKey(
+                key_id=ssh_key["meta"]["id"],
+                hash=calculate_ssh_fingerprint_sha256(ssh_key.get("skey")),
+                created=ssh_key["meta"]["created"],
+            )
+        )
+
+    return SSHKeysResponse(ssh_keys=ssh_keys)
 
 
 @router.post(

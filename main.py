@@ -416,7 +416,7 @@ async def update_password(
 )
 async def get_identities(
     username: str,
-    # token: TokenPayload = Depends(require_username_access),
+    token: TokenPayload = Depends(require_username_access),
 ) -> IdentitiesResponse:
     try:
         comanage_user = await comanage_client.get_user_info(username)

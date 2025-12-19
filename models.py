@@ -111,3 +111,10 @@ class AccountResponse(BaseSchema):
     last_name: str
     email: str
     time_zone: str | None = None
+
+
+class TermsAndConditionsResponse(BaseSchema):
+    id: int
+    description: str
+    url: str
+    body: str

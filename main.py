@@ -38,6 +38,7 @@ from models import (
     JWTResponse,
     LoginRequest,
     SendOTPRequest,
+    TermsAndConditionsResponse,
     UpdateAccountRequest,
     UpdatePasswordRequest,
     VerifyOTPRequest,
@@ -625,6 +626,38 @@ async def get_domain_info(
         "organizations": domain_data,
         "idps": [],
     }
+
+
+@router.get(
+    "/terms-and-conditions",
+    tags=["Reference Data"],
+    summary="Get active terms and conditions",
+    description="Get the active terms and conditions for ACCESS.",
+    response_model=TermsAndConditionsResponse,
+    responses={
+        200: {"description": "Return the active terms and conditions"},
+        403: {"description": "The JWT is invalid"},
+        404: {"description": "No active terms and conditions found"},
+    },
+)
+async def get_terms_and_conditions(
+    # token: TokenPayload = Depends(require_otp_or_login),
+) -> TermsAndConditionsResponse:
+    # Call the CoManage Registry client to get active terms and conditions
+    tandc = await comanage_client.get_active_tandc()
+
+    if not tandc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No active terms and conditions found",
+        )
+
+    return TermsAndConditionsResponse(
+        id=tandc["Id"],
+        description=tandc["Description"],
+        url=tandc["Url"],
+        body=tandc["Body"],
+    )
 
 
 # Include router in the app

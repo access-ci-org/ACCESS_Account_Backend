@@ -118,3 +118,13 @@ class TermsAndConditionsResponse(BaseSchema):
     description: str
     url: str
     body: str
+
+
+class Identity(BaseSchema):
+    identity_id: int
+    eppn: str | None = None
+    organization: str | None = None
+
+
+class IdentitiesResponse(BaseSchema):
+    identities: List[Identity]

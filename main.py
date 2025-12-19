@@ -35,6 +35,8 @@ from models import (
     CountriesResponse,
     CreateAccountRequest,
     DomainResponse,
+    IdentitiesResponse,
+    Identity,
     JWTResponse,
     LoginRequest,
     SendOTPRequest,
@@ -66,7 +68,7 @@ logger.addHandler(handler)
 # cron job to clean up expired OTPs
 @repeat_every(seconds=EXPIRED_OTP_CLEANUP_INTERVAL_SECONDS)  # runs every minute
 def clear_expired_otps():
-    logger.info("Running expired OTP cleanup task")
+    # logger.info("Running expired OTP cleanup task")
     cutoff = datetime.now(timezone.utc) - timedelta(minutes=OTP_LIFETIME_MINUTES)
 
     with get_session() as session:
@@ -77,7 +79,7 @@ def clear_expired_otps():
         session.commit()
 
         rows_deleted = result.rowcount or 0
-    logger.info(f"Expired OTP cleanup task completed, removed {rows_deleted} entries")
+    # logger.info(f"Expired OTP cleanup task completed, removed {rows_deleted} entries")
 
 
 # Initialize the OTP database
@@ -414,10 +416,36 @@ async def update_password(
 )
 async def get_identities(
     username: str,
-    token: TokenPayload = Depends(require_username_access),
-):
-    # TODO: Implement identity retrieval logic
-    pass
+    # token: TokenPayload = Depends(require_username_access),
+) -> IdentitiesResponse:
+    try:
+        comanage_user = await comanage_client.get_user_info(username)
+    except HTTPStatusError as err:
+        raise HTTPException(err.response.status_code, err.response.text)
+
+    identities = []
+
+    # Extract identities from OrgIdentity records
+    if "OrgIdentity" in comanage_user:
+        for org_identity in comanage_user["OrgIdentity"]:
+            # Extract ePPN from identifiers
+            eppn = None
+            if "Identifier" in org_identity and org_identity["Identifier"]:
+                for identifier in org_identity["Identifier"]:
+                    # Look for ePPN identifiers
+                    if identifier.get("type") == "eppn":
+                        eppn = identifier.get("identifier")
+                        break
+
+            identities.append(
+                Identity(
+                    identity_id=org_identity["meta"]["id"],
+                    eppn=eppn,
+                    organization=org_identity.get("o"),
+                )
+            )
+
+    return IdentitiesResponse(identities=identities)
 
 
 @router.post(

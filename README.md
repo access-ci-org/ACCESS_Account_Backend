@@ -294,15 +294,15 @@ Get a list of identities associated with this account.
 #### Response Types
 
 ##### HTTP 200
-Return the list of linked identities and associated IDPs.
+Return the list of linked identities with their ePPN (eduPersonPrincipalName).
 
 ```json
 {
 	"identities": [
 		{
 			"identityId": 15,
-			"username": "jdoe15",
-			"idp": {}
+			"eppn": "jdoe15@example.edu",
+			"organization": "Example University"
 		}
 	]
 }

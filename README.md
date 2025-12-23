@@ -294,15 +294,15 @@ Get a list of identities associated with this account.
 #### Response Types
 
 ##### HTTP 200
-Return the list of linked identities and associated IDPs.
+Return the list of linked identities with their ePPN (eduPersonPrincipalName).
 
 ```json
 {
 	"identities": [
 		{
 			"identityId": 15,
-			"username": "jdoe15",
-			"idp": {}
+			"eppn": "jdoe15@example.edu",
+			"organization": "Example University"
 		}
 	]
 }
@@ -504,3 +504,29 @@ The JWT is invalid.
 
 ##### HTTP 404
 The domain is not known to ACCESS/CILogon.
+
+### GET `/terms-and-conditions`
+Get the active terms and conditions for ACCESS.
+
+#### Request Headers
+- `Authorization`: containing a JWT of type `otp` or `login`.
+
+#### Response Types
+
+##### HTTP 200
+Return the active terms and conditions.
+
+```json
+{
+	"id": 1,
+	"description": "ACCESS Terms and Conditions",
+	"url": "https://access-ci.org/terms",
+	"body": "Full text of the terms and conditions..."
+}
+```
+
+##### HTTP 403
+The JWT is invalid.
+
+##### HTTP 404
+No active terms and conditions found.

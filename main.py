@@ -1,5 +1,6 @@
 import logging
 import string
+from asyncio import gather
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode
@@ -9,6 +10,7 @@ from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi_utilities import repeat_every
+from httpx import HTTPStatusError
 from sqlalchemy import delete
 
 from auth import (
@@ -28,18 +30,25 @@ from database import OTPEntry, get_session, init_db
 from models import (
     AcademicStatus,
     AcademicStatusResponse,
+    AccountResponse,
     AddSSHKeyRequest,
     CountriesResponse,
     CreateAccountRequest,
     DomainResponse,
+    IdentitiesResponse,
+    Identity,
     JWTResponse,
     LoginRequest,
     SendOTPRequest,
+    SSHKey,
+    SSHKeysResponse,
+    TermsAndConditionsResponse,
     UpdateAccountRequest,
     UpdatePasswordRequest,
     VerifyOTPRequest,
 )
 from services.cilogon_client import CILogonClient
+from services.comanage_registry_client import CoManageRegistryClient
 from services.email_service import send_verification_email, ses
 from services.identity_client import IdentityServiceClient
 from services.otp_service import (
@@ -47,6 +56,7 @@ from services.otp_service import (
     store_otp,
     verify_stored_otp,
 )
+from services.ssh_key_service import calculate_ssh_fingerprint_sha256
 
 # Config logging
 logger = logging.getLogger("access_account_api")
@@ -104,6 +114,7 @@ app.add_middleware(
 # Create router with /api/v1 prefix
 router = APIRouter(prefix="/api/v1")
 
+comanage_client = CoManageRegistryClient()
 identity_client = IdentityServiceClient()
 
 
@@ -313,13 +324,28 @@ async def create_account(
         },
         404: {"description": "The requested user does not exist"},
     },
+    response_model=AccountResponse,
 )
 async def get_account(
     username: str,
     token: TokenPayload = Depends(require_username_access),
 ):
-    # TODO: Implement account retrieval logic
-    pass
+    get_comanage_user = comanage_client.get_user_info(username)
+    try:
+        # TODO: Request Allocations profile and Support data in parallel.
+        [comanage_user] = await gather(get_comanage_user)
+    except HTTPStatusError as err:
+        # TODO: Is this the logic we want?
+        raise HTTPException(err.response.status_code, err.response.text)
+
+    primary_name = comanage_user.get_primary_name()
+    return {
+        "username": username,
+        "first_name": primary_name["given"],
+        "last_name": primary_name["family"],
+        "email": token.sub,  # TODO: Should we use the token email address or get it from CoManage?
+        "time_zone": comanage_user["CoPerson"]["timezone"],
+    }
 
 
 @router.post(
@@ -391,9 +417,35 @@ async def update_password(
 async def get_identities(
     username: str,
     token: TokenPayload = Depends(require_username_access),
-):
-    # TODO: Implement identity retrieval logic
-    pass
+) -> IdentitiesResponse:
+    try:
+        comanage_user = await comanage_client.get_user_info(username)
+    except HTTPStatusError as err:
+        raise HTTPException(err.response.status_code, err.response.text)
+
+    identities = []
+
+    # Extract identities from OrgIdentity records
+    if "OrgIdentity" in comanage_user:
+        for org_identity in comanage_user["OrgIdentity"]:
+            # Extract ePPN from identifiers
+            eppn = None
+            if "Identifier" in org_identity and org_identity["Identifier"]:
+                for identifier in org_identity["Identifier"]:
+                    # Look for ePPN identifiers
+                    if identifier.get("type") == "eppn":
+                        eppn = identifier.get("identifier")
+                        break
+
+            identities.append(
+                Identity(
+                    identity_id=org_identity["meta"]["id"],
+                    eppn=eppn,
+                    organization=org_identity.get("o"),
+                )
+            )
+
+    return IdentitiesResponse(identities=identities)
 
 
 @router.post(
@@ -463,9 +515,27 @@ async def delete_identity(
 async def get_ssh_keys(
     username: str,
     token: TokenPayload = Depends(require_username_access),
-):
-    # TODO: Implement SSH key retrieval logic
-    pass
+) -> SSHKeysResponse:
+    try:
+        comanage_user = await comanage_client.get_user_info(username)
+    except HTTPStatusError as err:
+        raise HTTPException(err.response.status_code, err.response.text)
+
+    ssh_keys = []
+    for ssh_key in comanage_user.get("SshKey", []):
+        # Skip deleted keys
+        if ssh_key.get("meta", {}).get("deleted"):
+            continue
+
+        ssh_keys.append(
+            SSHKey(
+                key_id=ssh_key["meta"]["id"],
+                hash=calculate_ssh_fingerprint_sha256(ssh_key.get("skey")),
+                created=ssh_key["meta"]["created"],
+            )
+        )
+
+    return SSHKeysResponse(ssh_keys=ssh_keys)
 
 
 @router.post(
@@ -602,6 +672,38 @@ async def get_domain_info(
         "organizations": domain_data,
         "idps": [],
     }
+
+
+@router.get(
+    "/terms-and-conditions",
+    tags=["Reference Data"],
+    summary="Get active terms and conditions",
+    description="Get the active terms and conditions for ACCESS.",
+    response_model=TermsAndConditionsResponse,
+    responses={
+        200: {"description": "Return the active terms and conditions"},
+        403: {"description": "The JWT is invalid"},
+        404: {"description": "No active terms and conditions found"},
+    },
+)
+async def get_terms_and_conditions(
+    # token: TokenPayload = Depends(require_otp_or_login),
+) -> TermsAndConditionsResponse:
+    # Call the CoManage Registry client to get active terms and conditions
+    tandc = await comanage_client.get_active_tandc()
+
+    if not tandc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No active terms and conditions found",
+        )
+
+    return TermsAndConditionsResponse(
+        id=tandc["Id"],
+        description=tandc["Description"],
+        url=tandc["Url"],
+        body=tandc["Body"],
+    )
 
 
 # Include router in the app

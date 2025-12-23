@@ -65,3 +65,9 @@ CILOGON_TOKEN_URL: str = config(
 CILOGON_USER_INFO_URL: str = config(
     "CILOGON_USER_INFO_URL", default="https://cilogon.org/oauth2/userinfo"
 )
+
+# COManageRegistry
+COMANAGE_REGISTRY_BASE_URL: str = config("COMANAGE_REGISTRY_BASE_URL")
+COMANAGE_REGISTRY_COID: int = config("COMANAGE_REGISTRY_COID", default=2)
+COMANAGE_REGISTRY_PASSWORD: Secret = config("COMANAGE_REGISTRY_PASSWORD", cast=Secret)
+COMANAGE_REGISTRY_USER: str = config("COMANAGE_REGISTRY_USER")

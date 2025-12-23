@@ -1,74 +1,83 @@
 from typing import List
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
+from pydantic.alias_generators import to_camel
 
 
-class SendOTPRequest(BaseModel):
+class BaseSchema(BaseModel):
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,  # Allows creation using the field name (snake_case)
+        from_attributes=True,  # Optional: good for ORM compatibility
+    )
+
+
+class SendOTPRequest(BaseSchema):
     email: str
 
 
-class VerifyOTPRequest(BaseModel):
+class VerifyOTPRequest(BaseSchema):
     email: str
     otp: str
 
 
-class LoginRequest(BaseModel):
+class LoginRequest(BaseSchema):
     idp: str | None = None
 
 
-class CreateAccountRequest(BaseModel):
-    firstName: str
-    lastName: str
-    organizationId: int
+class CreateAccountRequest(BaseSchema):
+    first_name: str
+    last_name: str
+    organization_id: int
 
 
-class UpdateAccountRequest(BaseModel):
-    firstName: str | None = None
-    lastName: str | None = None
+class UpdateAccountRequest(BaseSchema):
+    first_name: str | None = None
+    last_name: str | None = None
     email: str | None = None
-    emailJWT: str | None = None
-    organizationId: int | None = None
+    email_jwt: str | None = None
+    organization_id: int | None = None
 
 
-class UpdatePasswordRequest(BaseModel):
+class UpdatePasswordRequest(BaseSchema):
     password: str
 
 
-class AddSSHKeyRequest(BaseModel):
-    publicKey: str
+class AddSSHKeyRequest(BaseSchema):
+    public_key: str
 
 
-class JWTResponse(BaseModel):
+class JWTResponse(BaseSchema):
     """Response model for JWT token."""
 
     jwt: str
 
 
-class Country(BaseModel):
-    countryId: int
-    countryName: str
+class Country(BaseSchema):
+    country_id: int
+    country_name: str
 
 
-class CountriesResponse(BaseModel):
+class CountriesResponse(BaseSchema):
     countries: List[Country]
 
 
-class AcademicStatus(BaseModel):
-    academicStatusId: int
+class AcademicStatus(BaseSchema):
+    academic_status_id: int
     name: str
 
 
-class AcademicStatusResponse(BaseModel):
-    academicStatuses: List[AcademicStatus]
+class AcademicStatusResponse(BaseSchema):
+    academic_statuses: List[AcademicStatus]
 
 
-class Domain(BaseModel):
+class Domain(BaseSchema):
     domain: str
     organizations: List[str]
     idps: List[str]
 
 
-class Organization(BaseModel):
+class Organization(BaseSchema):
     organization_id: int
     org_type_id: int | None = None
     organization_abbrev: str | None = None
@@ -84,13 +93,48 @@ class Organization(BaseModel):
     longitude: str | None = None
     is_msi: bool | None = None
     is_active: bool | None = None
-    carnegieCategories: List[dict] = []
+    carnegie_categories: List[dict] = []
     state: str | None = None
     country: str | None = None
     org_type: str | None = None
 
 
-class DomainResponse(BaseModel):
+class DomainResponse(BaseSchema):
     domain: str
     organizations: List[Organization]
     idps: List[str]
+
+
+class AccountResponse(BaseSchema):
+    username: str
+    first_name: str
+    last_name: str
+    email: str
+    time_zone: str | None = None
+
+
+class TermsAndConditionsResponse(BaseSchema):
+    id: int
+    description: str
+    url: str
+    body: str
+
+
+class Identity(BaseSchema):
+    identity_id: int
+    eppn: str | None = None
+    organization: str | None = None
+
+
+class IdentitiesResponse(BaseSchema):
+    identities: List[Identity]
+
+
+class SSHKey(BaseSchema):
+    key_id: int
+    hash: str
+    created: str
+
+
+class SSHKeysResponse(BaseSchema):
+    ssh_keys: List[SSHKey]

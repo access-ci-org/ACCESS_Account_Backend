@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.5.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.4.1...v0.5.0) (2025-12-23)
+
+
+### Features
+
+* add CoManage config variables ([52b3267](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/52b3267a7b774bee9b5d288bfa8ea2e3d1b7dca3))
+* add initial account response ([302c3b4](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/302c3b4f676671554156df0b454544a71b780bc9))
+* add terms and conditions route ([5382b82](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/5382b82e3c02be818d4750e3ad6ecf666c2b1260))
+* **auth:** add CILogon client ([96010a6](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/96010a61f7d770f1452bb7d10fa682d4af8c44c6))
+* convert bull enrollment script to Python ([a5af642](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/a5af6420487caade36dc68119737deb4375ac661))
+* implement identities list ([56a556e](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/56a556eea04211acfa01b884e2e2dc5b727368fd))
+* implement SSH key list route ([fa56963](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/fa56963209aec9823fa24d52dc943d8f4b3f3312))
+
+
+### Bug Fixes
+
+* **comanage:** cast password to a string ([225ad17](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/225ad176ab25204f40b255f1b18045eeca691cf0))
+* reenable token requirement for identities route ([d6fe9e9](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/d6fe9e98cae3fd13dad84175243d65d8c3cbe82d))
+
+
+### Documentation
+
+* **comanage:** fix T and C docstring ([a7f7976](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/a7f7976163bfa61409b4efa6b7c06e76c99cc9a1))
+
 ## [0.4.1](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.4.0...v0.4.1) (2025-12-12)
 
 

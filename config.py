@@ -26,7 +26,9 @@ CORS_ORIGINS: CommaSeparatedStrings = config(
     "CORS_ORIGINS", cast=CommaSeparatedStrings, default=CommaSeparatedStrings([])
 )
 DEBUG: bool = config("DEBUG", cast=bool, default=False)
-FRONTEND_URL: str = config("FRONTEND_URL", default="http://localhost:3000")
+FRONTEND_URL: str = config(
+    "FRONTEND_URL", default="http://localhost:3000/access-ci-account/auth-token"
+)
 
 # Identity Service Configuration
 XRAS_IDENTITY_SERVICE_BASE_URL: str = config("XRAS_IDENTITY_SERVICE_BASE_URL")

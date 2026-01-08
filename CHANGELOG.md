@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.5.0...v0.5.1) (2026-01-08)
+
+
+### Bug Fixes
+
+* **config:** add path to FRONTEND_URL ([a14010f](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/a14010ff04ede6e3c51fd648ce25511008be0962))
+
 ## [0.5.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.4.1...v0.5.0) (2025-12-23)
 
 

@@ -22,6 +22,7 @@ from auth import (
 )
 from config import (
     CORS_ORIGINS,
+    DEBUG,
     EXPIRED_OTP_CLEANUP_INTERVAL_SECONDS,
     FRONTEND_URL,
     OTP_LIFETIME_MINUTES,
@@ -144,44 +145,49 @@ async def send_otp(request: SendOTPRequest):
     otp = generate_otp()
     store_otp(email, otp)
 
-    try:
-        resp = send_verification_email(email, otp)
-        message_id = resp.get("MessageId")
+    if DEBUG:
+        logger.info(f"OTP for {email}: {otp}")
+    else:
+        try:
+            resp = send_verification_email(email, otp)
+            message_id = resp.get("MessageId")
+
+        except ses.exceptions.MessageRejected:
+            logger.error(f"SES MessageRejected for email={email}")
+            raise HTTPException(400, "Email was rejected by SES")
+
+        except ses.exceptions.MailFromDomainNotVerifiedException:
+            logger.error(f"SES MailFromDomainNotVerifiedException for email={email}")
+            raise HTTPException(400, "Sender domain is not verified in SES")
+
+        except ses.exceptions.ConfigurationSetDoesNotExistException:
+            logger.error(f"SES ConfigurationSetDoesNotExistException for email={email}")
+            raise HTTPException(400, "SES configuration set does not exist")
+
+        except ses.exceptions.ConfigurationSetSendingPausedException:
+            logger.error(
+                f"SES ConfigurationSetSendingPausedException for email={email}"
+            )
+            raise HTTPException(400, "SES configuration set sending is paused")
+
+        except ses.exceptions.AccountSendingPausedException:
+            logger.error(f"SES AccountSendingPausedException for email={email}")
+            raise HTTPException(400, "SES account sending is paused")
+
+        except ses.exceptions.InvalidParameterValue:
+            logger.error(f"SES InvalidParameterValue for email={email}")
+            raise HTTPException(400, "Invalid email or SES parameter value")
+
+        except ClientError as e:
+            code = e.response["Error"]["Code"]
+            logger.exception(f"Unexpected SES error for email={email}: {code}")
+            raise HTTPException(400, f"Email send failed: {code}")
 
         logger.info(
             f"Verification email sent successfully: {email}, Message ID: {message_id}"
         )
 
-        return {"success": True}
-
-    except ses.exceptions.MessageRejected:
-        logger.error(f"SES MessageRejected for email={email}")
-        raise HTTPException(400, "Email was rejected by SES")
-
-    except ses.exceptions.MailFromDomainNotVerifiedException:
-        logger.error(f"SES MailFromDomainNotVerifiedException for email={email}")
-        raise HTTPException(400, "Sender domain is not verified in SES")
-
-    except ses.exceptions.ConfigurationSetDoesNotExistException:
-        logger.error(f"SES ConfigurationSetDoesNotExistException for email={email}")
-        raise HTTPException(400, "SES configuration set does not exist")
-
-    except ses.exceptions.ConfigurationSetSendingPausedException:
-        logger.error(f"SES ConfigurationSetSendingPausedException for email={email}")
-        raise HTTPException(400, "SES configuration set sending is paused")
-
-    except ses.exceptions.AccountSendingPausedException:
-        logger.error(f"SES AccountSendingPausedException for email={email}")
-        raise HTTPException(400, "SES account sending is paused")
-
-    except ses.exceptions.InvalidParameterValue:
-        logger.error(f"SES InvalidParameterValue for email={email}")
-        raise HTTPException(400, "Invalid email or SES parameter value")
-
-    except ClientError as e:
-        code = e.response["Error"]["Code"]
-        logger.exception(f"Unexpected SES error for email={email}: {code}")
-        raise HTTPException(400, f"Email send failed: {code}")
+    return {"success": True}
 
 
 @router.post(

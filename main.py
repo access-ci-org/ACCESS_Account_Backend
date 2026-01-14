@@ -274,7 +274,9 @@ async def start_login(request: Request, login_request: LoginRequest | None = Non
 )
 async def complete_login(code: str, request: Request):
     """Receive the CILogon token after a successful login."""
-    user_info = await CILogonClient(request).get_user_info(code)
+    cilogon = CILogonClient(request)
+    access_token = await cilogon.get_access_token(code)
+    user_info = await cilogon.get_user_info(access_token)
 
     # Create a JWT token of type "login"
     user = user_info.get("preferred_username", "user")

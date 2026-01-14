@@ -28,9 +28,9 @@ class CILogonClient:
         if idp:
             params["idphint"] = idp
         return f"{CILOGON_AUTHORIZATION_URL}?{urlencode(params, doseq=True)}"
-
-    async def get_user_info(self, code: str):
-        """Get an access token, and use it to get user information."""
+    
+    async def get_access_token(self, code: str):
+        """Get an access token"""
         async with httpx.AsyncClient() as client:
             token_response = await client.post(
                 CILOGON_TOKEN_URL,
@@ -42,15 +42,17 @@ class CILogonClient:
                     "redirect_uri": self.request.url_for("complete_login"),
                 },
             )
-
         if token_response.status_code != 200:
             raise HTTPException(
                 status_code=token_response.status_code, detail=token_response.json()
             )
 
         access_token = token_response.json().get("access_token")
+        return access_token
+    
 
-        # Get user information from CILogon using the access token.
+    async def get_user_info(self, access_token: str):
+        """Get user information from CILogon using the access token."""
         async with httpx.AsyncClient() as client:
             userinfo_response = await client.get(
                 CILOGON_USER_INFO_URL, 

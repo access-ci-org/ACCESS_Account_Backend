@@ -55,6 +55,10 @@ EXPIRED_OTP_CLEANUP_INTERVAL_SECONDS: int = config(
     "EXPIRED_OTP_CLEANUP_INTERVAL_SECONDS", cast=int, default=60
 )
 
+IDP_BY_DOMAIN_CACHE_REFRESH_INTERVAL_SECONDS: int = config(
+    "IDP_BY_DOMAIN_CACHE_REFRESH_INTERVAL_SECONDS", cast=int, default=3600
+)
+
 # CILogon
 CILOGON_AUTHORIZATION_URL: str = config(
     "CILOGON_AUTHORIZATION_URL", default="https://cilogon.org/authorize"

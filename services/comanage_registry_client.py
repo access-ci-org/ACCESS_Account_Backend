@@ -323,11 +323,15 @@ class CoManageRegistryClient:
 
         return await self._request("POST", "names.json", json=name_data)
 
-    async def create_new_identifier(self, accessid: str, org_identity_id: str) -> dict:
-        """Create a new Identity object of type ePPN to add to the Organizational Identity record.
+    async def create_new_identifier(
+        self, identifier: str, type: str, login: bool, org_identity_id: str
+    ) -> dict:
+        """Create a new Identity object to add to the Organizational Identity record.
 
         Args:
-            accessid: ACCESS ID of the user
+            identifier: The full identifier string
+            type: The identifier type (e.g., 'eppn', 'oidc', 'eppnPlusOIDC')
+            login: Whether this identifier can be used for login
             org_identity_id: The ID of the Organizational Identity record
 
         Returns:
@@ -342,9 +346,9 @@ class CoManageRegistryClient:
             "Identifiers": [
                 {
                     "Version": "1.0",
-                    "Type": "eppn",
-                    "Identifier": f"{accessid}@access-ci.org",
-                    "Login": True,
+                    "Type": type,
+                    "Identifier": identifier,
+                    "Login": login,
                     "Person": {"Type": "Org", "Id": org_identity_id},
                     "Status": "Active",
                 }

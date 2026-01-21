@@ -314,12 +314,135 @@ async def complete_login(code: str, request: Request):
     },
 )
 async def create_account(
-    request: CreateAccountRequest,
+    account_request: CreateAccountRequest,
+    request: Request,
     token: TokenPayload = Depends(require_otp),
     cilogon_token: str | None = None,
 ):
-    # TODO: Implement account creation logic
-    pass
+    """Create a new ACCESS account."""
+    email = token.sub.lower().strip()
+
+    # Step 1: Check if there's already an ACCESS ID for this email
+    existing_access_id = await comanage_client.get_access_id_for_email(email)
+    if existing_access_id:
+        logger.warning(
+            f"Account creation failed: email {email} already has ACCESS ID {existing_access_id}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"An ACCESS account already exists for email {email}",
+        )
+
+    # Step 2: Create a new CoPerson record
+    user_result = await comanage_client.create_new_user(
+        firstname=account_request.first_name,
+        middlename=None,  # Not provided in CreateAccountRequest
+        lastname=account_request.last_name,
+        organization=str(
+            account_request.organization_id
+        ),  # Using organization_id as the organization
+        email=email,
+    )
+    co_person_id = str(user_result["Id"])
+    if DEBUG:
+        logger.info(f"Created CoPerson {co_person_id} for email {email}")
+
+    # Step 3: Create an OrgIdentity record
+    org_identity_id = await comanage_client.create_new_org_identity()
+    if DEBUG:
+        logger.info(
+            f"Created OrgIdentity {org_identity_id} for CoPerson {co_person_id}"
+        )
+
+    # Step 4: Link the OrgIdentity to the CoPerson
+    await comanage_client.create_new_link(co_person_id, org_identity_id)
+    if DEBUG:
+        logger.info(f"Linked OrgIdentity {org_identity_id} to CoPerson {co_person_id}")
+
+    # Step 5: Create a Name record
+    await comanage_client.create_new_name(
+        firstname=account_request.first_name,
+        middlename=None,
+        lastname=account_request.last_name,
+        org_identity_id=org_identity_id,
+    )
+    if DEBUG:
+        logger.info(f"Created Name record for OrgIdentity {org_identity_id}")
+
+    # Step 6: Create identifier(s) based on whether cilogon_token is provided
+    # First, get the ACCESS ID that was assigned to this user
+    access_id = await comanage_client.get_access_id_for_email(email)
+    if not access_id:
+        logger.error(f"Could not retrieve ACCESS ID for newly created user {email}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Failed to retrieve ACCESS ID",
+        )
+
+    if cilogon_token:
+        # Get user info from CILogon using the token
+        cilogon = CILogonClient(request)
+        user_info = await cilogon.get_user_info(cilogon_token)
+
+        # Map CILogon claims to identifier types and login status
+        # Based on the CILogon -> CoManage identifier mapping
+        claim_to_identifier_mapping = [
+            {"claim": "eppn", "type": "eppn", "login": True},
+            {"claim": "eptid", "type": "eptid", "login": False},
+            {"claim": "epuid", "type": "epuid", "login": False},
+            {"claim": "sub", "type": "oidc", "login": True},
+            {"claim": "orcid", "type": "orcid", "login": False},
+            {"claim": "pairwise_id", "type": "samlpairwiseid", "login": False},
+            {"claim": "subject_id", "type": "samlsubjectid", "login": False},
+        ]
+
+        # Create an identifier for each claim that exists in the user info
+        for mapping in claim_to_identifier_mapping:
+            claim_key = mapping["claim"]
+            if claim_key in user_info and user_info[claim_key]:
+                await comanage_client.create_new_identifier(
+                    identifier=str(user_info[claim_key]),
+                    type=mapping["type"],
+                    login=mapping["login"],
+                    org_identity_id=org_identity_id,
+                )
+                if DEBUG:
+                    logger.info(
+                        f"Created identifier of type {mapping['type']} (login={mapping['login']}) for OrgIdentity {org_identity_id}"
+                    )
+    else:
+        # Create a single ePPN identifier with login=True
+        eppn_identifier = f"{access_id}@access-ci.org"
+        await comanage_client.create_new_identifier(
+            identifier=eppn_identifier,
+            type="eppn",
+            login=True,
+            org_identity_id=org_identity_id,
+        )
+        if DEBUG:
+            logger.info(
+                f"Created ePPN identifier {eppn_identifier} for OrgIdentity {org_identity_id}"
+            )
+
+    # Step 7: Create a terms and conditions agreement
+    active_tandc = await comanage_client.get_active_tandc()
+    if not active_tandc:
+        logger.error(f"No active terms and conditions found for user {email}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No active terms and conditions available",
+        )
+
+    await comanage_client.create_new_tandc_agreement(
+        co_tandc_id=active_tandc["Id"],
+        co_person_id=int(co_person_id),
+    )
+    if DEBUG:
+        logger.info(f"Created T&C agreement for CoPerson {co_person_id}")
+        logger.info(
+            f"Successfully created account for {email} with ACCESS ID {access_id}"
+        )
+    return {"success": True, "access_id": access_id}
 
 
 @router.get(

@@ -227,7 +227,7 @@ async def verify_otp(request: VerifyOTPRequest):
 
     # Create a JWT token of type "otp"
     token = create_access_token(
-        email=request.email,
+        sub=request.email,
         token_type="otp",
         username=None,  # OTP tokens don't have a username yet
     )
@@ -282,7 +282,7 @@ async def complete_login(code: str, request: Request):
     user = user_info.get("preferred_username", "user")
 
     jwt = create_access_token(
-        email=user_info["email"],
+        sub=user_info["sub"],
         token_type="login",
         username=user,
     )

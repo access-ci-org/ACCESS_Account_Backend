@@ -18,7 +18,7 @@ from config import (
 class TokenPayload(BaseModel):
     """JWT token payload structure."""
 
-    sub: str  # email address
+    sub: str  # email address for OTP tokens, CILogon sub claim for login tokens
     typ: Literal["otp", "login"]  # authentication type
     uid: str | None = None  # ACCESS username if exists
     exp: datetime | None = None  # expiration time
@@ -28,7 +28,7 @@ security = HTTPBearer(auto_error=False)
 
 
 def create_access_token(
-    email: str,
+    sub: str,
     token_type: Literal["otp", "login"],
     username: str | None = None,
     expires_delta: timedelta | None = None,
@@ -37,7 +37,7 @@ def create_access_token(
     Create a JWT access token.
 
     Args:
-        email: The user's email address
+        sub: The subject claim - email address for OTP tokens, CILogon sub for login tokens
         token_type: Either "otp" or "login"
         username: The ACCESS username (optional)
         expires_delta: Custom expiration time (optional)
@@ -55,7 +55,7 @@ def create_access_token(
         expire = now + timedelta(minutes=JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
 
     to_encode = {
-        "sub": email,
+        "sub": sub,
         "typ": token_type,
         "uid": username,
         "exp": expire,

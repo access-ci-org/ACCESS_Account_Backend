@@ -3,7 +3,7 @@ import string
 from asyncio import gather
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
-from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
+from urllib.parse import urlencode
 
 from botocore.exceptions import ClientError
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, status
@@ -117,6 +117,7 @@ router = APIRouter(prefix="/api/v1")
 
 comanage_client = CoManageRegistryClient()
 identity_client = IdentityServiceClient()
+
 
 # Auth Routes
 @router.post(
@@ -250,14 +251,11 @@ async def verify_otp(request: VerifyOTPRequest):
     },
     response_class=RedirectResponse,
 )
-async def start_login(request: Request, login_request: LoginRequest | None = None, token_type: str | None = None):
+async def start_login(request: Request, login_request: LoginRequest | None = None):
     """Start the CILogon OIDC authentication flow."""
-    print("Starting logon")
-    url = CILogonClient(request).get_oidc_start_url(
-        idp=login_request.idp if login_request else None,
-        token_type=token_type
+    return CILogonClient(request).get_oidc_start_url(
+        idp=login_request.idp if login_request else None
     )
-    return RedirectResponse(url=url)
 
 
 @router.get(
@@ -274,7 +272,7 @@ async def start_login(request: Request, login_request: LoginRequest | None = Non
     },
     response_class=RedirectResponse,
 )
-async def complete_login(code: str, request: Request, token_type: str | None = None):
+async def complete_login(code: str, request: Request):
     """Receive the CILogon token after a successful login."""
     cilogon = CILogonClient(request)
     access_token = await cilogon.get_access_token(code)
@@ -283,15 +281,11 @@ async def complete_login(code: str, request: Request, token_type: str | None = N
     # Create a JWT token of type "login"
     user = user_info.get("preferred_username", "user")
 
-
-    if token_type == "cilogon":
-        jwt = access_token
-    else:
-        jwt = create_access_token(
-            email=user_info["email"],
-            token_type="login",
-            username=user,
-        )
+    jwt = create_access_token(
+        email=user_info["email"],
+        token_type="login",
+        username=user,
+    )
 
     # Build redirect URL with query parameters
     query_params = {
@@ -299,10 +293,8 @@ async def complete_login(code: str, request: Request, token_type: str | None = N
         "first_name": user_info["given_name"],
         "last_name": user_info["family_name"],
     }
-    if token_type:
-        query_params["token_type"] = token_type
 
-    return RedirectResponse(url=f"{FRONTEND_URL}?{urlencode(query_params)}")
+    return f"{FRONTEND_URL}?{urlencode(query_params)}"
 
 
 # Account Routes

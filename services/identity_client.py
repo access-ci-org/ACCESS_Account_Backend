@@ -16,9 +16,6 @@ class IdentityServiceClient:
             "XA-REQUESTER": XRAS_IDENTITY_SERVICE_REQUESTER,
             "XA-API-KEY": XRAS_IDENTITY_SERVICE_KEY,
         }
-        print("Identity base_url:", self.base_url)
-        print("Has XA-REQUESTER?", bool(XRAS_IDENTITY_SERVICE_REQUESTER))
-        print("Has XA-API-KEY?", bool(XRAS_IDENTITY_SERVICE_KEY))
 
     async def _request(self, method: str, path: str) -> dict | list:
         url = f"{self.base_url}{path}"

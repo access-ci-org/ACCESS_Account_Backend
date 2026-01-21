@@ -16,6 +16,7 @@ from sqlalchemy import delete
 from auth import (
     TokenPayload,
     create_access_token,
+    require_otp,
     require_otp_or_login,
     require_own_username_access,
     require_username_access,
@@ -314,7 +315,8 @@ async def complete_login(code: str, request: Request):
 )
 async def create_account(
     request: CreateAccountRequest,
-    token: TokenPayload = Depends(require_otp_or_login),
+    token: TokenPayload = Depends(require_otp),
+    cilogon_token: str | None = None,
 ):
     # TODO: Implement account creation logic
     pass

@@ -1,6 +1,6 @@
 from typing import List
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
 
@@ -70,6 +70,9 @@ class AcademicStatus(BaseSchema):
 class AcademicStatusResponse(BaseSchema):
     academic_statuses: List[AcademicStatus]
 
+class IdP(BaseSchema):
+    displayName: str
+    entityId: str
 
 class Domain(BaseSchema):
     domain: str
@@ -102,7 +105,7 @@ class Organization(BaseSchema):
 class DomainResponse(BaseSchema):
     domain: str
     organizations: List[Organization]
-    idps: List[str]
+    idps: List[IdP] = Field(default_factory=list)
 
 
 class AccountResponse(BaseSchema):

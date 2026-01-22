@@ -16,7 +16,7 @@ class CILogonClient:
     def __init__(self, request: Request):
         self.request = request
 
-    def get_oidc_start_url(self, idp: str = None):
+    def get_oidc_start_url(self, idp: str = None, token_type: str = None):
         """Get the URL to start the OIDC auth flow."""
         params = {
             "client_id": CILOGON_CLIENT_ID,
@@ -27,6 +27,9 @@ class CILogonClient:
         }
         if idp:
             params["idphint"] = idp
+        if token_type:
+            params["token_type"] = token_type
+
         return f"{CILOGON_AUTHORIZATION_URL}?{urlencode(params, doseq=True)}"
     
     async def get_access_token(self, code: str):

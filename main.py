@@ -61,6 +61,8 @@ from services.otp_service import (
 )
 from services.ssh_key_service import calculate_ssh_fingerprint_sha256
 
+from services.account_linked import prefer_comanage, safe_get
+
 # Config logging
 logger = logging.getLogger("access_account_api")
 logger.setLevel(logging.INFO)
@@ -318,28 +320,6 @@ async def create_account(
 ):
     # TODO: Implement account creation logic
     pass
-
-def prefer_comanage(comanage_val, identity_val):
-    """
-        Use CoManage if values present, otherwise fall back to Identity Service.
-    """
-    if comanage_val is None:
-        return identity_val
-    if isinstance(comanage_val, str) and comanage_val.strip() == "":
-        return identity_val
-    if isinstance(comanage_val, list) and len(comanage_val) == 0:
-        return identity_val
-    return comanage_val
-
-def safe_get(d: dict, *keys, default=None):
-    """Safely get a nested value from a dictionary."""
-    cur = d
-    for k in keys:
-        if not isinstance(cur, dict) or k not in cur:
-            return default
-        cur = cur[k]
-    return cur
-
 
 
 @router.get(

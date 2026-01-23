@@ -1,6 +1,6 @@
-from typing import List
+from typing import List, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
 
@@ -112,6 +112,30 @@ class AccountResponse(BaseSchema):
     email: str
     time_zone: str | None = None
 
+class LinkedIdentityProvider(BaseSchema):
+    idp_id: str
+    display_name: Optional[str] = None
+
+class ProfileResponse(BaseSchema):
+    access_id: str
+
+    first_name: Optional[str] = None
+    middle_name: Optional[str] = None
+    last_name: Optional[str] = None
+    email: Optional[str] = None
+
+    institution_or_org: Optional[str] = None
+    degree: Optional[str] = None
+    degree_field: Optional[str] = None
+
+    persona_role: Optional[str] = None
+    academic_status: Optional[str] = None
+
+    residence_country: Optional[str] = None
+    citizenship_country: Optional[str] = None
+    time_zone: Optional[str] = None
+
+    linked_identity_providers: List[LinkedIdentityProvider] = Field(default_factory=list)
 
 class TermsAndConditionsResponse(BaseSchema):
     id: int

@@ -37,3 +37,10 @@ class IdentityServiceClient:
             "GET",
             f"/profiles/v1/organizations?domain={check_domain}",
         )
+
+    async def get_account(self, username: str) -> dict:
+        check_username = quote(username, safe="")
+        return await self._request(
+            "GET",
+            f"/profiles/v1/people/{check_username}",
+        )

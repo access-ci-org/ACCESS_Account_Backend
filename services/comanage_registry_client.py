@@ -1,6 +1,10 @@
+import logging
+from asyncio import gather
+from collections import namedtuple
 from urllib.parse import quote, urlencode
 
 import httpx
+from fastapi import HTTPException, status
 
 from config import (
     COMANAGE_REGISTRY_BASE_URL,
@@ -8,6 +12,25 @@ from config import (
     COMANAGE_REGISTRY_PASSWORD,
     COMANAGE_REGISTRY_USER,
 )
+from services.cilogon_client import CILogonClient
+
+# Map CILogon claims to identifier types and login status
+# Based on the CILogon -> CoManage identifier mapping
+CLAIM_TO_IDENTIFIER_MAPPING = [
+    {"claim": "eppn", "type": "eppn", "login": True},
+    {"claim": "eptid", "type": "eptid", "login": False},
+    {"claim": "epuid", "type": "epuid", "login": False},
+    {"claim": "sub", "type": "oidc", "login": True},
+    {"claim": "orcid", "type": "orcid", "login": False},
+    {"claim": "pairwise_id", "type": "samlpairwiseid", "login": False},
+    {"claim": "subject_id", "type": "samlsubjectid", "login": False},
+]
+
+logger = logging.getLogger("access_account_api")
+logger.setLevel(logging.INFO)
+
+
+Identifier = namedtuple("Identifier", ["identifier", "type", "login"])
 
 
 class CoManageUser(dict):
@@ -24,6 +47,24 @@ class CoManageUser(dict):
             if name["primary_name"] and not name["meta"]["deleted"]:
                 return name
         return None
+
+    def has_identifier(self, identifier: Identifier):
+        """Iterate over the existing OrgIdentity records and check whether there is one with the specified identifier."""
+        for org_identity in self["OrgIdentity"]:
+            if org_identity["meta"]["deleted"]:
+                continue
+
+            for identifier_dict in org_identity["Identifier"]:
+                if identifier_dict["meta"]["deleted"]:
+                    continue
+
+                if (
+                    identifier_dict["identifier"] == identifier.identifier
+                    and identifier_dict["type"] == identifier.type
+                ):
+                    return True
+
+        return False
 
 
 class CoManageRegistryClient:
@@ -96,7 +137,7 @@ class CoManageRegistryClient:
 
         return None
 
-    async def get_user_info(self, accessid: str) -> dict:
+    async def get_user_info(self, accessid: str) -> CoManageUser:
         """Get full user info for a given ACCESS ID.
 
         Args:
@@ -386,4 +427,137 @@ class CoManageRegistryClient:
 
         return await self._request(
             "POST", "co_t_and_c_agreements.json", json=tandc_data
+        )
+
+    # Helper methods
+
+    async def _get_identifiers(
+        self,
+        access_id: str,
+        cilogon_token: str | None = None,
+    ):
+        # Determine the identifiers we expect the new OrgIdentity to have.
+        identifiers = []
+        if cilogon_token:
+            # Get user info from CILogon using the token
+            cilogon = CILogonClient()
+            cilogon_user_info = await cilogon.get_user_info(cilogon_token)
+
+            # Create an identifier for each claim that exists in the user info
+            for mapping in CLAIM_TO_IDENTIFIER_MAPPING:
+                claim_key = mapping["claim"]
+                if claim_key in cilogon_user_info and cilogon_user_info[claim_key]:
+                    identifiers.append(
+                        Identifier(
+                            str(cilogon_user_info[claim_key]),
+                            mapping["type"],
+                            mapping["login"],
+                        )
+                    )
+
+        else:
+            # Create a single ePPN identifier with login=True
+            identifiers.append(Identifier(f"{access_id}@access-ci.org", "eppn", True))
+
+        return identifiers
+
+    async def _get_user(self, access_id: str):
+        """Get the user info for the ACCESS ID."""
+        user = await self.get_user_info(access_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Could not find a user with ACCESS ID: ${access_id}",
+            )
+        return user
+
+    # High-level methods
+
+    async def check_account_does_not_exist(self, email: str):
+        """Check that a user account for the given email does not already exist.
+
+        Args:
+            email: The user's email address
+
+        Returns:
+            The existing ACCESS ID
+
+        Raises:
+            HTTPException: If the account already exists.
+        """
+        existing_access_id = await self.get_access_id_for_email(email)
+        if existing_access_id:
+            logger.warning(
+                f"Account creation failed: email {email} already has ACCESS ID {existing_access_id}"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"An ACCESS account already exists for email {email}",
+            )
+        return existing_access_id
+
+    async def check_active_tandc_exists(self):
+        active_tandc = await self.get_active_tandc()
+        if not active_tandc:
+            logger.error("No active terms and conditions found")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No active terms and conditions available",
+            )
+        return active_tandc
+
+    async def create_linked_identity(
+        self,
+        co_person_id: str,
+        access_id: str,
+        cilogon_token: str | None = None,
+    ):
+        # Determine the identifiers we expect the new OrgIdentity to have.
+        [identifiers, user] = await gather(
+            self._get_identifiers(access_id, cilogon_token), self._get_user(access_id)
+        )
+
+        primary_name = user.get_primary_name()
+        if not primary_name:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"User ${access_id} does not have a primary name",
+            )
+
+        # Check to make sure the identifiers don't already exist:
+        for identifier in identifiers:
+            if user.has_identifier(identifier):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Identifier already exists: ${identifier.identifier}",
+                )
+
+        # Create an OrgIdentity record
+        org_identity_id = await self.create_new_org_identity()
+
+        # Link the OrgIdentity to the CoPerson
+        await self.create_new_link(co_person_id, org_identity_id)
+
+        # In parallel:
+        # - Create a Name record
+        # - Create the desired Identifier records
+        identifier_creation = []
+        for identifier in identifiers:
+            identifier_creation.append(
+                self.create_new_identifier(
+                    identifier=identifier.identifier,
+                    type=identifier.type,
+                    login=identifier.login,
+                    org_identity_id=org_identity_id,
+                )
+            )
+
+        await gather(
+            self.create_new_name(
+                firstname=primary_name["given"],
+                middlename=None,
+                lastname=primary_name["family"],
+                org_identity_id=org_identity_id,
+            ),
+            *identifier_creation,
         )

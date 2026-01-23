@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode
 
+
 from botocore.exceptions import ClientError
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -26,6 +27,7 @@ from config import (
     EXPIRED_OTP_CLEANUP_INTERVAL_SECONDS,
     FRONTEND_URL,
     OTP_LIFETIME_MINUTES,
+    IDP_BY_DOMAIN_CACHE_REFRESH_INTERVAL_SECONDS,
 )
 from database import OTPEntry, get_session, init_db
 from models import (
@@ -59,6 +61,8 @@ from services.otp_service import (
 )
 from services.ssh_key_service import calculate_ssh_fingerprint_sha256
 
+from services.idp_service import build_idp_domain_mapping
+
 # Config logging
 logger = logging.getLogger("access_account_api")
 logger.setLevel(logging.INFO)
@@ -68,6 +72,9 @@ formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(name)s - %(messag
 
 handler.setFormatter(formatter)
 logger.addHandler(handler)
+
+# IDP by Domain
+IDP_BY_DOMAIN: dict[str, dict[str, str]] = {}
 
 
 # cron job to clean up expired OTPs
@@ -87,6 +94,22 @@ def clear_expired_otps():
     # logger.info(f"Expired OTP cleanup task completed, removed {rows_deleted} entries")
 
 
+@repeat_every(seconds=IDP_BY_DOMAIN_CACHE_REFRESH_INTERVAL_SECONDS, wait_first=True)
+async def refresh_idp_domain_mapping():
+    global IDP_BY_DOMAIN
+    try:
+        if DEBUG:
+            logger.info("Refreshing IdP domain mapping...")
+
+        new_map = await build_idp_domain_mapping()
+        IDP_BY_DOMAIN = new_map
+        if DEBUG:
+            logger.info(f"Refreshed IdP domain mapping entries: {len(IDP_BY_DOMAIN)}")
+
+    except Exception as e:
+        logger.exception(f"Failed to refresh IdP domain mapping: {e}")
+
+
 # Initialize the OTP database
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -94,6 +117,15 @@ async def lifespan(app: FastAPI):
     init_db()
     print("Database initialized.")
     await clear_expired_otps()  # Initial cleanup on startup
+
+    global IDP_BY_DOMAIN
+    try:
+        print("Fetching IdP metadata...")
+        IDP_BY_DOMAIN = await build_idp_domain_mapping()
+        logger.info(f"Loaded IdP domain mapping entries: {len(IDP_BY_DOMAIN)}")
+    except Exception as e:
+        logger.exception(f"Failed to load IdP domain mapping: {e}")
+        IDP_BY_DOMAIN = {}
     yield
 
 
@@ -678,14 +710,28 @@ async def get_domain_info(
     domain: str,
     token: TokenPayload = Depends(require_otp_or_login),
 ) -> DomainResponse:
+    domain_clean = domain.strip().lower()
     # Call the Identity Service client to get the domain information
-    domain_data = await identity_client.get_domain(domain)
+    try:
+        domain_data = await identity_client.get_domain(domain_clean)
+    except HTTPStatusError as err:
+        # bubble up upstream status code + message
+        raise HTTPException(
+            status_code=err.response.status_code,
+            detail=f"Identity service error: {err.response.text}",
+        )
 
+    idps = []
+    match = IDP_BY_DOMAIN.get(domain_clean)
+    if match:
+        idps.append(
+            {"displayName": match["display_name"], "entityId": match["entity_id"]}
+        )
     # Include the full organization dictionaries from XRAS
     return {
-        "domain": domain,
+        "domain": domain_clean,
         "organizations": domain_data,
-        "idps": [],
+        "idps": idps,
     }
 
 

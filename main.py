@@ -4,8 +4,7 @@ from asyncio import gather
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode
-import xml.etree.ElementTree as ET
-import httpx
+
 
 from botocore.exceptions import ClientError
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, status
@@ -62,7 +61,7 @@ from services.otp_service import (
 )
 from services.ssh_key_service import calculate_ssh_fingerprint_sha256
 
-from services.idp_service import best_display_name, build_idp_domain_mapping
+from services.idp_service import build_idp_domain_mapping
 
 # Config logging
 logger = logging.getLogger("access_account_api")

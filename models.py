@@ -70,9 +70,11 @@ class AcademicStatus(BaseSchema):
 class AcademicStatusResponse(BaseSchema):
     academic_statuses: List[AcademicStatus]
 
+
 class IdP(BaseSchema):
     displayName: str
     entityId: str
+
 
 class Domain(BaseSchema):
     domain: str

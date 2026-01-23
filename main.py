@@ -77,6 +77,7 @@ logger.addHandler(handler)
 # IDP by Domain
 IDP_BY_DOMAIN: dict[str, dict[str, str]] = {}
 
+
 # cron job to clean up expired OTPs
 @repeat_every(seconds=EXPIRED_OTP_CLEANUP_INTERVAL_SECONDS)  # runs every minute
 def clear_expired_otps():
@@ -93,6 +94,7 @@ def clear_expired_otps():
         rows_deleted = result.rowcount or 0
     # logger.info(f"Expired OTP cleanup task completed, removed {rows_deleted} entries")
 
+
 @repeat_every(seconds=IDP_BY_DOMAIN_CACHE_REFRESH_INTERVAL_SECONDS, wait_first=True)
 async def refresh_idp_domain_mapping():
     global IDP_BY_DOMAIN
@@ -107,7 +109,6 @@ async def refresh_idp_domain_mapping():
 
     except Exception as e:
         logger.exception(f"Failed to refresh IdP domain mapping: {e}")
-
 
 
 # Initialize the OTP database
@@ -681,6 +682,7 @@ async def get_countries(
         ]
     }
 
+
 @router.get(
     "/domain/{domain}",
     tags=["Reference Data"],
@@ -714,7 +716,9 @@ async def get_domain_info(
     idps = []
     match = IDP_BY_DOMAIN.get(domain_clean)
     if match:
-        idps.append({"displayName": match["display_name"], "entityId": match["entity_id"]})
+        idps.append(
+            {"displayName": match["display_name"], "entityId": match["entity_id"]}
+        )
     # Include the full organization dictionaries from XRAS
     return {
         "domain": domain_clean,

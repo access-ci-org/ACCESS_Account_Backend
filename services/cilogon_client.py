@@ -53,7 +53,7 @@ class CILogonClient:
         # Get user information from CILogon using the access token.
         async with httpx.AsyncClient() as client:
             userinfo_response = await client.get(
-                CILOGON_USER_INFO_URL, 
+                CILOGON_USER_INFO_URL,
                 headers={
                     "Authorization": f"Bearer {access_token}",
                     "Accept": "application/json",

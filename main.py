@@ -300,7 +300,6 @@ async def complete_login(code: str, request: Request, token_type: str | None = N
     }
     if token_type:
         query_params["token_type"] = token_type
-    print(token_type)
 
     return f"{FRONTEND_URL}?{urlencode(query_params)}"
 

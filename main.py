@@ -321,21 +321,29 @@ async def create_account(
 ):
     """Create a new ACCESS account."""
     email = token.sub.lower().strip()
+    try:
+        domain = email.split("@")[1]
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid email address",
+        )
 
     # Perform preliminary checks in parallel
-    [_existing_access_id, active_tandc] = await gather(
+    [_existing_access_id, active_tandc, _org_domain_match] = await gather(
         comanage_client.check_account_does_not_exist(email),
         comanage_client.check_active_tandc_exists(),
+        identity_client.check_organization_matches_domain(
+            account_request.organization_id, domain
+        ),
     )
 
     # Create a new CoPerson record
     co_person = await comanage_client.create_new_user(
         firstname=account_request.first_name,
-        middlename=None,  # Not provided in CreateAccountRequest
+        middlename=None,
         lastname=account_request.last_name,
-        organization=str(
-            account_request.organization_id
-        ),  # Using organization_id as the organization
+        organization=str(account_request.organization_id),
         email=email,
     )
     co_person_id = str(co_person["Id"])
@@ -712,12 +720,12 @@ async def get_domain_info(
     token: TokenPayload = Depends(require_otp_or_login),
 ) -> DomainResponse:
     # Call the Identity Service client to get the domain information
-    domain_data = await identity_client.get_domain(domain)
+    organizations = await identity_client.get_organizations_by_domain(domain)
 
     # Include the full organization dictionaries from XRAS
     return {
         "domain": domain,
-        "organizations": domain_data,
+        "organizations": organizations,
         "idps": [],
     }
 

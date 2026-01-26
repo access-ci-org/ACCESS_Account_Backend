@@ -1,6 +1,7 @@
 from urllib.parse import quote
 
 import httpx
+from fastapi import HTTPException, status
 
 from config import (
     XRAS_IDENTITY_SERVICE_BASE_URL,
@@ -31,9 +32,28 @@ class IdentityServiceClient:
     async def get_countries(self) -> list[dict]:
         return await self._request("GET", "/profiles/v1/countries")
 
-    async def get_domain(self, domain: str) -> dict:
+    async def get_organizations_by_domain(self, domain: str) -> dict:
         check_domain = quote(domain, safe="")
         return await self._request(
             "GET",
             f"/profiles/v1/organizations?domain={check_domain}",
+        )
+
+    # High-level methods
+
+    async def check_organization_matches_domain(
+        self, organization_id: int, domain: str
+    ):
+        organizations = await self.get_organizations_by_domain(domain)
+        for organization in organizations:
+            if (
+                organization["organization_id"] == organization_id
+                and organization["is_active"]
+                and organization["is_eligible"]
+            ):
+                return True
+
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Domain {domain} does not match an eligible organization",
         )

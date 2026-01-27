@@ -10,6 +10,7 @@ from config import (
     COMANAGE_REGISTRY_BASE_URL,
     COMANAGE_REGISTRY_COID,
     COMANAGE_REGISTRY_PASSWORD,
+    COMANAGE_REGISTRY_TIMEOUT,
     COMANAGE_REGISTRY_USER,
 )
 from services.cilogon_client import CILogonClient
@@ -48,8 +49,12 @@ class CoManageUser(dict):
                 return name
         return None
 
-    def has_identifier(self, identifier: Identifier):
+    def has_org_identity(self, identifier: Identifier):
         """Iterate over the existing OrgIdentity records and check whether there is one with the specified identifier."""
+        if "OrgIdentity" not in self:
+            # There are no OrgIdentity records
+            return False
+
         for org_identity in self["OrgIdentity"]:
             if org_identity["meta"]["deleted"]:
                 continue
@@ -74,11 +79,13 @@ class CoManageRegistryClient:
         username=COMANAGE_REGISTRY_USER,
         password=COMANAGE_REGISTRY_PASSWORD,
         coid=COMANAGE_REGISTRY_COID,
+        timeout=COMANAGE_REGISTRY_TIMEOUT,
     ):
         self.base_url = base_url
         self.username = username
         self.password = password
         self.coid = coid
+        self.timeout = timeout
 
     async def _request(
         self, method: str, path: str, json: dict | None = None
@@ -88,7 +95,9 @@ class CoManageRegistryClient:
         headers = {"Accept": "application/json", "Content-Type": "application/json"}
 
         async with httpx.AsyncClient(auth=auth) as client:
-            resp = await client.request(method, url, headers=headers, json=json)
+            resp = await client.request(
+                method, url, headers=headers, json=json, timeout=10.0
+            )
             resp.raise_for_status()
             return resp.json()
 
@@ -526,7 +535,7 @@ class CoManageRegistryClient:
 
         # Check to make sure the identifiers don't already exist:
         for identifier in identifiers:
-            if user.has_identifier(identifier):
+            if user.has_org_identity(identifier):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Identifier already exists: ${identifier.identifier}",

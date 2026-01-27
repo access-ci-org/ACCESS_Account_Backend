@@ -330,7 +330,7 @@ async def create_account(
         )
 
     # Perform preliminary checks in parallel
-    [_existing_access_id, active_tandc, _org_domain_match] = await gather(
+    [_existing_access_id, active_tandc, organization_name] = await gather(
         comanage_client.check_account_does_not_exist(email),
         comanage_client.check_active_tandc_exists(),
         identity_client.check_organization_matches_domain(
@@ -339,24 +339,31 @@ async def create_account(
     )
 
     # Create a new CoPerson record
-    co_person = await comanage_client.create_new_user(
+    co_person_response = await comanage_client.create_new_user(
         firstname=account_request.first_name,
         middlename=None,
         lastname=account_request.last_name,
-        organization=str(account_request.organization_id),
+        organization=organization_name,
         email=email,
     )
-    co_person_id = str(co_person["Id"])
 
-    # Get the ACCESS ID that was assigned to this user
-    access_id = await comanage_client.get_access_id_for_email(email)
-    if not access_id:
+    # Extract the ACCESS ID from the response
+    if (
+        len(co_person_response) == 1
+        and co_person_response[0].get("type", None) == "accessid"
+    ):
+        access_id = co_person_response[0]["identifier"]
+    else:
         logger.error(f"Could not retrieve ACCESS ID for newly created user {email}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Failed to retrieve ACCESS ID",
         )
 
+    # Get the CoPerson ID for the new user
+    co_person_id = await comanage_client.get_co_person_id_for_email(email)
+
+    # Create an OrgIdentity record
     await comanage_client.create_linked_identity(co_person_id, access_id, cilogon_token)
 
     # Create a terms and conditions agreement

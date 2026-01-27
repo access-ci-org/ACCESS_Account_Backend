@@ -51,9 +51,9 @@ class IdentityServiceClient:
                 and organization["is_active"]
                 and organization["is_eligible"]
             ):
-                return True
+                return organization["organization_name"]
 
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Domain {domain} does not match an eligible organization",
+            detail=f"Domain {domain} does not match organization {organization_id} or is ineligible",
         )

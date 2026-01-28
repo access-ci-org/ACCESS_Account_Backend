@@ -352,7 +352,7 @@ async def get_account(
     comanage_last = primary_name.get("family")
     comanage_tz = safe_get(comanage_user, "CoPerson", "timezone")
 
-    comanage_email = primary_name.get("email") #token.sub
+    comanage_email = primary_name.get("email") or token.sub
     
     #Identity Service values (fallback)
     identity_first = identity_person.get("firstName")

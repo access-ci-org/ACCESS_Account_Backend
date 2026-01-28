@@ -336,7 +336,7 @@ async def create_account(
 )
 async def get_account(
     username: str,
-    token: TokenPayload = Depends(require_otp_or_login), #require_username_access
+    token: TokenPayload = Depends(require_username_access),
 ):
     comanage_task = comanage_client.get_user_info(username)
     identity_task = identity_client.get_account(username)
@@ -344,31 +344,28 @@ async def get_account(
         # Request Allocations profile and Support data in parallel.
         comanage_user, identity_person = await gather(comanage_task, identity_task)
     except HTTPStatusError as err:
-        # TODO: Is this the logic we want?
         raise HTTPException(err.response.status_code, err.response.text)
 
     # Comanage (preferred) values
     primary_name = comanage_user.get_primary_name() or {}
-    print("primary_name:", primary_name)
     comanage_first = primary_name.get("given")
-    print("comanage_first:", comanage_first)
     comanage_last = primary_name.get("family")
-    print("comanage_last:", comanage_last)
     comanage_tz = safe_get(comanage_user, "CoPerson", "timezone")
-    print("comanage_tz:", comanage_tz)
 
     comanage_email = primary_name.get("email") #token.sub
-    print("comanage_email:", comanage_email)
+    
     #Identity Service values (fallback)
     identity_first = identity_person.get("firstName")
     identity_last = identity_person.get("lastName")
     identity_email = identity_person.get("email")
     identity_tz = identity_person.get("timeZone")
+
+    # Prefer CoManage values over Identity Service values
     return {
         "username": username,
         "first_name": prefer_comanage(comanage_first, identity_first),
         "last_name": prefer_comanage(comanage_last, identity_last),
-        "email": prefer_comanage(comanage_email, identity_email),  # TODO: Should we use the token email address or get it from CoManage?
+        "email": prefer_comanage(comanage_email, identity_email), 
         "time_zone": prefer_comanage(comanage_tz, identity_tz),
     }
 

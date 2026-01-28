@@ -137,6 +137,29 @@ async def require_auth(
     return token
 
 
+async def require_otp(
+    token: TokenPayload = Depends(get_current_token),
+) -> TokenPayload:
+    """
+    Dependency that requires OTP authentication only.
+
+    Args:
+        token: The decoded token payload
+
+    Returns:
+        TokenPayload
+
+    Raises:
+        HTTPException: If token type is not "otp"
+    """
+    if token.typ != "otp":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="OTP authentication required",
+        )
+    return token
+
+
 async def require_otp_or_login(
     token: TokenPayload = Depends(get_current_token),
 ) -> TokenPayload:

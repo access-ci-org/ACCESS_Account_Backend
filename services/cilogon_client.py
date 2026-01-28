@@ -16,13 +16,15 @@ class CILogonClient:
     def __init__(self, request: Request):
         self.request = request
 
-    def get_oidc_start_url(self, idp: str = None, token_type: str = None):
+    def get_oidc_start_url(
+        self, request: Request, idp: str | None = None, token_type: str | None = None
+    ):
         """Get the URL to start the OIDC auth flow."""
         params = {
             "client_id": CILOGON_CLIENT_ID,
             "response_type": "code",
             "scope": "openid profile email org.cilogon.userinfo",
-            "redirect_uri": self.request.url_for("complete_login"),
+            "redirect_uri": request.url_for("complete_login"),
             "skin": "access",
         }
         if idp:
@@ -31,8 +33,8 @@ class CILogonClient:
             params["token_type"] = token_type
 
         return f"{CILOGON_AUTHORIZATION_URL}?{urlencode(params, doseq=True)}"
-    
-    async def get_access_token(self, code: str):
+
+    async def get_access_token(self, request: Request, code: str):
         """Get an access token"""
         async with httpx.AsyncClient() as client:
             token_response = await client.post(
@@ -42,7 +44,7 @@ class CILogonClient:
                     "client_id": CILOGON_CLIENT_ID,
                     "client_secret": CILOGON_CLIENT_SECRET,
                     "code": code,
-                    "redirect_uri": self.request.url_for("complete_login"),
+                    "redirect_uri": request.url_for("complete_login"),
                 },
             )
         if token_response.status_code != 200:
@@ -52,7 +54,6 @@ class CILogonClient:
 
         access_token = token_response.json().get("access_token")
         return access_token
-    
 
     async def get_user_info(self, access_token: str):
         """Get user information from CILogon using the access token."""

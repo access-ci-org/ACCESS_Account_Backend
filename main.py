@@ -5,7 +5,6 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode
 
-
 from botocore.exceptions import ClientError
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,6 +16,7 @@ from sqlalchemy import delete
 from auth import (
     TokenPayload,
     create_access_token,
+    require_otp,
     require_otp_or_login,
     require_own_username_access,
     require_username_access,
@@ -26,8 +26,8 @@ from config import (
     DEBUG,
     EXPIRED_OTP_CLEANUP_INTERVAL_SECONDS,
     FRONTEND_URL,
-    OTP_LIFETIME_MINUTES,
     IDP_BY_DOMAIN_CACHE_REFRESH_INTERVAL_SECONDS,
+    OTP_LIFETIME_MINUTES,
 )
 from database import OTPEntry, get_session, init_db
 from models import (
@@ -54,14 +54,13 @@ from services.cilogon_client import CILogonClient
 from services.comanage_registry_client import CoManageRegistryClient
 from services.email_service import send_verification_email, ses
 from services.identity_client import IdentityServiceClient
+from services.idp_service import build_idp_domain_mapping
 from services.otp_service import (
     generate_otp,
     store_otp,
     verify_stored_otp,
 )
 from services.ssh_key_service import calculate_ssh_fingerprint_sha256
-
-from services.idp_service import build_idp_domain_mapping
 
 # Config logging
 logger = logging.getLogger("access_account_api")
@@ -283,13 +282,15 @@ async def verify_otp(request: VerifyOTPRequest):
     },
     response_class=RedirectResponse,
 )
-async def start_login(request: Request, login_request: LoginRequest | None = None,  token_type: str | None = None):
+async def start_login(
+    request: Request,
+    login_request: LoginRequest | None = None,
+    token_type: str | None = None,
+):
     """Start the CILogon OIDC authentication flow."""
-    url = CILogonClient(request).get_oidc_start_url(
-        idp=login_request.idp if login_request else None,
-        token_type=token_type
+    return CILogonClient().get_oidc_start_url(
+        request, idp=login_request.idp if login_request else None, token_type=token_type
     )
-    return RedirectResponse(url=url)
 
 
 @router.get(
@@ -308,8 +309,8 @@ async def start_login(request: Request, login_request: LoginRequest | None = Non
 )
 async def complete_login(code: str, request: Request, token_type: str | None = None):
     """Receive the CILogon token after a successful login."""
-    cilogon = CILogonClient(request)
-    access_token = await cilogon.get_access_token(code)
+    cilogon = CILogonClient()
+    access_token = await cilogon.get_access_token(request, code)
     user_info = await cilogon.get_user_info(access_token)
 
     # Create a JWT token of type "login"
@@ -352,11 +353,75 @@ async def complete_login(code: str, request: Request, token_type: str | None = N
     },
 )
 async def create_account(
-    request: CreateAccountRequest,
-    token: TokenPayload = Depends(require_otp_or_login),
+    account_request: CreateAccountRequest,
+    request: Request,
+    token: TokenPayload = Depends(require_otp),
+    cilogon_token: str | None = None,
 ):
-    # TODO: Implement account creation logic
-    pass
+    """Create a new ACCESS account."""
+    email = token.sub.lower().strip()
+    try:
+        domain = email.split("@")[1]
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid email address",
+        )
+
+    # Perform preliminary checks in parallel
+    [_existing_access_id, active_tandc, organization_name] = await gather(
+        comanage_client.check_account_does_not_exist(email),
+        comanage_client.check_active_tandc_exists(),
+        identity_client.check_organization_matches_domain(
+            account_request.organization_id, domain
+        ),
+    )
+
+    # Create a new CoPerson record
+    co_person_response = await comanage_client.create_new_user(
+        firstname=account_request.first_name,
+        middlename=None,
+        lastname=account_request.last_name,
+        organization=organization_name,
+        email=email,
+    )
+
+    # Extract the ACCESS ID from the response
+    if (
+        len(co_person_response) == 1
+        and co_person_response[0].get("type", None) == "accessid"
+    ):
+        access_id = co_person_response[0]["identifier"]
+    else:
+        logger.error(f"Could not retrieve ACCESS ID for newly created user {email}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Failed to retrieve ACCESS ID",
+        )
+
+    # Get the CoPerson ID for the new user
+    co_person_id = await comanage_client.get_co_person_id_for_email(email)
+
+    # Create an OrgIdentity record
+    linked_identity = comanage_client.create_linked_identity(
+        co_person_id, access_id, cilogon_token
+    )
+
+    # Create a terms and conditions agreement
+    tandc_agreement = comanage_client.create_new_tandc_agreement(
+        co_tandc_id=active_tandc["Id"],
+        co_person_id=int(co_person_id),
+    )
+
+    # Create or update the person record in the identity service
+    identity_person = identity_client.create_or_update_person(
+        access_id, **dict(account_request)
+    )
+
+    # Await parallel updates
+    await gather(linked_identity, tandc_agreement, identity_person)
+
+    return {"success": True, "access_id": access_id}
 
 
 @router.get(
@@ -386,11 +451,13 @@ async def get_account(
         raise HTTPException(err.response.status_code, err.response.text)
 
     primary_name = comanage_user.get_primary_name()
+    primary_email = comanage_user.get_primary_email()
+
     return {
         "username": username,
         "first_name": primary_name["given"],
         "last_name": primary_name["family"],
-        "email": token.sub,  # TODO: Should we use the token email address or get it from CoManage?
+        "email": primary_email,
         "time_zone": comanage_user["CoPerson"]["timezone"],
     }
 
@@ -713,7 +780,7 @@ async def get_domain_info(
     domain_clean = domain.strip().lower()
     # Call the Identity Service client to get the domain information
     try:
-        domain_data = await identity_client.get_domain(domain_clean)
+        organizations = await identity_client.get_organizations_by_domain(domain_clean)
     except HTTPStatusError as err:
         # bubble up upstream status code + message
         raise HTTPException(
@@ -730,7 +797,7 @@ async def get_domain_info(
     # Include the full organization dictionaries from XRAS
     return {
         "domain": domain_clean,
-        "organizations": domain_data,
+        "organizations": organizations,
         "idps": idps,
     }
 

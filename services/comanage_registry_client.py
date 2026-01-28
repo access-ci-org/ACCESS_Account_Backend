@@ -49,6 +49,13 @@ class CoManageUser(dict):
                 return name
         return None
 
+    def get_primary_email(self) -> str | None:
+        """Get the primary email address."""
+        for email in self.get("EmailAddress", []):
+            if email["type"] == "official" and not email["meta"]["deleted"]:
+                return email["mail"]
+        return None
+
     def has_org_identity(self, identifier: Identifier):
         """Iterate over the existing OrgIdentity records and check whether there is one with the specified identifier."""
         if "OrgIdentity" not in self:

@@ -412,11 +412,13 @@ async def get_account(
         raise HTTPException(err.response.status_code, err.response.text)
 
     primary_name = comanage_user.get_primary_name()
+    primary_email = comanage_user.get_primary_email()
+
     return {
         "username": username,
         "first_name": primary_name["given"],
         "last_name": primary_name["family"],
-        "email": token.sub,  # TODO: Should we use the token email address or get it from CoManage?
+        "email": primary_email,
         "time_zone": comanage_user["CoPerson"]["timezone"],
     }
 

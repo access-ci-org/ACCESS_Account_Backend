@@ -34,12 +34,23 @@ class CreateAccountRequest(BaseSchema):
     citizenship_country_ids: list[int]
 
 
+class Degree(BaseSchema):
+    degree_id: int
+    degree_field: str
+
+
 class UpdateAccountRequest(BaseSchema):
     first_name: str | None = None
     last_name: str | None = None
     email: str | None = None
-    email_jwt: str | None = None
+    email_otp_token: str | None = None
     organization_id: int | None = None
+    academic_status_id: int | None = None
+    residence_country_id: int | None = None
+    citizenship_country_ids: list[int] | None = None
+    program_role: str | None = None
+    degrees: list[Degree] | None = None
+    time_zone: str | None = None
 
 
 class UpdatePasswordRequest(BaseSchema):

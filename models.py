@@ -29,6 +29,9 @@ class CreateAccountRequest(BaseSchema):
     first_name: str
     last_name: str
     organization_id: int
+    academic_status_id: int
+    residence_country_id: int
+    citizenship_country_ids: list[int]
 
 
 class UpdateAccountRequest(BaseSchema):

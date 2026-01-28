@@ -364,13 +364,23 @@ async def create_account(
     co_person_id = await comanage_client.get_co_person_id_for_email(email)
 
     # Create an OrgIdentity record
-    await comanage_client.create_linked_identity(co_person_id, access_id, cilogon_token)
+    linked_identity = comanage_client.create_linked_identity(
+        co_person_id, access_id, cilogon_token
+    )
 
     # Create a terms and conditions agreement
-    await comanage_client.create_new_tandc_agreement(
+    tandc_agreement = comanage_client.create_new_tandc_agreement(
         co_tandc_id=active_tandc["Id"],
         co_person_id=int(co_person_id),
     )
+
+    # Create or update the person record in the identity service
+    identity_person = identity_client.create_or_update_person(
+        access_id, **dict(account_request)
+    )
+
+    # Await parallel updates
+    await gather(linked_identity, tandc_agreement, identity_person)
 
     return {"success": True, "access_id": access_id}
 

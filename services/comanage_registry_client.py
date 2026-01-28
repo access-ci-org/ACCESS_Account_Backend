@@ -41,15 +41,24 @@ class CoManageRegistryClient:
 
     async def _request(
         self, method: str, path: str, json: dict | None = None
-    ) -> dict | list:
+    ) -> dict | list | None:
         url = f"{self.base_url}/registry/{path}"
         auth = httpx.BasicAuth(username=self.username, password=str(self.password))
-        headers = {"Accept": "application/json", "Content-Type": "application/json"}
+        headers = {"Accept": "application/json"}
+        if json is not None:
+            headers["Content-Type"] = "application/json"
 
         async with httpx.AsyncClient(auth=auth) as client:
-            resp = await client.request(method, url, headers=headers, json=json)
+            resp = await client.request(method, url, headers=headers, json=json)     
             resp.raise_for_status()
-            return resp.json()
+            
+            if not resp.content:
+                return None
+            
+            if "application/json" in resp.headers.get("Content-Type", ""):
+                return resp.json()
+            
+            return None if resp.status_code == 204 else resp.json()
 
     async def get_co_person_id_for_email(self, email: str) -> str | None:
         """Return the COPersonIdentifier associated with an email address.
@@ -383,3 +392,83 @@ class CoManageRegistryClient:
         return await self._request(
             "POST", "co_t_and_c_agreements.json", json=tandc_data
         )
+    
+    async def get_co_person_id_for_accessid(self, accessid: str) -> str | None:
+        """Return the CoPersonId (string instead of dict) associated with an ACCESS ID.
+
+        Args:
+            accessid: ACCESS ID to look up
+
+        Returns:
+            CoPersonId (string)for the ACCESS ID, or None if not found
+        """
+        encoded_accessid = quote(accessid)
+        result = await self._request(
+            "GET", f"co_people.json?coid={self.coid}&search.identifier={encoded_accessid}"
+        )
+
+        if isinstance(result, dict) and "CoPeople" in result:
+            co_people = result["CoPeople"]
+            if co_people and len(co_people) > 0:
+                return str(co_people[0]["Id"])
+
+        return None
+
+    
+    async def add_ssh_key_for_user(self, accessid: str, public_key: str) -> dict:
+        ''' Adds SSH Key for the CoPerson record. 
+        
+            Args:
+                comanage_user: User to add key to
+                public_key: public ssh key
+
+            Returns:
+                Added SSH Key to user record
+        '''
+        # Gets user id
+        coperson_id = await self.get_co_person_id_for_accessid(accessid)
+        if not coperson_id:
+            raise ValueError(f"No CoPerson found for accessid={accessid}")
+
+        # Get SSH Key type
+        public_key = public_key.strip()
+        if not public_key:
+            raise ValueError("public key cannot be empty")
+        key_type = public_key.split()[0]
+
+        # Creating json response data
+        data = {
+            "RequestType": "SshKeys",
+            "Version": "1.0",
+            "SshKeys": [
+                {
+                    "Version": "1.0",
+                    "Person": {"Type": "CO", "Id": str(coperson_id)},
+                    "Comment": "",
+                    "Type": key_type,
+                    "Skey": public_key,
+                    "SshKeyAuthenticatorId": "1",
+                }
+            ],
+        }
+
+        return await self._request(
+            "POST",
+            f"ssh_key_authenticator/ssh_keys.json?coid={self.coid}",
+            json=data,
+        )
+
+    async def delete_ssh_key_for_user(self, accessid: str, key_id: int) -> str:
+        ''' Deletes SSH Key from the CoPerson record. '''
+
+        # Gets user id
+        coperson_id = await self.get_co_person_id_for_accessid(accessid)
+        if not coperson_id:
+            raise ValueError(f"No CoPerson found for accessid={accessid}")
+
+        return await self._request(
+            "DELETE",
+            f"ssh_key_authenticator/ssh_keys/{key_id}.json?coid={self.coid}",
+        )
+
+

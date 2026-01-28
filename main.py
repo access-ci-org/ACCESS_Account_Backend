@@ -566,8 +566,15 @@ async def add_ssh_key(
     request: AddSSHKeyRequest,
     token: TokenPayload = Depends(require_own_username_access),
 ):
-    # TODO: Implement SSH key addition logic
-    pass
+    # Get public key 
+    public_key = request.public_key.strip()
+    if not public_key:
+        raise HTTPException(400, "The provided key is not valid or is already associated with another account")
+
+    # Call the CoManage API to add the key 
+    await comanage_client.add_ssh_key_for_user(username, public_key)
+    return{"publicKey": public_key}
+
 
 
 @router.delete(
@@ -588,9 +595,9 @@ async def delete_ssh_key(
     key_id: int,
     token: TokenPayload = Depends(require_own_username_access),
 ):
-    # TODO: Implement SSH key deletion logic
-    pass
-
+    # Call the CoManage API to delete the key 
+    await comanage_client.delete_ssh_key_for_user(username, key_id)
+    return "The linked SSH key was deleted"
 
 # Reference Data Routes
 identity_client = IdentityServiceClient()  # Instance of Client

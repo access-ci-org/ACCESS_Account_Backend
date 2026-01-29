@@ -114,11 +114,18 @@ class DomainResponse(BaseSchema):
 
 
 class AccountResponse(BaseSchema):
+    # CoManage Registry (authoritative)
     username: str
     first_name: str
     last_name: str
     email: str
     time_zone: str | None = None
+
+    # Allocations Profile (authoritative)
+    organization_id: int | None = None
+    academic_status_id: int | None = None
+    residence_country_id: int | None = None
+    citizenship_country_ids: List[int] = Field(default_factory=list)
 
 class TermsAndConditionsResponse(BaseSchema):
     id: int

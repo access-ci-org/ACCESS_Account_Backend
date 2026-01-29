@@ -442,7 +442,7 @@ async def create_account(
 )
 async def get_account(
     username: str,
-    token: TokenPayload = Depends(require_username_access),
+    token: TokenPayload = Depends(require_otp_or_login), #require_username_access,
 ):
     comanage_task = comanage_client.get_user_info(username)
     identity_task = identity_client.get_account(username)
@@ -453,33 +453,29 @@ async def get_account(
         raise HTTPException(err.response.status_code, err.response.text)
 
     # Comanage (preferred) values
-    primary_name = comanage_user.get_primary_name() or {}
+    primary_name = comanage_user.get_primary_name()
     comanage_first = primary_name.get("given")
     comanage_last = primary_name.get("family")
     comanage_tz = safe_get(comanage_user, "CoPerson", "timezone")
-
-    comanage_email = primary_name.get("email") #token.sub
-    
-    #Identity Service values (fallback)
-    identity_first = identity_person.get("firstName")
-    identity_last = identity_person.get("lastName")
-    identity_email = identity_person.get("email")
-    identity_tz = identity_person.get("timeZone")
-
-    # Prefer CoManage values over Identity Service values
-    primary_name = comanage_user.get_primary_name()
     primary_email = comanage_user.get_primary_email()
+
+    #Identity Service values
+    print(identity_person)
+    organization_id = identity_person.get("organizationId")
+    academic_status_id = identity_person.get("nsfStatusCodeId")
+    residence_country_id = identity_person.get("countryId")
+    citizenship_country_ids = identity_person.get("citizenshipCountryIds") or []
 
     return {
         "username": username,
-        "first_name": prefer_comanage(comanage_first, identity_first),
-        "last_name": prefer_comanage(comanage_last, identity_last),
-        "email": prefer_comanage(comanage_email, identity_email), 
-        "time_zone": prefer_comanage(comanage_tz, identity_tz),
-        "first_name": primary_name["given"],
-        "last_name": primary_name["family"],
+        "first_name": comanage_first,
+        "last_name": comanage_last,
         "email": primary_email,
-        "time_zone": comanage_user["CoPerson"]["timezone"],
+        "time_zone": comanage_tz,
+        "organization_id": organization_id,
+        "academic_status_id": academic_status_id,
+        "residence_country_id": residence_country_id,
+        "citizenship_country_ids": citizenship_country_ids,
     }
 
 

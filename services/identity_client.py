@@ -119,3 +119,10 @@ class IdentityServiceClient:
             person_updates["citizenships"] = requested_person["citizenships"]
 
         return await self.update_person(access_id, person_updates)
+
+    async def get_account(self, username: str) -> dict:
+        check_username = quote(username, safe="")
+        return await self._request(
+            "GET",
+            f"/profiles/v1/people/{check_username}",
+        )

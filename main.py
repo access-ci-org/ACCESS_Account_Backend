@@ -62,6 +62,8 @@ from services.otp_service import (
 )
 from services.ssh_key_service import calculate_ssh_fingerprint_sha256
 
+from services.account_linked import prefer_comanage, safe_get
+
 # Config logging
 logger = logging.getLogger("access_account_api")
 logger.setLevel(logging.INFO)
@@ -442,19 +444,38 @@ async def get_account(
     username: str,
     token: TokenPayload = Depends(require_username_access),
 ):
-    get_comanage_user = comanage_client.get_user_info(username)
+    comanage_task = comanage_client.get_user_info(username)
+    identity_task = identity_client.get_account(username)
     try:
-        # TODO: Request Allocations profile and Support data in parallel.
-        [comanage_user] = await gather(get_comanage_user)
+        # Request Allocations profile and Support data in parallel.
+        comanage_user, identity_person = await gather(comanage_task, identity_task)
     except HTTPStatusError as err:
-        # TODO: Is this the logic we want?
         raise HTTPException(err.response.status_code, err.response.text)
 
+    # Comanage (preferred) values
+    primary_name = comanage_user.get_primary_name() or {}
+    comanage_first = primary_name.get("given")
+    comanage_last = primary_name.get("family")
+    comanage_tz = safe_get(comanage_user, "CoPerson", "timezone")
+
+    comanage_email = primary_name.get("email") #token.sub
+    
+    #Identity Service values (fallback)
+    identity_first = identity_person.get("firstName")
+    identity_last = identity_person.get("lastName")
+    identity_email = identity_person.get("email")
+    identity_tz = identity_person.get("timeZone")
+
+    # Prefer CoManage values over Identity Service values
     primary_name = comanage_user.get_primary_name()
     primary_email = comanage_user.get_primary_email()
 
     return {
         "username": username,
+        "first_name": prefer_comanage(comanage_first, identity_first),
+        "last_name": prefer_comanage(comanage_last, identity_last),
+        "email": prefer_comanage(comanage_email, identity_email), 
+        "time_zone": prefer_comanage(comanage_tz, identity_tz),
         "first_name": primary_name["given"],
         "last_name": primary_name["family"],
         "email": primary_email,

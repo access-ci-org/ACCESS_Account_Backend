@@ -120,7 +120,6 @@ class AccountResponse(BaseSchema):
     email: str
     time_zone: str | None = None
 
-
 class TermsAndConditionsResponse(BaseSchema):
     id: int
     description: str

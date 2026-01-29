@@ -28,7 +28,7 @@ class CILogonClient:
         if idp:
             params["idphint"] = idp
         return f"{CILOGON_AUTHORIZATION_URL}?{urlencode(params, doseq=True)}"
-    
+
     async def get_access_token(self, code: str):
         """Get an access token"""
         async with httpx.AsyncClient() as client:
@@ -49,13 +49,12 @@ class CILogonClient:
 
         access_token = token_response.json().get("access_token")
         return access_token
-    
 
     async def get_user_info(self, access_token: str):
         """Get user information from CILogon using the access token."""
         async with httpx.AsyncClient() as client:
             userinfo_response = await client.get(
-                CILOGON_USER_INFO_URL, 
+                CILOGON_USER_INFO_URL,
                 headers={
                     "Authorization": f"Bearer {access_token}",
                     "Accept": "application/json",

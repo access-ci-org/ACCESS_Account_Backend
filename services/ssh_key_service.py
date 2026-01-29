@@ -16,13 +16,13 @@ def calculate_ssh_fingerprint_sha256(public_key):
     public_key_parts = public_key.strip().split()
     if len(public_key_parts) < 2:
         raise ValueError("Invalid SSH public key format.")
-    
+
     key_body = public_key_parts[1]
 
     # Checking padding
     missing_padding = len(key_body) % 4
     if missing_padding != 0:
-        key_body += '=' * (4 - missing_padding)
+        key_body += "=" * (4 - missing_padding)
 
     # Base64 decode the key part
     key_body_bytes = base64.b64decode(key_body)

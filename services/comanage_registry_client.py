@@ -49,15 +49,15 @@ class CoManageRegistryClient:
             headers["Content-Type"] = "application/json"
 
         async with httpx.AsyncClient(auth=auth) as client:
-            resp = await client.request(method, url, headers=headers, json=json)     
+            resp = await client.request(method, url, headers=headers, json=json)
             resp.raise_for_status()
-            
+
             if not resp.content:
                 return None
-            
+
             if "application/json" in resp.headers.get("Content-Type", ""):
                 return resp.json()
-            
+
             return None if resp.status_code == 204 else resp.json()
 
     async def get_co_person_id_for_email(self, email: str) -> str | None:
@@ -392,7 +392,7 @@ class CoManageRegistryClient:
         return await self._request(
             "POST", "co_t_and_c_agreements.json", json=tandc_data
         )
-    
+
     async def get_co_person_id_for_accessid(self, accessid: str) -> str | None:
         """Return the CoPersonId (string instead of dict) associated with an ACCESS ID.
 
@@ -404,7 +404,8 @@ class CoManageRegistryClient:
         """
         encoded_accessid = quote(accessid)
         result = await self._request(
-            "GET", f"co_people.json?coid={self.coid}&search.identifier={encoded_accessid}"
+            "GET",
+            f"co_people.json?coid={self.coid}&search.identifier={encoded_accessid}",
         )
 
         if isinstance(result, dict) and "CoPeople" in result:
@@ -414,17 +415,16 @@ class CoManageRegistryClient:
 
         return None
 
-    
     async def add_ssh_key_for_user(self, accessid: str, public_key: str) -> dict:
-        ''' Adds SSH Key for the CoPerson record. 
-        
-            Args:
-                comanage_user: User to add key to
-                public_key: public ssh key
+        """Adds SSH Key for the CoPerson record.
 
-            Returns:
-                Added SSH Key to user record
-        '''
+        Args:
+            comanage_user: User to add key to
+            public_key: public ssh key
+
+        Returns:
+            Added SSH Key to user record
+        """
         # Gets user id
         coperson_id = await self.get_co_person_id_for_accessid(accessid)
         if not coperson_id:
@@ -459,7 +459,7 @@ class CoManageRegistryClient:
         )
 
     async def delete_ssh_key_for_user(self, accessid: str, key_id: int) -> str:
-        ''' Deletes SSH Key from the CoPerson record. '''
+        """Deletes SSH Key from the CoPerson record."""
 
         # Gets user id
         coperson_id = await self.get_co_person_id_for_accessid(accessid)
@@ -470,5 +470,3 @@ class CoManageRegistryClient:
             "DELETE",
             f"ssh_key_authenticator/ssh_keys/{key_id}.json?coid={self.coid}",
         )
-
-

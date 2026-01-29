@@ -522,7 +522,7 @@ async def delete_identity(
 )
 async def get_ssh_keys(
     username: str,
-    token: TokenPayload = Depends(require_username_access),
+    token: TokenPayload = Depends(require_otp_or_login),
 ) -> SSHKeysResponse:
     try:
         comanage_user = await comanage_client.get_user_info(username)
@@ -564,7 +564,7 @@ async def get_ssh_keys(
 async def add_ssh_key(
     username: str,
     request: AddSSHKeyRequest,
-    token: TokenPayload = Depends(require_own_username_access),
+    token: TokenPayload = Depends(require_otp_or_login),
 ):
     # Get public key
     public_key = request.public_key.strip()
@@ -576,7 +576,7 @@ async def add_ssh_key(
 
     # Call the CoManage API to add the key
     await comanage_client.add_ssh_key_for_user(username, public_key)
-    return {"publicKey": public_key}
+    return {"publicKey": public_key, "comment": request.comment}
 
 
 @router.delete(
@@ -595,7 +595,7 @@ async def add_ssh_key(
 async def delete_ssh_key(
     username: str,
     key_id: int,
-    token: TokenPayload = Depends(require_own_username_access),
+    token: TokenPayload = Depends(require_otp_or_login),
 ):
     # Call the CoManage API to delete the key
     await comanage_client.delete_ssh_key_for_user(username, key_id)

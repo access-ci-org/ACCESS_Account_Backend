@@ -415,12 +415,15 @@ class CoManageRegistryClient:
 
         return None
 
-    async def add_ssh_key_for_user(self, accessid: str, public_key: str) -> dict:
+    async def add_ssh_key_for_user(
+        self, accessid: str, public_key: str, comment: str | None = None
+    ) -> dict:
         """Adds SSH Key for the CoPerson record.
 
         Args:
             comanage_user: User to add key to
             public_key: public ssh key
+            comment: comment associated with the key
 
         Returns:
             Added SSH Key to user record
@@ -434,7 +437,25 @@ class CoManageRegistryClient:
         public_key = public_key.strip()
         if not public_key:
             raise ValueError("public key cannot be empty")
-        key_type = public_key.split()[0]
+        ssh_parts = public_key.split()
+        if len(ssh_parts) < 2:
+            raise ValueError("Invalid SSH public key format.")
+        key_type = ssh_parts[0]
+        key_value = ssh_parts[1]
+
+        allowed_key_types = [
+            "ssh-rsa",
+            "ssh-dss",
+            "ecdsa-sha2-nistp256",
+            "ecdsa-sha2-nistp384",
+            "ecdsa-sha2-nistp521",
+            "ssh-ed25519",
+        ]
+
+        if key_type not in allowed_key_types:
+            raise ValueError(
+                f"Invalid SSH key type {key_type}. Please use one of the following accepted key types{', '.join(sorted(allowed_key_types))}"
+            )
 
         # Creating json response data
         data = {
@@ -444,9 +465,9 @@ class CoManageRegistryClient:
                 {
                     "Version": "1.0",
                     "Person": {"Type": "CO", "Id": str(coperson_id)},
-                    "Comment": "",
                     "Type": key_type,
-                    "Skey": public_key,
+                    "Skey": key_value,
+                    "Comment": comment,
                     "SshKeyAuthenticatorId": "1",
                 }
             ],

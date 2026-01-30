@@ -530,34 +530,45 @@ async def update_password(
 )
 async def get_identities(
     username: str,
-    token: TokenPayload = Depends(require_username_access),
+    token: TokenPayload = Depends(require_otp_or_login),
 ) -> IdentitiesResponse:
     try:
         comanage_user = await comanage_client.get_user_info(username)
     except HTTPStatusError as err:
         raise HTTPException(err.response.status_code, err.response.text)
 
-    identities = []
+    # Pass all Identifier records with {type, identifier}
+    identities: list[Identity] = []
 
     # Extract identities from OrgIdentity records
-    if "OrgIdentity" in comanage_user:
-        for org_identity in comanage_user["OrgIdentity"]:
-            # Extract ePPN from identifiers
-            eppn = None
-            if "Identifier" in org_identity and org_identity["Identifier"]:
-                for identifier in org_identity["Identifier"]:
-                    # Look for ePPN identifiers
-                    if identifier.get("type") == "eppn":
-                        eppn = identifier.get("identifier")
-                        break
+    for org_identity in comanage_user.get("OrgIdentity", []): 
+        identifiers_records = org_identity.get("Identifier") or []
 
-            identities.append(
-                Identity(
-                    identity_id=org_identity["meta"]["id"],
-                    eppn=eppn,
-                    organization=org_identity.get("o"),
-                )
+        identifiers = []
+        for identity in identifiers_records: 
+            identifiers.append( 
+                {
+                    "type": identity.get("type"),
+                    "identifier": identity.get("identifier"),
+                }
             )
+
+        # If the Identity still includes eppn -> populate it if present.
+        eppn = None
+        for identity in identifiers_records:
+            if identity.get("type") == "eppn":
+                eppn = identity.get("identifier")
+                break
+
+        # Append the Identity object
+        identities.append(
+            Identity(
+                identityId=org_identity["meta"]["id"],
+                organization=org_identity.get("o"),
+                identifiers=identifiers,
+                eppn=eppn,
+            )
+        )
 
     return IdentitiesResponse(identities=identities)
 

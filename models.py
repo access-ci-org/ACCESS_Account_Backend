@@ -128,10 +128,15 @@ class TermsAndConditionsResponse(BaseSchema):
     body: str
 
 
+class IdentityIdentifier(BaseSchema):
+    type: str | None = None
+    identifier: str | None = None
+
 class Identity(BaseSchema):
     identity_id: int
     eppn: str | None = None
     organization: str | None = None
+    identifiers: List[IdentityIdentifier]
 
 
 class IdentitiesResponse(BaseSchema):

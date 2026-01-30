@@ -550,6 +550,7 @@ async def get_identities(
                 {
                     "type": identity.get("type"),
                     "identifier": identity.get("identifier"),
+                    "login": identity.get("login"),
                 }
             )
 

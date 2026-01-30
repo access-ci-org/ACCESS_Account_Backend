@@ -446,11 +446,48 @@ async def get_account(
 ):
     comanage_task = comanage_client.get_user_info(username)
     identity_task = identity_client.get_account(username)
-    try:
-        # Request Allocations profile and Support data in parallel.
-        comanage_user, identity_person = await gather(comanage_task, identity_task)
-    except HTTPStatusError as err:
-        raise HTTPException(err.response.status_code, err.response.text)
+    
+    comanage_res, identity_res = await gather(
+        comanage_task, identity_task, return_exceptions=True
+    )
+
+    # Identify which upstream failed
+    if isinstance(comanage_res, HTTPStatusError):
+        # log who failed + status + body
+        logger.error(
+            "CoManage failed: user=%s status=%s body=%s",
+            username,
+            comanage_res.response.status_code,
+            comanage_res.response.text,
+        )
+        raise HTTPException(
+            status_code=comanage_res.response.status_code,
+            detail={"source": "comanage", "error": comanage_res.response.text},
+        )
+
+    if isinstance(identity_res, HTTPStatusError):
+        logger.error(
+            "Identity service failed: user=%s status=%s body=%s",
+            username,
+            identity_res.response.status_code,
+            identity_res.response.text,
+        )
+        raise HTTPException(
+            status_code=identity_res.response.status_code,
+            detail={"source": "identity", "error": identity_res.response.text},
+        )
+
+    # If you also want to catch network errors (timeouts, DNS, etc):
+    if isinstance(comanage_res, Exception):
+        logger.exception("CoManage exception for user=%s", username)
+        raise HTTPException(502, detail={"source": "comanage", "error": str(comanage_res)})
+
+    if isinstance(identity_res, Exception):
+        logger.exception("Identity exception for user=%s", username)
+        raise HTTPException(502, detail={"source": "identity", "error": str(identity_res)})
+
+    comanage_user = comanage_res
+    identity_person = identity_res
 
     # Comanage (preferred) values
     primary_name = comanage_user.get_primary_name()
@@ -460,11 +497,15 @@ async def get_account(
     primary_email = comanage_user.get_primary_email()
 
     #Identity Service values
-    print(identity_person)
+    #print(identity_person)
     organization_id = identity_person.get("organizationId")
     academic_status_id = identity_person.get("nsfStatusCodeId")
     residence_country_id = identity_person.get("countryId")
-    citizenship_country_ids = identity_person.get("citizenshipCountryIds") or []
+    citizenship_country_ids = [
+        c["countryId"]
+        for c in (identity_person.get("citizenships") or [])
+        if isinstance(c, dict) and "countryId" in c
+    ]
 
     return {
         "username": username,

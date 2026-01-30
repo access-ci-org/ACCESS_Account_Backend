@@ -446,7 +446,7 @@ async def get_account(
 ):
     comanage_task = comanage_client.get_user_info(username)
     identity_task = identity_client.get_account(username)
-    
+
     comanage_res, identity_res = await gather(
         comanage_task, identity_task, return_exceptions=True
     )
@@ -480,11 +480,15 @@ async def get_account(
     # If you also want to catch network errors (timeouts, DNS, etc):
     if isinstance(comanage_res, Exception):
         logger.exception("CoManage exception for user=%s", username)
-        raise HTTPException(502, detail={"source": "comanage", "error": str(comanage_res)})
+        raise HTTPException(
+            502, detail={"source": "comanage", "error": str(comanage_res)}
+        )
 
     if isinstance(identity_res, Exception):
         logger.exception("Identity exception for user=%s", username)
-        raise HTTPException(502, detail={"source": "identity", "error": str(identity_res)})
+        raise HTTPException(
+            502, detail={"source": "identity", "error": str(identity_res)}
+        )
 
     comanage_user = comanage_res
     identity_person = identity_res
@@ -496,7 +500,7 @@ async def get_account(
     comanage_tz = safe_get(comanage_user, "CoPerson", "timezone")
     primary_email = comanage_user.get_primary_email()
 
-    #Identity Service values
+    # Identity Service values
     organization_id = identity_person.get("organizationId")
     academic_status_id = identity_person.get("nsfStatusCodeId")
     residence_country_id = identity_person.get("countryId")

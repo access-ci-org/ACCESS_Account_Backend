@@ -127,6 +127,7 @@ class AccountResponse(BaseSchema):
     residence_country_id: int | None = None
     citizenship_country_ids: List[int] = Field(default_factory=list)
 
+
 class TermsAndConditionsResponse(BaseSchema):
     id: int
     description: str

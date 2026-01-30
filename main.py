@@ -62,7 +62,7 @@ from services.otp_service import (
 )
 from services.ssh_key_service import calculate_ssh_fingerprint_sha256
 
-from services.account_linked import prefer_comanage, safe_get
+from services.account_linked import safe_get
 
 # Config logging
 logger = logging.getLogger("access_account_api")

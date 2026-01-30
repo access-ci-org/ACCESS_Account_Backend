@@ -442,7 +442,7 @@ async def create_account(
 )
 async def get_account(
     username: str,
-    token: TokenPayload = Depends(require_otp_or_login), #require_username_access,
+    token: TokenPayload = Depends(require_username_access),
 ):
     comanage_task = comanage_client.get_user_info(username)
     identity_task = identity_client.get_account(username)
@@ -497,7 +497,6 @@ async def get_account(
     primary_email = comanage_user.get_primary_email()
 
     #Identity Service values
-    #print(identity_person)
     organization_id = identity_person.get("organizationId")
     academic_status_id = identity_person.get("nsfStatusCodeId")
     residence_country_id = identity_person.get("countryId")

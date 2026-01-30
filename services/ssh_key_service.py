@@ -13,11 +13,11 @@ def calculate_ssh_fingerprint_sha256(public_key):
         str: The SHA256 fingerprint in the format used by OpenSSH (base64 encoded).
     """
     if not public_key:
-        raise ValueError("Missing SSH public key.")
+        return "Invalid key: missing SSH public key."
 
     public_key_parts = str(public_key).strip().split()
     if len(public_key_parts) == 0:
-        raise ValueError("Missing SSH public key.")
+        return "Invalid key: missing SSH public key."
 
     if len(public_key_parts) >= 2:
         key_body = public_key_parts[1]
@@ -30,7 +30,10 @@ def calculate_ssh_fingerprint_sha256(public_key):
         key_body += "=" * (4 - missing_padding)
 
     # Base64 decode the key part
-    key_body_bytes = base64.b64decode(key_body)
+    try:
+        key_body_bytes = base64.b64decode(key_body, validate=True)
+    except Exception:
+        return "Invalid key"
 
     # Calculate the SHA256 hash of the decoded bytes
     sha256_hash = hashlib.sha256(key_body_bytes).digest()

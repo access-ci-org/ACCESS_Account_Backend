@@ -45,7 +45,6 @@ class UpdatePasswordRequest(BaseSchema):
 
 class AddSSHKeyRequest(BaseSchema):
     public_key: str
-    comment: str | None = None
 
 
 class JWTResponse(BaseSchema):

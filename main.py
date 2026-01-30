@@ -576,7 +576,7 @@ async def add_ssh_key(
 
     # Call the CoManage API to add the key
     await comanage_client.add_ssh_key_for_user(username, public_key)
-    return {"publicKey": public_key, "comment": request.comment}
+    return {"Success": True}
 
 
 @router.delete(
@@ -599,7 +599,7 @@ async def delete_ssh_key(
 ):
     # Call the CoManage API to delete the key
     await comanage_client.delete_ssh_key_for_user(username, key_id)
-    return "The linked SSH key was deleted"
+    return {"Success": True}
 
 
 # Reference Data Routes

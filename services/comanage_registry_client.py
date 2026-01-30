@@ -1,5 +1,6 @@
 from urllib.parse import quote, urlencode
 
+from fastapi import HTTPException
 import httpx
 
 from config import (
@@ -415,15 +416,12 @@ class CoManageRegistryClient:
 
         return None
 
-    async def add_ssh_key_for_user(
-        self, accessid: str, public_key: str, comment: str | None = None
-    ) -> dict:
+    async def add_ssh_key_for_user(self, accessid: str, public_key: str) -> dict:
         """Adds SSH Key for the CoPerson record.
 
         Args:
             comanage_user: User to add key to
             public_key: public ssh key
-            comment: comment associated with the key
 
         Returns:
             Added SSH Key to user record
@@ -431,17 +429,18 @@ class CoManageRegistryClient:
         # Gets user id
         coperson_id = await self.get_co_person_id_for_accessid(accessid)
         if not coperson_id:
-            raise ValueError(f"No CoPerson found for accessid={accessid}")
+            raise HTTPException(f"No CoPerson found for accessid={accessid}")
 
         # Get SSH Key type
         public_key = public_key.strip()
         if not public_key:
-            raise ValueError("public key cannot be empty")
+            raise HTTPException("public key cannot be empty")
         ssh_parts = public_key.split()
         if len(ssh_parts) < 2:
-            raise ValueError("Invalid SSH public key format.")
+            raise HTTPException("Invalid SSH public key format.")
         key_type = ssh_parts[0]
         key_value = ssh_parts[1]
+        comment = " ".join(ssh_parts[2:]) if len(ssh_parts) > 2 else None
 
         allowed_key_types = [
             "ssh-rsa",
@@ -485,7 +484,7 @@ class CoManageRegistryClient:
         # Gets user id
         coperson_id = await self.get_co_person_id_for_accessid(accessid)
         if not coperson_id:
-            raise ValueError(f"No CoPerson found for accessid={accessid}")
+            raise HTTPException(f"No CoPerson found for accessid={accessid}")
 
         return await self._request(
             "DELETE",

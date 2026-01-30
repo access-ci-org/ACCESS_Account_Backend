@@ -530,7 +530,7 @@ async def update_password(
 )
 async def get_identities(
     username: str,
-    token: TokenPayload = Depends(require_otp_or_login),
+    token: TokenPayload = Depends(require_username_access),
 ) -> IdentitiesResponse:
     try:
         comanage_user = await comanage_client.get_user_info(username)
@@ -541,12 +541,12 @@ async def get_identities(
     identities: list[Identity] = []
 
     # Extract identities from OrgIdentity records
-    for org_identity in comanage_user.get("OrgIdentity", []): 
+    for org_identity in comanage_user.get("OrgIdentity", []):
         identifiers_records = org_identity.get("Identifier") or []
 
         identifiers = []
-        for identity in identifiers_records: 
-            identifiers.append( 
+        for identity in identifiers_records:
+            identifiers.append(
                 {
                     "type": identity.get("type"),
                     "identifier": identity.get("identifier"),
@@ -554,20 +554,12 @@ async def get_identities(
                 }
             )
 
-        # If the Identity still includes eppn -> populate it if present.
-        eppn = None
-        for identity in identifiers_records:
-            if identity.get("type") == "eppn":
-                eppn = identity.get("identifier")
-                break
-
         # Append the Identity object
         identities.append(
             Identity(
-                identityId=org_identity["meta"]["id"],
+                identity_id=org_identity["meta"]["id"],
                 organization=org_identity.get("o"),
                 identifiers=identifiers,
-                eppn=eppn,
             )
         )
 

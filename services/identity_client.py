@@ -1,3 +1,4 @@
+from typing import TypedDict
 from urllib.parse import quote
 
 import httpx
@@ -8,6 +9,11 @@ from config import (
     XRAS_IDENTITY_SERVICE_KEY,
     XRAS_IDENTITY_SERVICE_REQUESTER,
 )
+
+
+class Degree(TypedDict):
+    degree_id: int
+    degree_field: str
 
 
 class IdentityServiceClient:
@@ -81,35 +87,47 @@ class IdentityServiceClient:
         access_id: str,
         first_name: str,
         last_name: str,
+        email: str,
         organization_id: int,
         academic_status_id: int,
         residence_country_id: int,
         citizenship_country_ids: list[int],
+        degrees: list[Degree] = [],
+        person: any | None = None,
     ):
         requested_person = {
             "firstName": first_name,
             "lastName": last_name,
+            "email": email,
             "organizationId": organization_id,
             "nsfStatusCodeId": academic_status_id,
             "countryId": residence_country_id,
             "citizenships": [
                 {"countryId": country_id} for country_id in citizenship_country_ids
             ],
+            "academicDegrees": [
+                {"degreeId": d["degree_id"], "degreeField": d["degree_field"]}
+                for d in degrees
+            ],
         }
-        try:
-            existing_person = await self.get_person(access_id)
-        except httpx.HTTPStatusError as err:
-            if err.response.status_code == 404:
-                # Create the person
-                return await self.create_person(access_id, requested_person)
-            else:
-                raise err
+
+        existing_person = person
+        if existing_person is None:
+            try:
+                existing_person = await self.get_person(access_id)
+            except httpx.HTTPStatusError as err:
+                if err.response.status_code == 404:
+                    # Create the person
+                    return await self.create_person(access_id, requested_person)
+                else:
+                    raise err
 
         # Update the person
         person_updates = {
             k: v
             for k, v in requested_person.items()
-            if v != existing_person.get(k) and k != "citizenships"
+            if v != existing_person.get(k)
+            and k not in ["academicDegrees", "citizenships"]
         }
 
         # Check citizenships for equality
@@ -117,6 +135,12 @@ class IdentityServiceClient:
             [c.get("countryId") for c in existing_person.get("citizenships")]
         ):
             person_updates["citizenships"] = requested_person["citizenships"]
+
+        # Check academic degrees for equality
+        if str(requested_person["academicDegrees"]) != str(
+            existing_person["academicDegrees"]
+        ):
+            person_updates["academicDegrees"] = requested_person["academicDegrees"]
 
         return await self.update_person(access_id, person_updates)
 

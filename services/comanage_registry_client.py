@@ -286,8 +286,10 @@ class CoManageRegistryClient:
         organization: str | None = None,
         time_zone: str
         | None = "UNSET",  # Use UNSET as default, since None is a valid value.
+        user: CoManageUser | None = None,
     ):
-        user = await self.get_user_info(access_id)
+        if user is None:
+            user = await self.get_user_info(access_id)
 
         if first_name or last_name:
             primary_name = user.get_primary_name()

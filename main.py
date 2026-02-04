@@ -1,4 +1,3 @@
-import logging
 import string
 from asyncio import gather
 from contextlib import asynccontextmanager
@@ -16,6 +15,7 @@ from sqlalchemy import delete
 from auth import (
     TokenPayload,
     create_access_token,
+    decode_token,
     require_otp,
     require_otp_or_login,
     require_own_username_access,
@@ -50,29 +50,22 @@ from models import (
     UpdatePasswordRequest,
     VerifyOTPRequest,
 )
+from services.account_service import (
+    comanage_client,
+    get_account_data,
+    identity_client,
+    safe_get,
+)
 from services.cilogon_client import CILogonClient
-from services.comanage_registry_client import CoManageRegistryClient
 from services.email_service import send_verification_email, ses
-from services.identity_client import IdentityServiceClient
 from services.idp_service import build_idp_domain_mapping
+from services.logs_service import logger
 from services.otp_service import (
     generate_otp,
     store_otp,
     verify_stored_otp,
 )
 from services.ssh_key_service import calculate_ssh_fingerprint_sha256
-
-from services.account_linked import safe_get
-
-# Config logging
-logger = logging.getLogger("access_account_api")
-logger.setLevel(logging.INFO)
-
-handler = logging.StreamHandler()
-formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(name)s - %(message)s")
-
-handler.setFormatter(formatter)
-logger.addHandler(handler)
 
 # IDP by Domain
 IDP_BY_DOMAIN: dict[str, dict[str, str]] = {}
@@ -147,9 +140,6 @@ app.add_middleware(
 
 # Create router with /api/v1 prefix
 router = APIRouter(prefix="/api/v1")
-
-comanage_client = CoManageRegistryClient()
-identity_client = IdentityServiceClient()
 
 
 # Auth Routes
@@ -443,54 +433,7 @@ async def get_account(
     username: str,
     token: TokenPayload = Depends(require_username_access),
 ):
-    comanage_task = comanage_client.get_user_info(username)
-    identity_task = identity_client.get_account(username)
-
-    comanage_res, identity_res = await gather(
-        comanage_task, identity_task, return_exceptions=True
-    )
-
-    # Identify which upstream failed
-    if isinstance(comanage_res, HTTPStatusError):
-        # log who failed + status + body
-        logger.error(
-            "CoManage failed: user=%s status=%s body=%s",
-            username,
-            comanage_res.response.status_code,
-            comanage_res.response.text,
-        )
-        raise HTTPException(
-            status_code=comanage_res.response.status_code,
-            detail={"source": "comanage", "error": comanage_res.response.text},
-        )
-
-    if isinstance(identity_res, HTTPStatusError):
-        logger.error(
-            "Identity service failed: user=%s status=%s body=%s",
-            username,
-            identity_res.response.status_code,
-            identity_res.response.text,
-        )
-        raise HTTPException(
-            status_code=identity_res.response.status_code,
-            detail={"source": "identity", "error": identity_res.response.text},
-        )
-
-    # If you also want to catch network errors (timeouts, DNS, etc):
-    if isinstance(comanage_res, Exception):
-        logger.exception("CoManage exception for user=%s", username)
-        raise HTTPException(
-            502, detail={"source": "comanage", "error": str(comanage_res)}
-        )
-
-    if isinstance(identity_res, Exception):
-        logger.exception("Identity exception for user=%s", username)
-        raise HTTPException(
-            502, detail={"source": "identity", "error": str(identity_res)}
-        )
-
-    comanage_user = comanage_res
-    identity_person = identity_res
+    [comanage_user, identity_person] = await get_account_data(username)
 
     # Comanage (preferred) values
     primary_name = comanage_user.get_primary_name()
@@ -544,9 +487,37 @@ async def update_account(
     account_request: UpdateAccountRequest,
     token: TokenPayload = Depends(require_username_access),
 ):
-    if account_request.organization_id or account_request.email:
+    [comanage_user, identity_person] = await get_account_data(username)
+
+    prev_email = comanage_user.get_primary_email()
+    prev_organization_id = identity_person.organization_id
+
+    email = account_request.email or prev_email
+    organization_id = account_request.organization_id or prev_organization_id
+
+    # If the email address has changed, check that we have a valid OTP token
+    # proving that the user owns the new email address.
+    if email != prev_email:
+        error_message = "Invalid email OTP token"
+        error_status = status.HTTP_400_BAD_REQUEST
+        email_token = decode_token(
+            account_request.email_otp_token,
+            error_message=error_message,
+            error_status=error_status,
+        )
+        if email_token.type != "otp" or email_token.sub != email:
+            raise HTTPException(
+                status_code=error_status,
+                detail=error_message,
+            )
+
+    # If either the email or organization ID has changed, check that
+    # the email maches the organization.
+    organization_name = None
+    if email != prev_email or organization_id != prev_organization_id:
+        domain = email.strip().split("@")[1]
         organization_name = await identity_client.check_organization_matches_domain(
-            account_request.organization_id, domain
+            organization_id, domain
         )
 
     registry_update = comanage_client.update_user(
@@ -556,7 +527,24 @@ async def update_account(
         email=account_request.email,
         organization=organization_name,
         time_zone=account_request.time_zone,
+        user=comanage_user,
     )
+
+    identity_update = identity_client.create_or_update_person(
+        username,
+        first_name=account_request.first_name,
+        last_name=account_request.last_name,
+        email=account_request.email,
+        organization_id=organization_id,
+        academic_status_id=account_request.academic_status_id,
+        residence_country_id=account_request.residence_country_id,
+        citizenship_country_ids=account_request.citizenship_country_ids,
+        degrees=[d.model_dump() for d in account_request.degrees],
+        person=identity_person,
+    )
+
+    await gather(registry_update, identity_update)
+    return {"success": True}
 
 
 @router.post(
@@ -774,7 +762,6 @@ async def delete_ssh_key(
 
 
 # Reference Data Routes
-identity_client = IdentityServiceClient()  # Instance of Client
 
 
 @router.get(

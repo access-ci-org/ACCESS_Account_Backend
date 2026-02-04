@@ -429,15 +429,17 @@ class CoManageRegistryClient:
         # Gets user id
         coperson_id = await self.get_co_person_id_for_accessid(accessid)
         if not coperson_id:
-            raise HTTPException(f"No CoPerson found for accessid={accessid}")
+            raise HTTPException(status_code=404, detail="User not found.")
 
         # Get SSH Key type
         public_key = public_key.strip()
         if not public_key:
-            raise HTTPException("public key cannot be empty")
+            raise HTTPException(status_code=400, detail="Public key cannot be empty.")
         ssh_parts = public_key.split()
         if len(ssh_parts) < 2:
-            raise HTTPException("Invalid SSH public key format.")
+            raise HTTPException(
+                status_code=400, detail="Invalid SSH public key format."
+            )
         key_type = ssh_parts[0]
         key_value = ssh_parts[1]
         comment = " ".join(ssh_parts[2:]) if len(ssh_parts) > 2 else None
@@ -452,9 +454,7 @@ class CoManageRegistryClient:
         ]
 
         if key_type not in allowed_key_types:
-            raise ValueError(
-                f"Invalid SSH key type {key_type}. Please use one of the following accepted key types{', '.join(sorted(allowed_key_types))}"
-            )
+            raise HTTPException(status_code=400, detail="Invalid SSH key type.")
 
         # Creating json response data
         data = {
@@ -478,13 +478,39 @@ class CoManageRegistryClient:
             json=data,
         )
 
-    async def delete_ssh_key_for_user(self, accessid: str, key_id: int) -> str:
-        """Deletes SSH Key from the CoPerson record."""
+    async def get_ssh_keys_for_user(self, accessid: str) -> list[dict]:
+        """Helper method to get all SSH keys for a user."""
 
-        # Gets user id
         coperson_id = await self.get_co_person_id_for_accessid(accessid)
         if not coperson_id:
-            raise HTTPException(f"No CoPerson found for accessid={accessid}")
+            raise HTTPException(status_code=404, detail="User not found.")
+
+        # List keys for this CO Person
+        result = await self._request(
+            "GET",
+            f"ssh_key_authenticator/ssh_keys.json?coid={self.coid}&copersonid={coperson_id}",
+        )
+
+        if isinstance(result, dict) and "SshKeys" in result:
+            return result.get("SshKeys") or []
+
+        return []
+
+    async def delete_ssh_key_for_user(self, accessid: str, key_id: int) -> str:
+        """Deletes SSH Key from the CoPerson record."""
+        # Validates key_id
+        if not key_id:
+            raise HTTPException(status_code=400, detail="Key ID is required.")
+
+        # Gets keys from user
+        ssh_keys = await self.get_ssh_keys_for_user(accessid)
+        # Checks if key exists for user before deleting
+        key_exists_for_user = any(str(key.get("Id")) == str(key_id) for key in ssh_keys)
+        # If key does not exist, raise 404 error
+        if not key_exists_for_user:
+            raise HTTPException(
+                status_code=404, detail="The requested key does not exist."
+            )
 
         return await self._request(
             "DELETE",

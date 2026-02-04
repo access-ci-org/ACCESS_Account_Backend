@@ -571,7 +571,7 @@ async def add_ssh_key(
     if not public_key:
         raise HTTPException(
             400,
-            "The provided key is not valid or is already associated with another account",
+            "The provided key is not valid.",
         )
 
     # Call the CoManage API to add the key

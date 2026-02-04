@@ -49,11 +49,11 @@ class CoManageUser(dict):
                 return name
         return None
 
-    def get_primary_email(self) -> str | None:
+    def get_primary_email(self, address_only=True) -> str | None:
         """Get the primary email address."""
         for email in self.get("EmailAddress", []):
             if email["type"] == "official" and not email["meta"]["deleted"]:
-                return email["mail"]
+                return email["mail"] if address_only else email
         return None
 
     def has_org_identity(self, identifier: Identifier):
@@ -163,7 +163,7 @@ class CoManageRegistryClient:
             Dictionary containing user information
         """
         user_info = await self._request(
-            "GET", f"api/co/{self.coid}/core/v1/people/{accessid}"
+            "GET", f"api/co/{self.coid}/core/v1/people/{quote(accessid, safe='')}"
         )
         return CoManageUser(user_info)
 
@@ -187,7 +187,6 @@ class CoManageRegistryClient:
     async def create_new_user(
         self,
         firstname: str,
-        middlename: str | None,
         lastname: str,
         organization: str,
         email: str,
@@ -196,7 +195,6 @@ class CoManageRegistryClient:
 
         Args:
             firstname: First name of the user
-            middlename: Middle name of the user (can be None)
             lastname: Last name of the user
             organization: Organization/university of the user
             email: Email of the user
@@ -262,7 +260,7 @@ class CoManageRegistryClient:
                 {
                     "honorific": None,
                     "given": firstname,
-                    "middle": middlename,
+                    "middle": None,
                     "family": lastname,
                     "suffix": None,
                     "type": "official",
@@ -277,6 +275,47 @@ class CoManageRegistryClient:
 
         return await self._request(
             "POST", f"api/co/{self.coid}/core/v1/people", json=new_user_data
+        )
+
+    async def update_user(
+        self,
+        access_id: str,
+        first_name: str | None = None,
+        last_name: str | None = None,
+        email: str | None = None,
+        organization: str | None = None,
+        time_zone: str
+        | None = "UNSET",  # Use UNSET as default, since None is a valid value.
+    ):
+        user = await self.get_user_info(access_id)
+
+        if first_name or last_name:
+            primary_name = user.get_primary_name()
+            if primary_name and first_name:
+                primary_name["given"] = first_name
+
+            if primary_name and last_name:
+                primary_name["family"] = last_name
+
+        if email:
+            primary_email = user.get_primary_email(address_only=False)
+            if primary_email:
+                primary_email["mail"] = email
+            # TODO: Do we need to handle the case where there is not a primary email?
+
+        if organization:
+            for role in user.get("CoPersonRole", []):
+                # TODO: Should we check the name to make sure it matches the previous organization?
+                if "affiliation" == "affiliate":
+                    role["o"] = organization
+
+        if time_zone != "UNSET":
+            user["CoPerson"]["timezone"] = time_zone
+
+        return await self._request(
+            "PUT",
+            f"api/co/{self.coid}/core/v1/people/{quote(access_id, safe='')}",
+            json=user,
         )
 
     async def create_new_org_identity(self) -> str:
@@ -341,7 +380,6 @@ class CoManageRegistryClient:
     async def create_new_name(
         self,
         firstname: str,
-        middlename: str | None,
         lastname: str,
         org_identity_id: str,
     ) -> dict:
@@ -349,7 +387,6 @@ class CoManageRegistryClient:
 
         Args:
             firstname: First name of the user
-            middlename: Middle name of the user (can be None)
             lastname: Last name of the user
             org_identity_id: The ID of the Organizational Identity record
 
@@ -367,7 +404,7 @@ class CoManageRegistryClient:
                     "Version": "1.0",
                     "Honorific": None,
                     "Given": firstname,
-                    "Middle": middlename,
+                    "Middle": None,
                     "Family": lastname,
                     "Suffix": None,
                     "Type": "official",
@@ -571,7 +608,6 @@ class CoManageRegistryClient:
         await gather(
             self.create_new_name(
                 firstname=primary_name["given"],
-                middlename=None,
                 lastname=primary_name["family"],
                 org_identity_id=org_identity_id,
             ),

@@ -382,7 +382,6 @@ async def create_account(
     # Create a new CoPerson record
     co_person_response = await comanage_client.create_new_user(
         firstname=account_request.first_name,
-        middlename=None,
         lastname=account_request.last_name,
         organization=organization_name,
         email=email,
@@ -542,11 +541,22 @@ async def get_account(
 )
 async def update_account(
     username: str,
-    request: UpdateAccountRequest,
+    account_request: UpdateAccountRequest,
     token: TokenPayload = Depends(require_username_access),
 ):
-    # TODO: Implement account update logic
-    pass
+    if account_request.organization_id or account_request.email:
+        organization_name = await identity_client.check_organization_matches_domain(
+            account_request.organization_id, domain
+        )
+
+    registry_update = comanage_client.update_user(
+        username,
+        first_name=account_request.first_name,
+        last_name=account_request.last_name,
+        email=account_request.email,
+        organization=organization_name,
+        time_zone=account_request.time_zone,
+    )
 
 
 @router.post(

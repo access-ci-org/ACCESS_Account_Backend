@@ -69,7 +69,11 @@ def create_access_token(
     return encoded_jwt
 
 
-def decode_token(token: str) -> TokenPayload:
+def decode_token(
+    token: str,
+    error_message="Invalid authentication credentials",
+    error_status=status.HTTP_403_FORBIDDEN,
+) -> TokenPayload:
     """
     Decode and validate a JWT token.
 
@@ -93,8 +97,8 @@ def decode_token(token: str) -> TokenPayload:
         return TokenPayload(**payload)
     except (jwt.InvalidTokenError, jwt.DecodeError, jwt.ExpiredSignatureError):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Invalid authentication credentials",
+            status_code=error_status,
+            detail=error_message,
         )
 
 

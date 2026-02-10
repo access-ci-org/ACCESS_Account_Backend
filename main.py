@@ -405,8 +405,8 @@ async def create_account(
     )
 
     # Create or update the person record in the identity service
-    identity_person = identity_client.create_or_update_person(
-        access_id, **dict(account_request)
+    identity_person = identity_client.create_person(
+        access_id, **dict(account_request), update_if_exists=True
     )
 
     # Await parallel updates
@@ -490,7 +490,7 @@ async def update_account(
     [comanage_user, identity_person] = await get_account_data(username)
 
     prev_email = comanage_user.get_primary_email()
-    prev_organization_id = identity_person.organization_id
+    prev_organization_id = identity_person["organizationId"]
 
     email = account_request.email or prev_email
     organization_id = account_request.organization_id or prev_organization_id
@@ -530,7 +530,7 @@ async def update_account(
         user=comanage_user,
     )
 
-    identity_update = identity_client.create_or_update_person(
+    identity_update = identity_client.update_person(
         username,
         first_name=account_request.first_name,
         last_name=account_request.last_name,
@@ -539,8 +539,9 @@ async def update_account(
         academic_status_id=account_request.academic_status_id,
         residence_country_id=account_request.residence_country_id,
         citizenship_country_ids=account_request.citizenship_country_ids,
-        degrees=[d.model_dump() for d in account_request.degrees],
-        person=identity_person,
+        degrees=[d.model_dump() for d in account_request.degrees]
+        if account_request.degrees
+        else None,
     )
 
     await gather(registry_update, identity_update)
@@ -877,7 +878,7 @@ async def get_domain_info(
     },
 )
 async def get_terms_and_conditions(
-    # token: TokenPayload = Depends(require_otp_or_login),
+    token: TokenPayload = Depends(require_otp_or_login),
 ) -> TermsAndConditionsResponse:
     # Call the CoManage Registry client to get active terms and conditions
     tandc = await comanage_client.get_active_tandc()

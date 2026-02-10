@@ -106,7 +106,7 @@ class CoManageRegistryClient:
                 method, url, headers=headers, json=json, timeout=10.0
             )
             resp.raise_for_status()
-            return resp.json()
+            return resp.json() if resp.content else None
 
     async def get_co_person_id_for_email(self, email: str) -> str | None:
         """Return the COPersonIdentifier associated with an email address.

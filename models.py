@@ -112,6 +112,7 @@ class Organization(BaseSchema):
     longitude: str | None = None
     is_msi: bool | None = None
     is_active: bool | None = None
+    is_eligible: bool | None = None
     carnegie_categories: List[dict] = []
     state: str | None = None
     country: str | None = None

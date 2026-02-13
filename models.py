@@ -69,11 +69,20 @@ class JWTResponse(BaseSchema):
 
 class Country(BaseSchema):
     country_id: int
-    country_name: str
+    name: str
 
 
 class CountriesResponse(BaseSchema):
     countries: List[Country]
+
+
+class DegreeType(BaseSchema):
+    degree_id: int
+    name: str
+
+
+class DegreesResponse(BaseSchema):
+    degrees: List[DegreeType]
 
 
 class AcademicStatus(BaseSchema):

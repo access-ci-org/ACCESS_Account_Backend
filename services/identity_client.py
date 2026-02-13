@@ -72,6 +72,9 @@ class IdentityServiceClient:
     async def get_countries(self) -> list[dict]:
         return await self._request("GET", "/profiles/v1/countries")
 
+    async def get_degrees(self) -> list[dict]:
+        return await self._request("GET", "/profiles/v1/degrees")
+
     async def get_organizations_by_domain(self, domain: str) -> dict:
         check_domain = quote(domain, safe="")
         return await self._request(

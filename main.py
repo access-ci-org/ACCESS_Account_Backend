@@ -37,6 +37,7 @@ from models import (
     AddSSHKeyRequest,
     CountriesResponse,
     CreateAccountRequest,
+    DegreesResponse,
     DomainResponse,
     IdentitiesResponse,
     Identity,
@@ -824,9 +825,35 @@ async def get_countries(
         "countries": [
             {
                 "countryId": item["countryId"],
-                "countryName": item["countryName"],
+                "name": item["countryName"],
             }
             for item in data
+        ]
+    }
+
+
+@router.get(
+    "/degree",
+    tags=["Reference Data"],
+    summary="Get degrees",
+    description="Get a list of all possible academic degrees.",
+    response_model=DegreesResponse,
+    responses={
+        200: {"description": "Return a list of possible degrees"},
+        403: {"description": "The JWT is invalid"},
+    },
+)
+async def get_degrees(
+    token: TokenPayload = Depends(require_otp_or_login),
+) -> DegreesResponse:
+    degrees = await identity_client.get_degrees()
+    return {
+        "degrees": [
+            {
+                "degree_id": item["degreeId"],
+                "name": item["description"],
+            }
+            for item in degrees
         ]
     }
 

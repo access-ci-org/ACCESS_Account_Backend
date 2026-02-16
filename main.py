@@ -249,12 +249,11 @@ async def verify_otp(request: VerifyOTPRequest):
     # Verify against stored OTP
     verify_stored_otp(email, otp)
 
+    # Look up the email address to see if it has an existing account.
+    username = await comanage_client.get_access_id_for_email(email)
+
     # Create a JWT token of type "otp"
-    token = create_access_token(
-        sub=request.email,
-        token_type="otp",
-        username=None,  # OTP tokens don't have a username yet
-    )
+    token = create_access_token(sub=request.email, token_type="otp", username=username)
 
     logger.info(f"OTP verified successfully for email={email}")
     return JWTResponse(jwt=token)

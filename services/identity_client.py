@@ -120,7 +120,11 @@ class IdentityServiceClient:
                 json=person_data,
             )
         except httpx.HTTPStatusError as err:
-            if err.response.status_code == 409 and update_if_exists:
+            if (
+                err.response.status_code == 400
+                and "already exists" in err.response.text
+                and update_if_exists
+            ):
                 return await self.update_person(access_id, **person_kwargs)
             else:
                 raise err

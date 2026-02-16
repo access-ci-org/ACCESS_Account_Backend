@@ -406,7 +406,7 @@ async def create_account(
 
     # Create or update the person record in the identity service
     identity_person = identity_client.create_person(
-        access_id, **dict(account_request), update_if_exists=True
+        access_id, **dict(account_request), email=email, update_if_exists=True
     )
 
     # Await parallel updates

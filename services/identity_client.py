@@ -3,6 +3,7 @@ from urllib.parse import quote
 
 import httpx
 from fastapi import HTTPException, status
+import tldextract
 
 from config import (
     XRAS_IDENTITY_SERVICE_BASE_URL,
@@ -65,6 +66,44 @@ class IdentityServiceClient:
         }
 
         return {k: v for k, v in person.items() if v is not None}
+    
+    def _domain_chain(self, host: str) -> list[str]:
+            if not host:
+                return []
+            
+            host = host.strip().strip(".").lower()
+
+            ext = tldextract.extract(host)
+
+            # Newer tldextract preferred name
+            base = getattr(ext, "top_domain_under_public_suffix", "") or getattr(ext, "registered_domain", "")
+
+            # If tldextract cannot determine a base (localhost /invalid)
+            # use what was given
+            if not base:
+                return [host]
+            
+            # Build chain by repeatedly removing the leftmost label until base.
+            parts = host.split(".")
+            chain: list[str] = []
+            for i in range(len(parts)):
+                candidate = ".".join(parts[i:])
+                chain.append(candidate)
+                if candidate == base:
+                    break
+            
+            # Ensure base is included even if host didn't end with it for some reason
+            if chain and chain[-1] != base:
+                chain.append(base)
+
+            # De-dupe while preserving order
+            seen = set()
+            out = []
+            for d in chain:
+                if d not in seen:
+                    seen.add(d)
+                    out.append(d)
+            return out
 
     async def get_academic_statuses(self) -> list[dict]:
         return await self._request("GET", "/profiles/v1/nsf_status_codes")
@@ -76,10 +115,14 @@ class IdentityServiceClient:
         return await self._request("GET", "/profiles/v1/degrees")
 
     async def get_organizations_by_domain(self, domain: str) -> dict:
-        check_domain = quote(domain, safe="")
+        # check_domain = quote(domain, safe="")
+        domains = self._domain_chain(domain)
+
+        params = [("domain[]", d) for d in domains]
         return await self._request(
             "GET",
-            f"/profiles/v1/organizations?domain={check_domain}",
+            "/profiles/v1/organizations",
+            params=params,
         )
 
     async def get_person(self, access_id: str):

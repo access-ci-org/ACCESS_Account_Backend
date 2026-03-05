@@ -3,7 +3,6 @@ from asyncio import gather
 from collections import namedtuple
 from urllib.parse import quote, urlencode
 
-from fastapi import HTTPException
 import httpx
 from fastapi import HTTPException, status
 
@@ -311,7 +310,7 @@ class CoManageRegistryClient:
         if organization:
             for role in user.get("CoPersonRole", []):
                 # TODO: Should we check the name to make sure it matches the previous organization?
-                if "affiliation" == "affiliate":
+                if role["affiliation"] == "affiliate":
                     role["o"] = organization
 
         if time_zone != "UNSET":

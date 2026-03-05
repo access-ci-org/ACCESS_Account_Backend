@@ -133,6 +133,9 @@ class DomainResponse(BaseSchema):
     organizations: List[Organization]
     idps: List[IdP] = Field(default_factory=list)
 
+class Degree(BaseSchema):
+    degree_id: int
+    degree_field: str
 
 class AccountResponse(BaseSchema):
     # CoManage Registry (authoritative)
@@ -147,6 +150,7 @@ class AccountResponse(BaseSchema):
     academic_status_id: int | None = None
     residence_country_id: int | None = None
     citizenship_country_ids: List[int] = Field(default_factory=list)
+    academic_degrees: List[Degree] = Field(default_factory=list)
 
 
 class TermsAndConditionsResponse(BaseSchema):

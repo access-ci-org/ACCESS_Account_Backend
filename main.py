@@ -451,7 +451,26 @@ async def get_account(
         for c in (identity_person.get("citizenships") or [])
         if isinstance(c, dict) and "countryId" in c
     ]
+    raw_degrees = identity_person.get("academicDegrees") or []
 
+    degrees = []
+    for d in raw_degrees:
+        if not isinstance(d, dict):
+            continue
+
+        degree_code = d.get("degreeId")
+        degree_field = d.get("degreeField")
+
+        if not degree_code:
+            continue
+
+        degrees.append(
+            {
+                "degree_id": degree_code,
+                "degree_field": degree_field or "",
+            }
+        )
+    
     return {
         "username": username,
         "first_name": comanage_first,
@@ -462,6 +481,7 @@ async def get_account(
         "academic_status_id": academic_status_id,
         "residence_country_id": residence_country_id,
         "citizenship_country_ids": citizenship_country_ids,
+        "academic_degrees": degrees,
     }
 
 
@@ -530,6 +550,15 @@ async def update_account(
         user=comanage_user,
     )
 
+    degrees_payload = None
+    if account_request.degrees:
+        degrees_payload = [
+            {
+                "degree_id": d.get("degreeId") if isinstance(d, dict) else d.degree_id,
+                "degree_field": d.get("degreeField") if isinstance(d, dict) else d.degree_field,
+            }
+            for d in account_request.degrees
+        ]
     identity_update = identity_client.update_person(
         username,
         first_name=account_request.first_name,
@@ -539,9 +568,7 @@ async def update_account(
         academic_status_id=account_request.academic_status_id,
         residence_country_id=account_request.residence_country_id,
         citizenship_country_ids=account_request.citizenship_country_ids,
-        degrees=[d.model_dump() for d in account_request.degrees]
-        if account_request.degrees
-        else None,
+        degrees=degrees_payload if degrees_payload else None,
     )
 
     await gather(registry_update, identity_update)

@@ -96,14 +96,7 @@ class IdentityServiceClient:
             if chain and chain[-1] != base:
                 chain.append(base)
 
-            # De-dupe while preserving order
-            seen = set()
-            out = []
-            for d in chain:
-                if d not in seen:
-                    seen.add(d)
-                    out.append(d)
-            return out
+            return chain
 
     async def get_academic_statuses(self) -> list[dict]:
         return await self._request("GET", "/profiles/v1/nsf_status_codes")
@@ -194,7 +187,7 @@ class IdentityServiceClient:
             citizenship_country_ids=citizenship_country_ids,
             degrees=degrees,
         )
-
+        print("Identity PATCH payload:", person_data)
         return await self._request(
             "PATCH",
             f"/profiles/v1/people/{quote(access_id, safe='')}",

@@ -461,6 +461,13 @@ async def get_account(
         for c in (identity_person.get("citizenships") or [])
         if isinstance(c, dict) and "countryId" in c
     ]
+    degrees = [
+        {
+            "degree_id": d["degreeId"],
+            "degree_field": d["degreeField"],
+        }
+        for d in (identity_person.get("academicDegrees") or [])
+    ]
 
     return {
         "username": username,
@@ -472,6 +479,7 @@ async def get_account(
         "academic_status_id": academic_status_id,
         "residence_country_id": residence_country_id,
         "citizenship_country_ids": citizenship_country_ids,
+        "academic_degrees": degrees,
     }
 
 
@@ -540,6 +548,12 @@ async def update_account(
         user=comanage_user,
     )
 
+    degrees_payload = (
+        [d.model_dump() for d in account_request.degrees]
+        if account_request.degrees
+        else None
+    )
+
     identity_update = identity_client.update_person(
         username,
         first_name=account_request.first_name,
@@ -549,9 +563,7 @@ async def update_account(
         academic_status_id=account_request.academic_status_id,
         residence_country_id=account_request.residence_country_id,
         citizenship_country_ids=account_request.citizenship_country_ids,
-        degrees=[d.model_dump() for d in account_request.degrees]
-        if account_request.degrees
-        else None,
+        degrees=degrees_payload if degrees_payload else None,
     )
 
     await gather(registry_update, identity_update)

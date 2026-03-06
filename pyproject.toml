@@ -14,4 +14,5 @@ dependencies = [
     "PyJWT>=2.8.0",
     "python-multipart>=0.0.9",
     "sqlmodel>=0.0.27",
+    "tldextract>=5.3.1",
 ]

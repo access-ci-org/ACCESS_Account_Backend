@@ -451,26 +451,14 @@ async def get_account(
         for c in (identity_person.get("citizenships") or [])
         if isinstance(c, dict) and "countryId" in c
     ]
-    raw_degrees = identity_person.get("academicDegrees") or []
+    degrees = [
+        {
+            "degree_id": d["degreeId"],
+            "degree_field": d["degreeField"],
+        }
+        for d in (identity_person.get("academicDegrees") or [])
+    ]
 
-    degrees = []
-    for d in raw_degrees:
-        if not isinstance(d, dict):
-            continue
-
-        degree_code = d.get("degreeId")
-        degree_field = d.get("degreeField")
-
-        if not degree_code:
-            continue
-
-        degrees.append(
-            {
-                "degree_id": degree_code,
-                "degree_field": degree_field or "",
-            }
-        )
-    
     return {
         "username": username,
         "first_name": comanage_first,
@@ -550,15 +538,12 @@ async def update_account(
         user=comanage_user,
     )
 
-    degrees_payload = None
-    if account_request.degrees:
-        degrees_payload = [
-            {
-                "degree_id": d.get("degreeId") if isinstance(d, dict) else d.degree_id,
-                "degree_field": d.get("degreeField") if isinstance(d, dict) else d.degree_field,
-            }
-            for d in account_request.degrees
-        ]
+    degrees_payload = (
+        [d.model_dump() for d in account_request.degrees]
+        if account_request.degrees
+        else None
+    )
+
     identity_update = identity_client.update_person(
         username,
         first_name=account_request.first_name,

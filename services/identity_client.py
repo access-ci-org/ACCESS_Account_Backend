@@ -66,37 +66,39 @@ class IdentityServiceClient:
         }
 
         return {k: v for k, v in person.items() if v is not None}
-    
+
     def _domain_chain(self, host: str) -> list[str]:
-            if not host:
-                return []
-            
-            host = host.strip().strip(".").lower()
+        if not host:
+            return []
 
-            ext = tldextract.extract(host)
+        host = host.strip().strip(".").lower()
 
-            # Newer tldextract preferred name
-            base = getattr(ext, "top_domain_under_public_suffix", "") or getattr(ext, "registered_domain", "")
+        ext = tldextract.extract(host)
 
-            # If tldextract cannot determine a base (localhost /invalid)
-            # use what was given
-            if not base:
-                return [host]
-            
-            # Build chain by repeatedly removing the leftmost label until base.
-            parts = host.split(".")
-            chain: list[str] = []
-            for i in range(len(parts)):
-                candidate = ".".join(parts[i:])
-                chain.append(candidate)
-                if candidate == base:
-                    break
-            
-            # Ensure base is included even if host didn't end with it for some reason
-            if chain and chain[-1] != base:
-                chain.append(base)
+        # Newer tldextract preferred name
+        base = getattr(ext, "top_domain_under_public_suffix", "") or getattr(
+            ext, "registered_domain", ""
+        )
 
-            return chain
+        # If tldextract cannot determine a base (localhost /invalid)
+        # use what was given
+        if not base:
+            return [host]
+
+        # Build chain by repeatedly removing the leftmost label until base.
+        parts = host.split(".")
+        chain: list[str] = []
+        for i in range(len(parts)):
+            candidate = ".".join(parts[i:])
+            chain.append(candidate)
+            if candidate == base:
+                break
+
+        # Ensure base is included even if host didn't end with it for some reason
+        if chain and chain[-1] != base:
+            chain.append(base)
+
+        return chain
 
     async def get_academic_statuses(self) -> list[dict]:
         return await self._request("GET", "/profiles/v1/nsf_status_codes")
@@ -187,7 +189,6 @@ class IdentityServiceClient:
             citizenship_country_ids=citizenship_country_ids,
             degrees=degrees,
         )
-        print("Identity PATCH payload:", person_data)
         return await self._request(
             "PATCH",
             f"/profiles/v1/people/{quote(access_id, safe='')}",

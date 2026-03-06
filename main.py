@@ -393,10 +393,20 @@ async def create_account(
     # Get the CoPerson ID for the new user
     co_person_id = await comanage_client.get_co_person_id_for_email(email)
 
-    # Create an OrgIdentity record
-    linked_identity = comanage_client.create_linked_identity(
-        co_person_id, access_id, cilogon_token
+    # Create an OrgIdentity record for the ACCESS IdP
+    linked_identities = []
+    linked_identities.append(
+        comanage_client.create_linked_identity(co_person_id, access_id)
     )
+
+    # If the user has a CILogon token from another IdP, create another OrgIdentity
+    # record for that IdP
+    if cilogon_token:
+        linked_identities.append(
+            comanage_client.create_linked_identity(
+                co_person_id, access_id, cilogon_token
+            )
+        )
 
     # Create a terms and conditions agreement
     tandc_agreement = comanage_client.create_new_tandc_agreement(
@@ -410,7 +420,7 @@ async def create_account(
     )
 
     # Await parallel updates
-    await gather(linked_identity, tandc_agreement, identity_person)
+    await gather(*linked_identities, tandc_agreement, identity_person)
 
     return {"success": True, "access_id": access_id}
 

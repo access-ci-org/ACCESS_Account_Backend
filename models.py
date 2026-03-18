@@ -54,7 +54,12 @@ class UpdateAccountRequest(BaseSchema):
 
 
 class UpdatePasswordRequest(BaseSchema):
-    password: str
+    password: str = Field(
+        ...,
+        description="New password for the account",
+        min_length=12,
+        max_length=64,
+    )
 
 
 class AddSSHKeyRequest(BaseSchema):

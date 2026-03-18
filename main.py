@@ -67,7 +67,7 @@ from services.otp_service import (
     verify_stored_otp,
 )
 from services.ssh_key_service import calculate_ssh_fingerprint_sha256
-
+from services.password_policy import validate_access_password
 # IDP by Domain
 IDP_BY_DOMAIN: dict[str, dict[str, str]] = {}
 
@@ -590,8 +590,28 @@ async def update_password(
     request: UpdatePasswordRequest,
     token: TokenPayload = Depends(require_own_username_access),
 ):
-    # TODO: Implement password update logic
-    pass
+    policy_result = validate_access_password(request.password)
+    if not policy_result.valid:
+        raise HTTPException(
+            status_code= status.HTTP_400_BAD_REQUEST,
+            detail={
+                "message": "The password does not conform to the ACCESS password policy.",
+                "errors": policy_result.errors,
+            }
+        )
+    
+    try:
+        await comanage_client.update_password(username, request.password)
+    except HTTPException:
+        raise
+    except HTTPStatusError as exc:
+        # Upstream COmanage/plugin issue
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Failed to update password in CoManage Registry.",
+        ) from exc
+
+    return {"message": "Password updated successfully."}
 
 
 # Identity Routes

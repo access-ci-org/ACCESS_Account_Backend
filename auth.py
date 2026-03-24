@@ -7,12 +7,14 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 from config import (
+    CILOGON_LOGIN_CLIENT_ID,
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES,
     JWT_ALGORITHM,
     JWT_AUDIENCE,
     JWT_ISSUER,
     JWT_SECRET_KEY,
 )
+from services.cilogon_client import CILogonClient
 
 
 class TokenPayload(BaseModel):
@@ -69,10 +71,8 @@ def create_access_token(
     return encoded_jwt
 
 
-def decode_token(
+def decode_otp_token(
     token: str,
-    error_message="Invalid authentication credentials",
-    error_status=status.HTTP_403_FORBIDDEN,
 ) -> TokenPayload:
     """
     Decode and validate a JWT token.
@@ -82,24 +82,36 @@ def decode_token(
 
     Returns:
         TokenPayload object with decoded claims
-
-    Raises:
-        HTTPException: If token is invalid or expired
     """
+    payload = jwt.decode(
+        token,
+        str(JWT_SECRET_KEY),
+        algorithms=[JWT_ALGORITHM],
+        audience=JWT_AUDIENCE,
+        issuer=JWT_ISSUER,
+    )
+    return TokenPayload(**payload)
+
+
+async def decode_cilogon_token(token: str):
     try:
-        payload = jwt.decode(
-            token,
-            str(JWT_SECRET_KEY),
-            algorithms=[JWT_ALGORITHM],
-            audience=JWT_AUDIENCE,
-            issuer=JWT_ISSUER,
-        )
-        return TokenPayload(**payload)
-    except (jwt.InvalidTokenError, jwt.DecodeError, jwt.ExpiredSignatureError):
+        user_info = await CILogonClient().get_user_info(token)
+    except:
+        # TODO: Handle specific exceptions
         raise HTTPException(
-            status_code=error_status,
-            detail=error_message,
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token",
         )
+    if user_info["aud"] != CILOGON_LOGIN_CLIENT_ID:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid client ID",
+        )
+    return TokenPayload(
+        sub=user_info["sub"],
+        typ="login",
+        uid=user_info["sub"].replace("@access-ci.org", ""),
+    )
 
 
 async def get_current_token(
@@ -123,7 +135,7 @@ async def get_current_token(
             detail="Not authenticated",
         )
 
-    return decode_token(credentials.credentials)
+    return credentials.credentials
 
 
 async def require_auth(
@@ -138,11 +150,20 @@ async def require_auth(
     Returns:
         TokenPayload
     """
-    return token
+    try:
+        return decode_otp_token(token)
+    except (jwt.InvalidTokenError, jwt.DecodeError, jwt.ExpiredSignatureError) as err:
+        if isinstance(err, jwt.DecodeError) and str(err) == "Not enough segments":
+            return await decode_cilogon_token(token)
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Token error: {str(err)}",
+            )
 
 
 async def require_otp(
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(require_auth),
 ) -> TokenPayload:
     """
     Dependency that requires OTP authentication only.
@@ -165,7 +186,7 @@ async def require_otp(
 
 
 async def require_otp_or_login(
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(require_auth),
 ) -> TokenPayload:
     """
     Dependency that requires either OTP or login authentication.
@@ -185,7 +206,7 @@ async def require_otp_or_login(
 
 
 async def require_login(
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(require_auth),
 ) -> TokenPayload:
     """
     Dependency that requires login authentication (not OTP).

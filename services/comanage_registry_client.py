@@ -497,7 +497,7 @@ class CoManageRegistryClient:
         identifiers = []
         if cilogon_token:
             # Get user info from CILogon using the token
-            cilogon = CILogonClient()
+            cilogon = CILogonClient(propagate_errors=True)
             cilogon_user_info = await cilogon.get_user_info(cilogon_token)
 
             # Create an identifier for each claim that exists in the user info

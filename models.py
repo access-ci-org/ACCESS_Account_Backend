@@ -1,3 +1,4 @@
+from enum import Enum
 from typing import List
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -21,8 +22,13 @@ class VerifyOTPRequest(BaseSchema):
     otp: str
 
 
-class LoginRequest(BaseSchema):
-    idp: str | None = None
+class AuthClient(str, Enum):
+    link = "link"
+    login = "login"
+
+
+class AuthRequest(BaseSchema):
+    idphint: str | None = None
 
 
 class CreateAccountRequest(BaseSchema):
@@ -181,3 +187,8 @@ class SSHKey(BaseSchema):
 
 class SSHKeysResponse(BaseSchema):
     ssh_keys: List[SSHKey]
+
+
+class RefreshResponse(BaseSchema):
+    access_token: str
+    refresh_token: str

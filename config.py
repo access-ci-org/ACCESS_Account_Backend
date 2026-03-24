@@ -63,8 +63,13 @@ IDP_BY_DOMAIN_CACHE_REFRESH_INTERVAL_SECONDS: int = config(
 CILOGON_AUTHORIZATION_URL: str = config(
     "CILOGON_AUTHORIZATION_URL", default="https://cilogon.org/authorize"
 )
-CILOGON_CLIENT_ID: str = config("CILOGON_CLIENT_ID")
-CILOGON_CLIENT_SECRET: Secret = config("CILOGON_CLIENT_SECRET", cast=Secret)
+CILOGON_INTROSPECTION_URL: str = config(
+    "CILOGON_INTROSPECTION_URL", default="https://cilogon.org/oauth2/introspect"
+)
+CILOGON_LINK_CLIENT_ID: str = config("CILOGON_LINK_CLIENT_ID")
+CILOGON_LINK_CLIENT_SECRET: Secret = config("CILOGON_LINK_CLIENT_SECRET", cast=Secret)
+CILOGON_LOGIN_CLIENT_ID: str = config("CILOGON_LOGIN_CLIENT_ID")
+CILOGON_LOGIN_CLIENT_SECRET: Secret = config("CILOGON_LOGIN_CLIENT_SECRET", cast=Secret)
 CILOGON_TOKEN_URL: str = config(
     "CILOGON_TOKEN_URL", default="https://cilogon.org/oauth2/token"
 )

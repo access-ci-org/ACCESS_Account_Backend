@@ -7,13 +7,14 @@ import httpx
 from fastapi import HTTPException, status
 
 from config import (
+    CILOGON_LINK_CLIENT_ID,
     COMANAGE_REGISTRY_BASE_URL,
     COMANAGE_REGISTRY_COID,
     COMANAGE_REGISTRY_PASSWORD,
     COMANAGE_REGISTRY_TIMEOUT,
     COMANAGE_REGISTRY_USER,
 )
-from services.cilogon_client import CILogonClient
+from services.cilogon_client import get_token_user_info
 
 # Map CILogon claims to identifier types and login status
 # Based on the CILogon -> CoManage identifier mapping
@@ -21,10 +22,10 @@ CLAIM_TO_IDENTIFIER_MAPPING = [
     {"claim": "eppn", "type": "eppn", "login": True},
     {"claim": "eptid", "type": "eptid", "login": False},
     {"claim": "epuid", "type": "epuid", "login": False},
-    {"claim": "sub", "type": "oidc", "login": True},
+    {"claim": "sub", "type": "oidcsub", "login": True},
     {"claim": "orcid", "type": "orcid", "login": False},
-    {"claim": "pairwise_id", "type": "samlpairwiseid", "login": False},
-    {"claim": "subject_id", "type": "samlsubjectid", "login": False},
+    {"claim": "pairwise_id", "type": "pairwiseid", "login": False},
+    {"claim": "subject_id", "type": "subjectid", "login": False},
 ]
 
 logger = logging.getLogger("access_account_api")
@@ -422,7 +423,7 @@ class CoManageRegistryClient:
         return await self._request("POST", "names.json", json=name_data)
 
     async def create_new_identifier(
-        self, identifier: str, type: str, login: bool, org_identity_id: str
+        self, identifier: str, type: str, login: bool, linked_type: str, linked_id: str
     ) -> dict:
         """Create a new Identity object to add to the Organizational Identity record.
 
@@ -447,7 +448,7 @@ class CoManageRegistryClient:
                     "Type": type,
                     "Identifier": identifier,
                     "Login": login,
-                    "Person": {"Type": "Org", "Id": org_identity_id},
+                    "Person": {"Type": linked_type, "Id": linked_id},
                     "Status": "Active",
                 }
             ],
@@ -497,8 +498,11 @@ class CoManageRegistryClient:
         identifiers = []
         if cilogon_token:
             # Get user info from CILogon using the token
-            cilogon = CILogonClient(propagate_errors=True)
-            cilogon_user_info = await cilogon.get_user_info(cilogon_token)
+            cilogon_user_info = await get_token_user_info(
+                cilogon_token,
+                CILOGON_LINK_CLIENT_ID,
+                status.HTTP_400_BAD_REQUEST,
+            )
 
             # Create an identifier for each claim that exists in the user info
             for mapping in CLAIM_TO_IDENTIFIER_MAPPING:
@@ -605,9 +609,23 @@ class CoManageRegistryClient:
                     identifier=identifier.identifier,
                     type=identifier.type,
                     login=identifier.login,
-                    org_identity_id=org_identity_id,
+                    linked_type="Org",
+                    linked_id=org_identity_id,
                 )
             )
+
+            # If this is not the ACCESS IdP, also add the identifiers to the CoPerson record.
+            # (Identifiers for the ACCESS IdP are added to the CoPerson automatically.)
+            if cilogon_token:
+                identifier_creation.append(
+                    self.create_new_identifier(
+                        identifier=identifier.identifier,
+                        type=identifier.type,
+                        login=identifier.login,
+                        linked_type="CO",
+                        linked_id=co_person_id,
+                    )
+                )
 
         await gather(
             self.create_new_name(

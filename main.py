@@ -2,14 +2,13 @@ import string
 from asyncio import gather
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
-from urllib.parse import urlencode
 
-import jwt
 from botocore.exceptions import ClientError
 from fastapi import (
     APIRouter,
     Depends,
     FastAPI,
+    Form,
     HTTPException,
     Request,
     Response,
@@ -54,6 +53,7 @@ from models import (
     IdentitiesResponse,
     Identity,
     JWTResponse,
+    LinkIdentityRequest,
     RefreshResponse,
     SendOTPRequest,
     SSHKey,
@@ -284,18 +284,20 @@ async def verify_otp(request: VerifyOTPRequest):
             "description": "The redirect could not be sent (e.g., due to a malformed email address)"
         },
     },
-    response_class=RedirectResponse,
 )
 async def start_auth(
     client: AuthClient,
     request: Request,
-    auth_request: AuthRequest | None = None,
+    auth_request: AuthRequest = Form(),
 ):
     """Start the CILogon OIDC authentication flow."""
 
-    return CILogonClient(client.value).get_oidc_start_url(
-        redirect_uri=request.url_for("complete_auth", client=client.value),
-        **dict(auth_request or {}),
+    return RedirectResponse(
+        url=CILogonClient(client.value).get_oidc_start_url(
+            redirect_uri=request.url_for("complete_auth", client=client.value),
+            **dict(auth_request or {}),
+        ),
+        status_code=status.HTTP_303_SEE_OTHER,
     )
 
 
@@ -371,9 +373,7 @@ async def refresh_auth(
 )
 async def create_account(
     account_request: CreateAccountRequest,
-    request: Request,
     token: TokenPayload = Depends(require_otp),
-    cilogon_token: str | None = None,
 ):
     """Create a new ACCESS account."""
     email = token.sub.lower().strip()
@@ -426,10 +426,10 @@ async def create_account(
 
     # If the user has a CILogon token from another IdP, create another OrgIdentity
     # record for that IdP
-    if cilogon_token:
+    if account_request.cilogon_token:
         linked_identities.append(
             comanage_client.create_linked_identity(
-                co_person_id, access_id, cilogon_token
+                co_person_id, access_id, account_request.cilogon_token
             )
         )
 
@@ -440,8 +440,12 @@ async def create_account(
     )
 
     # Create or update the person record in the identity service
+    identity_data = dict(account_request)
+    if "cilogon_token" in identity_data:
+        del identity_data["cilogon_token"]
+
     identity_person = identity_client.create_person(
-        access_id, **dict(account_request), email=email, update_if_exists=True
+        access_id, **identity_data, email=email, update_if_exists=True
     )
 
     # Await parallel updates
@@ -677,8 +681,7 @@ async def get_identities(
     "/account/{username}/identity",
     tags=["Identity"],
     summary="Link new identity",
-    description="Start the process of linking a new identity. "
-    "Redirects to CILogon to start the linking flow.",
+    description="Link a new identity using a CILogon access token from the link client.",
     responses={
         307: {
             "description": "Redirect to CILogon to start the linking flow. "
@@ -691,10 +694,20 @@ async def get_identities(
 )
 async def link_identity(
     username: str,
-    token: TokenPayload = Depends(require_own_username_access),
+    link_request: LinkIdentityRequest,
+    _token: TokenPayload = Depends(require_own_username_access),
 ):
-    # TODO: Implement identity linking flow
-    pass
+    co_person_id = await comanage_client.get_co_person_id_for_accessid(username)
+    if co_person_id is None:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, f"User {username} does not exist"
+        )
+
+    await comanage_client.create_linked_identity(
+        co_person_id, username, link_request.cilogon_token
+    )
+
+    return {"success": True}
 
 
 @router.delete(

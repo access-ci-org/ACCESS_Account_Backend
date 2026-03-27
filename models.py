@@ -38,6 +38,7 @@ class CreateAccountRequest(BaseSchema):
     academic_status_id: int
     residence_country_id: int
     citizenship_country_ids: list[int]
+    cilogon_token: str = ""
 
 
 class Degree(BaseSchema):
@@ -192,3 +193,7 @@ class SSHKeysResponse(BaseSchema):
 class RefreshResponse(BaseSchema):
     access_token: str
     refresh_token: str
+
+
+class LinkIdentityRequest(BaseSchema):
+    cilogon_token: str

@@ -1,5 +1,7 @@
 from urllib.parse import urlencode
 
+from fastapi import HTTPException
+
 from config import (
     CILOGON_AUTHORIZATION_URL,
     CILOGON_LINK_CLIENT_ID,
@@ -51,3 +53,22 @@ class CILogonClient(RestClient):
         return await self.request(
             CILOGON_USER_INFO_URL, headers={"Authorization": f"Bearer {access_token}"}
         )
+
+
+async def get_token_user_info(token: str, client_id: str, error_status_code: int):
+    """Get user info using an access token."""
+    try:
+        user_info = await CILogonClient().get_user_info(token)
+    except:
+        # TODO: Handle specific exceptions
+        raise HTTPException(
+            status_code=error_status_code,
+            detail="Invalid token",
+        )
+    if user_info["aud"] != client_id:
+        raise HTTPException(
+            status_code=error_status_code,
+            detail="Invalid client ID",
+        )
+
+    return user_info

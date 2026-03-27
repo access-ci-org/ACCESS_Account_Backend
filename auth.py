@@ -14,7 +14,7 @@ from config import (
     JWT_ISSUER,
     JWT_SECRET_KEY,
 )
-from services.cilogon_client import CILogonClient
+from services.cilogon_client import get_token_user_info
 
 
 class TokenPayload(BaseModel):
@@ -94,19 +94,10 @@ def decode_otp_token(
 
 
 async def decode_cilogon_token(token: str):
-    try:
-        user_info = await CILogonClient().get_user_info(token)
-    except:
-        # TODO: Handle specific exceptions
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token",
-        )
-    if user_info["aud"] != CILOGON_LOGIN_CLIENT_ID:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid client ID",
-        )
+    user_info = await get_token_user_info(
+        token, CILOGON_LOGIN_CLIENT_ID, status.HTTP_401_UNAUTHORIZED
+    )
+
     return TokenPayload(
         sub=user_info["sub"],
         typ="login",

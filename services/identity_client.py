@@ -43,6 +43,7 @@ class IdentityServiceClient:
         residence_country_id: int | None = None,
         citizenship_country_ids: list[int] | None = None,
         degrees: list[Degree] | None = None,
+        department: str | None = None, 
     ):
         person = {
             "firstName": first_name,
@@ -51,6 +52,7 @@ class IdentityServiceClient:
             "organizationId": organization_id,
             "nsfStatusCodeId": academic_status_id,
             "countryId": residence_country_id,
+            "department": department,
             "citizenships": [
                 {"countryId": country_id}
                 for country_id in citizenship_country_ids or []
@@ -138,6 +140,7 @@ class IdentityServiceClient:
         citizenship_country_ids: list[int],
         degrees: list[Degree] = [],
         update_if_exists=False,
+        department: str | None = None,
     ):
         person_kwargs = dict(
             first_name=first_name,
@@ -148,6 +151,7 @@ class IdentityServiceClient:
             residence_country_id=residence_country_id,
             citizenship_country_ids=citizenship_country_ids,
             degrees=degrees,
+            department=department
         )
         person_data = self._to_person(**person_kwargs)
 
@@ -178,6 +182,7 @@ class IdentityServiceClient:
         residence_country_id: int | None = None,
         citizenship_country_ids: list[int] | None = None,
         degrees: list[Degree] | None = None,
+        department: str | None = None, 
     ):
         person_data = self._to_person(
             first_name=first_name,
@@ -188,6 +193,7 @@ class IdentityServiceClient:
             residence_country_id=residence_country_id,
             citizenship_country_ids=citizenship_country_ids,
             degrees=degrees,
+            department=department,
         )
         return await self._request(
             "PATCH",

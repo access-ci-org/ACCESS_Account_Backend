@@ -38,6 +38,7 @@ class CreateAccountRequest(BaseSchema):
     academic_status_id: int
     residence_country_id: int
     citizenship_country_ids: list[int]
+    department: str
 
 
 class Degree(BaseSchema):
@@ -57,6 +58,7 @@ class UpdateAccountRequest(BaseSchema):
     program_role: str | None = None
     degrees: list[Degree] | None = None
     time_zone: str | None = None
+    department: str | None = None
 
 
 class UpdatePasswordRequest(BaseSchema):
@@ -154,6 +156,8 @@ class AccountResponse(BaseSchema):
     residence_country_id: int | None = None
     citizenship_country_ids: List[int] = Field(default_factory=list)
     academic_degrees: List[Degree] = Field(default_factory=list)
+    
+    department: str | None = None
 
 
 class TermsAndConditionsResponse(BaseSchema):

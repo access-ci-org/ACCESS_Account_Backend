@@ -493,6 +493,7 @@ async def get_account(
         }
         for d in (identity_person.get("academicDegrees") or [])
     ]
+    department = identity_person.get("department")
 
     return {
         "username": username,
@@ -505,6 +506,7 @@ async def get_account(
         "residence_country_id": residence_country_id,
         "citizenship_country_ids": citizenship_country_ids,
         "academic_degrees": degrees,
+        "department": department,
     }
 
 
@@ -589,6 +591,7 @@ async def update_account(
         residence_country_id=account_request.residence_country_id,
         citizenship_country_ids=account_request.citizenship_country_ids,
         degrees=degrees_payload if degrees_payload else None,
+        department=account_request.department, 
     )
 
     await gather(registry_update, identity_update)

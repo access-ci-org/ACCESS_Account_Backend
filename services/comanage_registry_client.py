@@ -758,10 +758,10 @@ class CoManageRegistryClient:
         coperson_id = await self.get_co_person_id_for_accessid(accessid)
         if not coperson_id:
             raise HTTPException(status_code=404, detail="User not found.")
-        
+
         password_id = await self.get_password_id_for_user(accessid)
         if not password_id:
-            raise HTTPException(status_code=404, detail="User or password not found.")
+            raise HTTPException(status_code=404, detail="Password record not found.")
 
         data = {
             "RequestType": "Passwords",
@@ -770,6 +770,7 @@ class CoManageRegistryClient:
                 {
                     "Id": str(password_id),
                     "Password": new_password,
+                    "PasswordType": "NO",
                 }
             ],
         }

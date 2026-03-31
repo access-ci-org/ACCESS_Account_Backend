@@ -583,6 +583,8 @@ async def update_account(
         403: {
             "description": "The JWT is invalid or the user does not have permission to update the password"
         },
+        404: {"description": "The account or password record was not found"},
+        502: {"description": "The password update failed in CoManage Registry"},
     },
 )
 async def update_password(
@@ -593,25 +595,19 @@ async def update_password(
     policy_result = validate_access_password(request.password)
     if not policy_result.valid:
         raise HTTPException(
-            status_code= status.HTTP_400_BAD_REQUEST,
-            detail={
-                "message": "The password does not conform to the ACCESS password policy.",
-                "errors": policy_result.errors,
-            }
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The password does not conform to the ACCESS password policy.",
         )
-    
+
     try:
-        await comanage_client.update_password(username, request.password)
-    except HTTPException:
-        raise
+        await comanage_client.update_password_for_user(username, request.password)
     except HTTPStatusError as exc:
-        # Upstream COmanage/plugin issue
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Failed to update password in CoManage Registry.",
         ) from exc
 
-    return {"message": "Password updated successfully."}
+    return {"success": True}
 
 
 # Identity Routes

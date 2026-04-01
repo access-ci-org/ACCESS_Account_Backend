@@ -43,7 +43,7 @@ class IdentityServiceClient:
         residence_country_id: int | None = None,
         citizenship_country_ids: list[int] | None = None,
         degrees: list[Degree] | None = None,
-        department: str | None = None, 
+        department: str | None = None,
     ):
         person = {
             "firstName": first_name,
@@ -151,7 +151,7 @@ class IdentityServiceClient:
             residence_country_id=residence_country_id,
             citizenship_country_ids=citizenship_country_ids,
             degrees=degrees,
-            department=department
+            department=department,
         )
         person_data = self._to_person(**person_kwargs)
 
@@ -182,7 +182,7 @@ class IdentityServiceClient:
         residence_country_id: int | None = None,
         citizenship_country_ids: list[int] | None = None,
         degrees: list[Degree] | None = None,
-        department: str | None = None, 
+        department: str | None = None,
     ):
         person_data = self._to_person(
             first_name=first_name,

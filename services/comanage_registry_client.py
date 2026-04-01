@@ -733,9 +733,9 @@ class CoManageRegistryClient:
             "DELETE",
             f"ssh_key_authenticator/ssh_keys/{key_id}.json?coid={self.coid}",
         )
-    
+
     async def get_password_id_for_user(self, accessid: str) -> str | None:
-        """ Return the Password object ID for a given ACCESS user"""
+        """Return the Password object ID for a given ACCESS user"""
 
         coperson_id = await self.get_co_person_id_for_accessid(accessid)
         if not coperson_id:
@@ -749,12 +749,14 @@ class CoManageRegistryClient:
             passwords = result.get("Passwords") or []
             if passwords:
                 return str(passwords[0]["Id"])
-            
+
         return None
-    
-    async def update_password_for_user(self, accessid: str, new_password: str) -> dict | None:
-        """ Update the user's password using the Krb Authenticator plugin """
-        
+
+    async def update_password_for_user(
+        self, accessid: str, new_password: str
+    ) -> dict | None:
+        """Update the user's password using the Krb Authenticator plugin"""
+
         coperson_id = await self.get_co_person_id_for_accessid(accessid)
         if not coperson_id:
             raise HTTPException(status_code=404, detail="User not found.")

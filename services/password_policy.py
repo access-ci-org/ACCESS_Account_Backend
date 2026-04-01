@@ -3,10 +3,12 @@ from dataclasses import dataclass
 
 SYMBOL_RE = re.compile(r"[^A-Za-z0-9]")
 
+
 @dataclass
 class PasswordPolicyResult:
     valid: bool
     errors: list[str]
+
 
 def validate_access_password(password: str) -> PasswordPolicyResult:
     errors: list[str] = []

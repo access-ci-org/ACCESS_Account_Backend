@@ -68,6 +68,7 @@ from services.otp_service import (
 )
 from services.ssh_key_service import calculate_ssh_fingerprint_sha256
 from services.password_policy import validate_access_password
+
 # IDP by Domain
 IDP_BY_DOMAIN: dict[str, dict[str, str]] = {}
 

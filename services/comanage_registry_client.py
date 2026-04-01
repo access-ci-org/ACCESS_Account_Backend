@@ -751,3 +751,52 @@ class CoManageRegistryClient:
             "DELETE",
             f"ssh_key_authenticator/ssh_keys/{key_id}.json?coid={self.coid}",
         )
+
+    async def get_password_id_for_user(self, accessid: str) -> str | None:
+        """Return the Password object ID for a given ACCESS user"""
+
+        coperson_id = await self.get_co_person_id_for_accessid(accessid)
+        if not coperson_id:
+            return None
+        result = await self._request(
+            "GET",
+            f"krb_authenticator/passwords.json?copersonid={coperson_id}",
+        )
+
+        if isinstance(result, dict) and "Passwords" in result:
+            passwords = result.get("Passwords") or []
+            if passwords:
+                return str(passwords[0]["Id"])
+
+        return None
+
+    async def update_password_for_user(
+        self, accessid: str, new_password: str
+    ) -> dict | None:
+        """Update the user's password using the Krb Authenticator plugin"""
+
+        coperson_id = await self.get_co_person_id_for_accessid(accessid)
+        if not coperson_id:
+            raise HTTPException(status_code=404, detail="User not found.")
+
+        password_id = await self.get_password_id_for_user(accessid)
+        if not password_id:
+            raise HTTPException(status_code=404, detail="Password record not found.")
+
+        data = {
+            "RequestType": "Passwords",
+            "Version": "1.0",
+            "Passwords": [
+                {
+                    "Id": str(password_id),
+                    "Password": new_password,
+                    "PasswordType": "NO",
+                }
+            ],
+        }
+
+        return await self._request(
+            "PUT",
+            f"krb_authenticator/passwords/{password_id}.json",
+            json=data,
+        )

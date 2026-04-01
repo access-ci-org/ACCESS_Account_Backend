@@ -79,6 +79,7 @@ from services.otp_service import (
     verify_stored_otp,
 )
 from services.ssh_key_service import calculate_ssh_fingerprint_sha256
+from services.password_policy import validate_access_password
 
 # IDP by Domain
 IDP_BY_DOMAIN: dict[str, dict[str, str]] = {}
@@ -615,6 +616,8 @@ async def update_account(
         403: {
             "description": "The JWT is invalid or the user does not have permission to update the password"
         },
+        404: {"description": "The account or password record was not found"},
+        502: {"description": "The password update failed in CoManage Registry"},
     },
 )
 async def update_password(
@@ -622,8 +625,22 @@ async def update_password(
     request: UpdatePasswordRequest,
     token: TokenPayload = Depends(require_own_username_access),
 ):
-    # TODO: Implement password update logic
-    pass
+    policy_result = validate_access_password(request.password)
+    if not policy_result.valid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The password does not conform to the ACCESS password policy.",
+        )
+
+    try:
+        await comanage_client.update_password_for_user(username, request.password)
+    except HTTPStatusError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Failed to update password in CoManage Registry.",
+        ) from exc
+
+    return {"success": True}
 
 
 # Identity Routes

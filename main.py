@@ -3,6 +3,7 @@ from asyncio import gather
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 
+import jwt
 from botocore.exceptions import ClientError
 from fastapi import (
     APIRouter,
@@ -78,8 +79,8 @@ from services.otp_service import (
     store_otp,
     verify_stored_otp,
 )
-from services.ssh_key_service import calculate_ssh_fingerprint_sha256
 from services.password_policy import validate_access_password
+from services.ssh_key_service import calculate_ssh_fingerprint_sha256
 
 # IDP by Domain
 IDP_BY_DOMAIN: dict[str, dict[str, str]] = {}
@@ -550,12 +551,14 @@ async def update_account(
     if email != prev_email:
         error_message = "Invalid email OTP token"
         error_status = status.HTTP_400_BAD_REQUEST
-        email_token = decode_otp_token(
-            account_request.email_otp_token,
-            error_message=error_message,
-            error_status=error_status,
-        )
-        if email_token.type != "otp" or email_token.sub != email:
+        try:
+            email_token = decode_otp_token(account_request.email_otp_token)
+        except (jwt.InvalidTokenError, jwt.DecodeError, jwt.ExpiredSignatureError):
+            raise HTTPException(
+                status_code=error_status,
+                detail=error_message,
+            )
+        if email_token.typ != "otp" or email_token.sub != email:
             raise HTTPException(
                 status_code=error_status,
                 detail=error_message,

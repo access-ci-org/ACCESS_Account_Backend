@@ -642,6 +642,39 @@ async def update_password(
 
     return {"success": True}
 
+@router.post(
+    "/auth/password-reset",
+    tags=["Authentication"],
+    summary="Request password reset for unauthenticated users",
+)
+async def request_password_reset(
+    request: UpdatePasswordRequest,
+    token: TokenPayload = Depends(require_otp),
+):
+    """ Pull email from OTP token """
+    email = token.sub.lower().strip()
+
+    """ Verify that password meets policy requirements """
+    policy_result = validate_access_password(request.password)
+    if not policy_result.valid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The password does not conform to the ACCESS password policy.",
+        )
+
+    """ Look up email address to find existing account """
+    username = await comanage_client.get_access_id_for_email(email)
+    if not username:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No account found for the provided email address.",
+        )
+    
+    """ Update the password for the account """
+    await comanage_client.update_password_for_user(username, request.password)
+
+    return {"success": True}
+
 
 # Identity Routes
 @router.get(

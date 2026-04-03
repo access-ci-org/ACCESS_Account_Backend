@@ -161,7 +161,7 @@ class AccountResponse(BaseSchema):
     academic_status_id: int | None = None
     residence_country_id: int | None = None
     citizenship_country_ids: List[int] = Field(default_factory=list)
-    academic_degrees: List[Degree] = Field(default_factory=list)
+    degrees: List[Degree] = Field(default_factory=list)
 
     department: str | None = None
 

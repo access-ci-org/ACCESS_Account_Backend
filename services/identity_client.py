@@ -2,8 +2,8 @@ from typing import TypedDict
 from urllib.parse import quote
 
 import httpx
-from fastapi import HTTPException, status
 import tldextract
+from fastapi import HTTPException, status
 
 from config import (
     XRAS_IDENTITY_SERVICE_BASE_URL,

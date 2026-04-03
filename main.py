@@ -511,7 +511,7 @@ async def get_account(
         "academic_status_id": academic_status_id,
         "residence_country_id": residence_country_id,
         "citizenship_country_ids": citizenship_country_ids,
-        "academic_degrees": degrees,
+        "degrees": degrees,
         "department": department,
     }
 
@@ -598,7 +598,7 @@ async def update_account(
         academic_status_id=account_request.academic_status_id,
         residence_country_id=account_request.residence_country_id,
         citizenship_country_ids=account_request.citizenship_country_ids,
-        degrees=degrees_payload if degrees_payload else None,
+        degrees=degrees_payload,
         department=account_request.department,
     )
 

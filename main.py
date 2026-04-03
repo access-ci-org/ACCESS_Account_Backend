@@ -585,7 +585,7 @@ async def update_account(
 
     degrees_payload = (
         [d.model_dump() for d in account_request.degrees]
-        if account_request.degrees
+        if account_request.degrees is not None
         else None
     )
 

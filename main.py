@@ -141,6 +141,8 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="ACCESS Account API",
     description="API for ACCESS CI accounts and registration",
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
     version="0.1.0",
     lifespan=lifespan,
 )
@@ -803,7 +805,7 @@ async def get_ssh_keys(
     "/account/{username}/ssh-key",
     tags=["SSH Keys"],
     summary="Add SSH key",
-    description="Add a new SSH key to the account.",
+    description="Add an SSH key to the account.",
     responses={
         200: {"description": "The key was added successfully"},
         400: {

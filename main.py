@@ -32,6 +32,7 @@ from auth import (
     require_username_access,
 )
 from config import (
+    ADMIN_USERNAMES,
     CORS_ORIGINS,
     DEBUG,
     EXPIRED_OTP_CLEANUP_INTERVAL_SECONDS,
@@ -333,6 +334,14 @@ async def complete_auth(
     for key in ["access_token", "id_token", "refresh_token"]:
         if key in token_response:
             response.set_cookie(key=key, value=token_response[key])
+
+    # For login, check whether the user is an admin.
+    if client == "login":
+        user_info = await cilogon_client.get_user_info(token_response["access_token"])
+        username = user_info["sub"].replace("@access-ci.org", "")
+        response.set_cookie(
+            key="is_admin", value=str(username in ADMIN_USERNAMES).lower()
+        )
 
     return f"{FRONTEND_URL}/{client.value}"
 

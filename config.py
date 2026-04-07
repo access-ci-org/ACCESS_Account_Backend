@@ -13,6 +13,9 @@ if "APP_CONFIG" in os.environ and not os.path.isfile(env_file):
 config = Config(env_file)
 
 # Application Configuration
+ADMIN_USERNAMES: CommaSeparatedStrings = config(
+    "ADMIN_USERNAMES", cast=CommaSeparatedStrings, default=CommaSeparatedStrings([])
+)
 CORS_ORIGINS: CommaSeparatedStrings = config(
     "CORS_ORIGINS", cast=CommaSeparatedStrings, default=CommaSeparatedStrings([])
 )

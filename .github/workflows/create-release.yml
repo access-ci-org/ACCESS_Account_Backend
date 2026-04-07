@@ -18,7 +18,7 @@ jobs:
       tag_name: ${{ steps.rp.outputs.tag_name }}
       upload_url: ${{ steps.rp.outputs.upload_url }}
     steps:
-      - name: Release pleaseps
+      - name: Release please
         id: rp
         uses: googleapis/release-please-action@v4
         with:

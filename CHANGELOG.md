@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.7.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.6.0...v0.7.0) (2026-04-08)
+
+
+### Features
+
+* **auth:** allow admins to impersonate another user ([739785f](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/739785f4c4a45b8e596f2280b411263c15c8cca6))
+* **login:** check whether the user is an admin ([6c09779](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/6c0977972c5400ca57063dd648c1afb9c9eea274))
+
 ## [0.6.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.5.0...v0.6.0) (2026-04-07)
 
 

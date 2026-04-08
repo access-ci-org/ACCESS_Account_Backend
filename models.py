@@ -1,5 +1,6 @@
+from datetime import datetime
 from enum import Enum
-from typing import List
+from typing import List, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
@@ -11,6 +12,15 @@ class BaseSchema(BaseModel):
         populate_by_name=True,  # Allows creation using the field name (snake_case)
         from_attributes=True,  # Optional: good for ORM compatibility
     )
+
+
+class TokenPayload(BaseModel):
+    """JWT token payload structure."""
+
+    sub: str  # email address for OTP tokens, CILogon sub claim for login tokens
+    typ: Literal["otp", "login"]  # authentication type
+    uid: str | None = None  # ACCESS username if exists
+    exp: datetime | None = None  # expiration time
 
 
 class SendOTPRequest(BaseSchema):

@@ -4,9 +4,9 @@ from typing import Literal
 import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from pydantic import BaseModel
 
 from config import (
+    ADMIN_USERNAMES,
     CILOGON_LOGIN_CLIENT_ID,
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES,
     JWT_ALGORITHM,
@@ -14,17 +14,8 @@ from config import (
     JWT_ISSUER,
     JWT_SECRET_KEY,
 )
+from models import TokenPayload
 from services.cilogon_client import get_token_user_info
-
-
-class TokenPayload(BaseModel):
-    """JWT token payload structure."""
-
-    sub: str  # email address for OTP tokens, CILogon sub claim for login tokens
-    typ: Literal["otp", "login"]  # authentication type
-    uid: str | None = None  # ACCESS username if exists
-    exp: datetime | None = None  # expiration time
-
 
 security = HTTPBearer(auto_error=False)
 
@@ -228,13 +219,13 @@ def verify_username_access(
     Args:
         token: The decoded token payload
         username: The username being accessed
-        allow_admin: Whether to allow administrative users (not implemented yet)
+        allow_admin: Whether to allow administrative users
 
     Raises:
         HTTPException: If user doesn't have permission
     """
     # TODO: Implement admin user check when allow_admin=True
-    if token.uid != username:
+    if token.uid != username and not (allow_admin and token.uid in ADMIN_USERNAMES):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have permission to access this account",

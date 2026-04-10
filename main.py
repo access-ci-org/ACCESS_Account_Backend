@@ -489,12 +489,21 @@ async def create_account(
     if "cilogon_token" in identity_data:
         del identity_data["cilogon_token"]
 
+    if "password" in identity_data:
+        del identity_data["password"]
+
     identity_person = identity_client.create_person(
         access_id, **identity_data, email=email, update_if_exists=True
     )
 
     # Await parallel updates
     await gather(*linked_identities, tandc_agreement, identity_person)
+
+    # If a password was provided, update password in CoManage
+    #if account_request.password:
+    #    await comanage_client.create_password_for_user(
+    #        co_person_id, account_request.password
+    #    )
 
     return {"success": True, "access_id": access_id}
 

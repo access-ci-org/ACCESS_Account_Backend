@@ -50,6 +50,7 @@ class CreateAccountRequest(BaseSchema):
     citizenship_country_ids: list[int]
     cilogon_token: str = ""
     department: str
+    password: str
 
 
 class Degree(BaseSchema):

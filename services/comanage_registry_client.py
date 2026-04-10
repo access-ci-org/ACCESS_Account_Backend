@@ -754,11 +754,16 @@ class CoManageRegistryClient:
 
     async def get_password_id_for_user(self, coperson_id: str) -> str | None:
         """Return the Password object ID for a given ACCESS user"""
-
-        result = await self._request(
-            "GET",
-            f"krb_authenticator/passwords.json?copersonid={coperson_id}",
-        )
+        try:
+            result = await self._request(
+                "GET",
+                f"krb_authenticator/passwords.json?copersonid={coperson_id}",
+            )
+        # Return none if the user doesnt have a password record
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 404:
+                return None
+            raise
 
         if isinstance(result, dict) and "Passwords" in result:
             passwords = result.get("Passwords") or []
@@ -766,6 +771,32 @@ class CoManageRegistryClient:
                 return str(passwords[0]["Id"])
 
         return None
+
+    async def create_password_for_user(
+        self, coperson_id: str, password: str
+    ) -> dict | None:
+        """Create a password for the user using the Krb Authenticator plugin."""
+        data = {
+            "RequestType": "Passwords",
+            "Version": "1.0",
+            "Passwords": [
+                {
+                    "Person": {"Type": "CO", "Id": str(coperson_id)},
+                    "Password": password,
+                    "PasswordType": "NO",
+                }
+            ],
+        }
+
+        #print("create_password_for_user coperson_id:", coperson_id)
+        #print("create_password_for_user url:", f"{self.base_url}/registry/krb_authenticator/passwords.json?coid={self.coid}")
+        #print("create_password_for_user data:", data)
+
+        return await self._request(
+            "POST",
+            f"krb_authenticator/passwords.json?coid={self.coid}",
+            json=data,
+        )
 
     async def update_password_for_user(
         self, coperson_id: str, new_password: str

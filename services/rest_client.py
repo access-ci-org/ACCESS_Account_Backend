@@ -22,6 +22,7 @@ class RestClient:
         headers: dict = {},
         json: dict | None = None,
         data: dict | None = None,
+        params: dict | list | None = None,
     ):
         client_kwargs = {}
         if self.username and self.password:
@@ -40,6 +41,7 @@ class RestClient:
                     data=data,
                     headers=request_headers,
                     json=json,
+                    params=params,
                     timeout=self.timeout,
                 )
                 response.raise_for_status()

@@ -3,7 +3,6 @@ from asyncio import gather
 from collections import namedtuple
 from urllib.parse import quote, urlencode
 
-import httpx
 from fastapi import HTTPException, status
 
 from config import (
@@ -15,6 +14,7 @@ from config import (
     COMANAGE_REGISTRY_USER,
 )
 from services.cilogon_client import get_token_user_info
+from services.rest_client import RestClient
 
 # Map CILogon claims to identifier types and login status
 # Based on the CILogon -> CoManage identifier mapping
@@ -80,7 +80,7 @@ class CoManageUser(dict):
         return False
 
 
-class CoManageRegistryClient:
+class CoManageRegistryClient(RestClient):
     def __init__(
         self,
         base_url=COMANAGE_REGISTRY_BASE_URL,
@@ -88,28 +88,17 @@ class CoManageRegistryClient:
         password=COMANAGE_REGISTRY_PASSWORD,
         coid=COMANAGE_REGISTRY_COID,
         timeout=COMANAGE_REGISTRY_TIMEOUT,
+        propagate_errors=False,
     ):
+        super().__init__(username=username, password=password, timeout=timeout, propagate_errors=propagate_errors)
         self.base_url = base_url
-        self.username = username
-        self.password = password
         self.coid = coid
-        self.timeout = timeout
 
     async def _request(
         self, method: str, path: str, json: dict | None = None
     ) -> dict | list | None:
         url = f"{self.base_url}/registry/{path}"
-        auth = httpx.BasicAuth(username=self.username, password=str(self.password))
-        headers = {"Accept": "application/json"}
-        if json is not None:
-            headers["Content-Type"] = "application/json"
-
-        async with httpx.AsyncClient(auth=auth) as client:
-            resp = await client.request(
-                method, url, headers=headers, json=json, timeout=10.0
-            )
-            resp.raise_for_status()
-            return resp.json() if resp.content else None
+        return await self.request(url, method=method, json=json)
 
     async def get_co_person_id_for_email(self, email: str) -> str | None:
         """Return the COPersonIdentifier associated with an email address.

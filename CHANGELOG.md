@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.8.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.7.0...v0.8.0) (2026-04-27)
+
+
+### Features
+
+* **rest_client:** add params passthrough to request ([03688cc](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/03688cc57dfaffeb7cd11eaf97f6ff457f5fc557))
+
+
+### Bug Fixes
+
+* **account:** always check that the email domain matches the ([17fa499](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/17fa499189cd88bdbe448c22afeecd5e34551925))
+* **rest_client:** set Accept header by default ([9f68d8b](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/9f68d8b4d57d8f856110e0a03cb1195d3c91cddc))
+
 ## [0.7.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.6.0...v0.7.0) (2026-04-08)
 
 

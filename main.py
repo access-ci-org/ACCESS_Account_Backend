@@ -18,7 +18,6 @@ from fastapi import (
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi_utilities import repeat_every
-from httpx import HTTPStatusError
 from sqlalchemy import delete
 
 from auth import (
@@ -688,13 +687,7 @@ async def update_password(
         )
 
     # Update the password for the user in CoManage Registry
-    try:
-        await comanage_client.update_password_for_user(coperson_id, request.password)
-    except HTTPStatusError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Failed to update password in CoManage Registry.",
-        ) from exc
+    await comanage_client.update_password_for_user(coperson_id, request.password)
 
     return {"success": True}
 
@@ -719,10 +712,7 @@ async def get_identities(
     username: str,
     token: TokenPayload = Depends(require_username_access),
 ) -> IdentitiesResponse:
-    try:
-        comanage_user = await comanage_client.get_user_info(username)
-    except HTTPStatusError as err:
-        raise HTTPException(err.response.status_code, err.response.text)
+    comanage_user = await comanage_client.get_user_info(username)
 
     # Pass all Identifier records with {type, identifier}
     identities: list[Identity] = []
@@ -830,10 +820,7 @@ async def get_ssh_keys(
     username: str,
     token: TokenPayload = Depends(require_username_access),
 ) -> SSHKeysResponse:
-    try:
-        comanage_user = await comanage_client.get_user_info(username)
-    except HTTPStatusError as err:
-        raise HTTPException(err.response.status_code, err.response.text)
+    comanage_user = await comanage_client.get_user_info(username)
 
     ssh_keys = []
     for ssh_key in comanage_user.get("SshKey", []):
@@ -1014,14 +1001,7 @@ async def get_domain_info(
 ) -> DomainResponse:
     domain_clean = domain.strip().lower()
     # Call the Identity Service client to get the domain information
-    try:
-        organizations = await identity_client.get_organizations_by_domain(domain_clean)
-    except HTTPStatusError as err:
-        # bubble up upstream status code + message
-        raise HTTPException(
-            status_code=err.response.status_code,
-            detail=f"Identity service error: {err.response.text}",
-        )
+    organizations = await identity_client.get_organizations_by_domain(domain_clean)
 
     idps = []
     match = IDP_BY_DOMAIN.get(domain_clean)

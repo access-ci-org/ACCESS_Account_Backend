@@ -38,7 +38,7 @@ class RestClient:
                     method,
                     url,
                     data=data,
-                    headers=headers,
+                    headers=request_headers,
                     json=json,
                     timeout=self.timeout,
                 )

@@ -368,6 +368,7 @@ async def refresh_auth(
         redirect_uri=str(request.url_for("complete_auth", client=client.value)),
     )
 
+
 @router.post(
     "/auth/password-reset",
     tags=["Authentication"],
@@ -400,6 +401,7 @@ async def request_password_reset(
     await comanage_client.update_password_for_user(coperson_id, request.password)
 
     return {"success": True}
+
 
 # Account Routes
 @router.post(
@@ -607,14 +609,13 @@ async def update_account(
                 detail=error_message,
             )
 
-    # If either the email or organization ID has changed, check that
-    # the email maches the organization.
-    organization_name = None
-    if email != prev_email or organization_id != prev_organization_id:
-        domain = email.strip().split("@")[1]
-        organization_name = await identity_client.check_organization_matches_domain(
-            organization_id, domain
-        )
+    # Check that the email maches the organization. We need to perform this check
+    # even if neither the organization nor email has changed because some profiles
+    # already have invalid combinations.
+    domain = email.strip().split("@")[1]
+    organization_name = await identity_client.check_organization_matches_domain(
+        organization_id, domain
+    )
 
     registry_update = comanage_client.update_user(
         username,
@@ -685,7 +686,7 @@ async def update_password(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found.",
         )
-    
+
     # Update the password for the user in CoManage Registry
     try:
         await comanage_client.update_password_for_user(coperson_id, request.password)
@@ -696,6 +697,7 @@ async def update_password(
         ) from exc
 
     return {"success": True}
+
 
 # Identity Routes
 @router.get(

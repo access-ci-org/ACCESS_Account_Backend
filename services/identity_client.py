@@ -10,6 +10,7 @@ from config import (
     XRAS_IDENTITY_SERVICE_KEY,
     XRAS_IDENTITY_SERVICE_REQUESTER,
 )
+from services.rest_client import RestClient
 
 
 class Degree(TypedDict):
@@ -17,8 +18,9 @@ class Degree(TypedDict):
     degree_field: str
 
 
-class IdentityServiceClient:
-    def __init__(self):
+class IdentityServiceClient(RestClient):
+    def __init__(self, propagate_errors=False):
+        super().__init__(propagate_errors=propagate_errors)
         self.base_url = XRAS_IDENTITY_SERVICE_BASE_URL
         self.headers = {
             "XA-REQUESTER": XRAS_IDENTITY_SERVICE_REQUESTER,
@@ -27,11 +29,7 @@ class IdentityServiceClient:
 
     async def _request(self, method: str, path: str, **kwargs) -> dict | list:
         url = f"{self.base_url}{path}"
-
-        async with httpx.AsyncClient() as client:
-            resp = await client.request(method, url, headers=self.headers, **kwargs)
-            resp.raise_for_status()
-            return None if resp.status_code == 204 else resp.json()
+        return await self.request(url, method=method, headers=self.headers, **kwargs)
 
     def _to_person(
         self,
@@ -161,15 +159,12 @@ class IdentityServiceClient:
                 f"/profiles/v1/people/{quote(access_id, safe='')}",
                 json=person_data,
             )
-        except httpx.HTTPStatusError as err:
-            if (
-                err.response.status_code == 400
-                and "already exists" in err.response.text
-                and update_if_exists
-            ):
+        except (httpx.HTTPStatusError, HTTPException) as err:
+            status_code = err.response.status_code if isinstance(err, httpx.HTTPStatusError) else err.status_code
+            error_text = err.response.text if isinstance(err, httpx.HTTPStatusError) else str(err.detail)
+            if status_code == 400 and "already exists" in error_text and update_if_exists:
                 return await self.update_person(access_id, **person_kwargs)
-            else:
-                raise err
+            raise err
 
     async def update_person(
         self,

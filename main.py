@@ -798,8 +798,27 @@ async def delete_identity(
     identity_id: int,
     token: TokenPayload = Depends(require_own_username_access),
 ):
-    # TODO: Implement identity deletion logic
-    pass
+    # Get the CoPerson ID for the username provided by the URL
+    co_person_id = await comanage_client.get_co_person_id_for_accessid(username)
+    if co_person_id is None:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, f"User {username} does not exist"
+        )
+
+    # Get the OrgIdentity record that the user wants to delete
+    org_identity = await comanage_client.get_org_identity(identity_id) 
+    if org_identity is None: 
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="The requested identity does not exist"
+        )
+    
+    # Confirm identity belongs to said user
+
+    # Do not allow deletion of access identity
+
+    # Delete matching CoPerson record
+
+    # Delete orginal OrgIdentity
 
 
 # SSH Key Routes

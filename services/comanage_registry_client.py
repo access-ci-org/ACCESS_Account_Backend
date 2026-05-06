@@ -654,21 +654,37 @@ class CoManageRegistryClient(RestClient):
 
         return None
 
-    async def delete_matching_co_person_identifier(self, accessid: str, identifier_type: str, identifier_value: str):
-        """ Deletes the CoPerson Identifier matching the provided identifier          """
+    async def delete_co_person_identifier(self, co_person_id: str, identifier_type: str, identifier_value: str):
+        """ Deletes the CoPerson Identifier matching the provided identifier """
+        result = await self._request(
+            "GET",
+            f"identifiers.json?copersonid={co_person_id}",
+        )
         
-        # Gets CoPersonID from ACCESSID
-        coperson_id = await self.get_co_person_id_for_accessid(accessid)
-        if not coperson_id:
-            raise HTTPException(status_code=404, detail="User not found.")
-        
-        
-        
-        return None
+        identifiers = result.get("Identifiers", [])
+        for identifier in identifiers:
+            current_identifier_type = identifier.get("Type")
+            current_identifier_value = identifier.get("Identifier")
+
+            if current_identifier_type == identifier_type and current_identifier_value == identifier_value:
+                identifier_id = identifier.get("Id") or identifier.get("meta", {}).get("id")
+                if identifier_id is not None:
+                    await self.delete_identifier(identifier_id)
+                    return 
+
+    async def delete_identifier(self, identifier_id: str | int):
+        """ Delete an Identifier record by ID """
+        return await self._request(
+            "DELETE",
+            f"identifiers/{identifier_id}.json",
+        )
     
-    async def delete_identity(self, identity_id: str | int):
-        # TODO
-        return None
+    async def delete_org_record(self, org_identity_id: str):
+        """ Delete an OrgIdentity record by ID """
+        return await self._request(
+            "DELETE",
+            f"org_identities/{org_identity_id}.json",
+        )
 
     async def add_ssh_key_for_user(self, accessid: str, public_key: str) -> dict:
         """ Adds SSH Key for the CoPerson record. """

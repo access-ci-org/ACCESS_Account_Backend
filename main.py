@@ -430,17 +430,15 @@ async def create_account(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid email address",
         )
-    
-    # Check academic status before creating the account
-    await check_valid_academic_status_id(account_request.academic_status_id)
 
     # Perform preliminary checks in parallel
-    [_existing_access_id, active_tandc, organization_name] = await gather(
+    [_existing_access_id, active_tandc, organization_name, academic_status_check] = await gather(
         comanage_client.check_account_does_not_exist(email),
         comanage_client.check_active_tandc_exists(),
         identity_client.check_organization_matches_domain(
             account_request.organization_id, domain
         ),
+        identity_client.check_valid_academic_status_id(account_request.academic_status_id),
     )
 
     # Create a new CoPerson record
@@ -635,7 +633,7 @@ async def update_account(
         else None
     )
 
-    await check_valid_academic_status_id(account_request.academic_status_id)
+    await identity_client.check_valid_academic_status_id(account_request.academic_status_id)
     
     identity_update = identity_client.update_person(
         username,
@@ -899,42 +897,6 @@ async def delete_ssh_key(
     await comanage_client.delete_ssh_key_for_user(username, key_id)
     return {"success": True}
 
-
-# Reference Data Routes
-INVALID_ACADEMIC_STATUS_CODES = {"N", "UK"}
-
-
-def is_valid_academic_status(item: dict) -> bool:
-    return item.get("nsfStatusCode") not in INVALID_ACADEMIC_STATUS_CODES
-
-
-async def check_valid_academic_status_id(academic_status_id: int | None):
-    if academic_status_id is None:
-        return
-
-    raw_statuses = await identity_client.get_academic_statuses()
-
-    matching_status = next(
-        (
-            item
-            for item in raw_statuses
-            if item.get("nsfStatusCodeId") == academic_status_id
-        ),
-        None,
-    )
-
-    if matching_status is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid academic status",
-        )
-
-    if not is_valid_academic_status(matching_status):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid academic status",
-        )
-
 @router.get(
     "/academic-status",
     response_model=AcademicStatusResponse,
@@ -957,7 +919,7 @@ async def get_academic_statuses(
             name=item["nsfStatusCodeName"],
         )
         for item in raw
-        if is_valid_academic_status(item)
+        if identity_client.is_valid_academic_status(item)
     ]
 
     return AcademicStatusResponse(academicStatuses=transformed)

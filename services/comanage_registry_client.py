@@ -625,6 +625,20 @@ class CoManageRegistryClient(RestClient):
             *identifier_creation,
         )
 
+    async def get_org_identity(self, org_identity_id: str | int) -> dict | None:
+        """ Gets specific OrgIdentity record by ID """
+        result = await self._request(
+            "GET",
+            f"org_identities/{org_identity_id}.json",
+        )
+
+        org_identities = result.get("OrgIdentities", [])
+
+        if not org_identities:
+            return None
+
+        return org_identities[0]
+
     async def get_co_person_id_for_accessid(self, accessid: str) -> str | None:
         """Return the CoPersonId (string instead of dict) associated with an ACCESS ID."""
         encoded_accessid = quote(accessid)
@@ -640,16 +654,24 @@ class CoManageRegistryClient(RestClient):
 
         return None
 
+    async def delete_matching_co_person_identifier(self, accessid: str, identifier_type: str, identifier_value: str):
+        """ Deletes the CoPerson Identifier matching the provided identifier          """
+        
+        # Gets CoPersonID from ACCESSID
+        coperson_id = await self.get_co_person_id_for_accessid(accessid)
+        if not coperson_id:
+            raise HTTPException(status_code=404, detail="User not found.")
+        
+        
+        
+        return None
+    
+    async def delete_identity(self, identity_id: str | int):
+        # TODO
+        return None
+
     async def add_ssh_key_for_user(self, accessid: str, public_key: str) -> dict:
-        """Adds SSH Key for the CoPerson record.
-
-        Args:
-            comanage_user: User to add key to
-            public_key: public ssh key
-
-        Returns:
-            Added SSH Key to user record
-        """
+        """ Adds SSH Key for the CoPerson record. """
         # Gets user id
         coperson_id = await self.get_co_person_id_for_accessid(accessid)
         if not coperson_id:

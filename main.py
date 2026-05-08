@@ -710,7 +710,7 @@ async def update_password(
 )
 async def get_identities(
     username: str,
-    #token: TokenPayload = Depends(require_otp_or_login),
+    token: TokenPayload = Depends(require_username_access),
 ) -> IdentitiesResponse:
     comanage_user = await comanage_client.get_user_info(username)
 
@@ -796,7 +796,7 @@ async def link_identity(
 async def delete_identity(
     username: str,
     identity_id: int,
-    #token: TokenPayload = Depends(require_otp_or_login),
+    token: TokenPayload = Depends(require_own_username_access),
 ):
     # Get the CoPerson ID for the username provided by the URL.
     co_person_id = await comanage_client.get_co_person_id_for_accessid(username)

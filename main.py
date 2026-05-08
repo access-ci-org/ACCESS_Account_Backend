@@ -710,7 +710,7 @@ async def update_password(
 )
 async def get_identities(
     username: str,
-    token: TokenPayload = Depends(require_otp_or_login),
+    #token: TokenPayload = Depends(require_otp_or_login),
 ) -> IdentitiesResponse:
     comanage_user = await comanage_client.get_user_info(username)
 
@@ -796,7 +796,7 @@ async def link_identity(
 async def delete_identity(
     username: str,
     identity_id: int,
-    token: TokenPayload = Depends(require_otp_or_login),
+    #token: TokenPayload = Depends(require_otp_or_login),
 ):
     # Get the CoPerson ID for the username provided by the URL.
     co_person_id = await comanage_client.get_co_person_id_for_accessid(username)
@@ -809,7 +809,6 @@ async def delete_identity(
     # Get the user's full CoManage record so we can confirm the identity belongs
     # to this user and access the identity's Identifier records.
     comanage_user = await comanage_client.get_user_info(username)
-
     org_identity = None
     for identity in comanage_user.get("OrgIdentity", []):
         if identity.get("meta", {}).get("id") == identity_id:
@@ -846,15 +845,20 @@ async def delete_identity(
             await comanage_client.delete_identifier(identifier_id)
 
         if identifier_type and identifier_value:
-            await comanage_client.delete_co_person_identifier(
+           await comanage_client.delete_co_person_identifier(
                 co_person_id=co_person_id,
                 identifier_type=identifier_type,
-                identifier_value=identifier_value,
-            )
+               identifier_value=identifier_value,
+          )
+            
+    # Get the OrgIdentity Link to delete the OrgIdenity record.
+    org_identity_links = await comanage_client.get_org_identity_links(identity_id)
 
-    # Delete the OrgIdentity record itself.
-    await comanage_client.delete_org_record(identity_id)
-
+    for org_identity_link in org_identity_links:
+        org_identity_link_id = org_identity_link.get("Id") or org_identity_link.get(
+            "meta", {}).get("id")
+        if org_identity_link_id is not None:
+            await comanage_client.delete_org_identity_link(org_identity_link_id)
     return {"success": True}
 
 # SSH Key Routes

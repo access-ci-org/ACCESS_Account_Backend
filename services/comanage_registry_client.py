@@ -678,12 +678,23 @@ class CoManageRegistryClient(RestClient):
             "DELETE",
             f"identifiers/{identifier_id}.json",
         )
+
+    async def get_org_identity_links(self, org_identity_id: str | int) -> list[dict]:
+        """ Gets all CoOrgIdenitity Link records given an OrgIdentity ID"""
+        result = await self._request(
+            "GET",
+            f"co_org_identity_links.json?orgidentityid={org_identity_id}"
+        )
+        
+        if isinstance(result, dict) and "CoOrgIdentityLinks" in result:
+            return result.get("CoOrgIdentityLinks") or []
+        return []
     
-    async def delete_org_record(self, org_identity_id: str):
-        """ Delete an OrgIdentity record by ID """
+    async def delete_org_identity_link(self, link_id: str):
+        """ Delete an OrgIdentity record by Link ID """
         return await self._request(
             "DELETE",
-            f"org_identities/{org_identity_id}.json",
+            f"co_org_identity_links/{link_id}.json",
         )
 
     async def add_ssh_key_for_user(self, accessid: str, public_key: str) -> dict:

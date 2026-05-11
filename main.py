@@ -844,22 +844,35 @@ async def delete_identity(
         if identifier_id is not None:
             await comanage_client.delete_identifier(identifier_id)
 
+        # Checks for matching identifiers on CoPerson and deletes
+        # them if there is a match in OrgIdentity & CoPerson Identifer.
         if identifier_type and identifier_value:
-           await comanage_client.delete_co_person_identifier(
-                co_person_id=co_person_id,
-                identifier_type=identifier_type,
-               identifier_value=identifier_value,
-          )
-            
-    # Get the OrgIdentity Link to delete the OrgIdenity record.
+            for co_person_identifier in comanage_user.get("Identifier", []):
+                co_person_identifier_type = co_person_identifier.get("type")
+                co_person_identifier_value = co_person_identifier.get("identifier")
+
+                if (
+                    co_person_identifier_type == identifier_type
+                    and co_person_identifier_value == identifier_value
+                ):
+                    co_person_identifier_id = co_person_identifier.get("meta", {}).get(
+                        "id"
+                    )
+
+                    if co_person_identifier_id is not None:
+                        await comanage_client.delete_identifier(co_person_identifier_id)
+
+    # Get the OrgIdentity Link to delete the OrgIdentity record.
     org_identity_links = await comanage_client.get_org_identity_links(identity_id)
 
     for org_identity_link in org_identity_links:
         org_identity_link_id = org_identity_link.get("Id") or org_identity_link.get(
-            "meta", {}).get("id")
+            "meta", {}
+        ).get("id")
         if org_identity_link_id is not None:
             await comanage_client.delete_org_identity_link(org_identity_link_id)
     return {"success": True}
+
 
 # SSH Key Routes
 @router.get(

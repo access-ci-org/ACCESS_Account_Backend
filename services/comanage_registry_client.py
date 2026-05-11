@@ -90,7 +90,12 @@ class CoManageRegistryClient(RestClient):
         timeout=COMANAGE_REGISTRY_TIMEOUT,
         propagate_errors=False,
     ):
-        super().__init__(username=username, password=password, timeout=timeout, propagate_errors=propagate_errors)
+        super().__init__(
+            username=username,
+            password=password,
+            timeout=timeout,
+            propagate_errors=propagate_errors,
+        )
         self.base_url = base_url
         self.coid = coid
 
@@ -625,20 +630,6 @@ class CoManageRegistryClient(RestClient):
             *identifier_creation,
         )
 
-    async def get_org_identity(self, org_identity_id: str | int) -> dict | None:
-        """ Gets specific OrgIdentity record by ID """
-        result = await self._request(
-            "GET",
-            f"org_identities/{org_identity_id}.json",
-        )
-
-        org_identities = result.get("OrgIdentities", [])
-
-        if not org_identities:
-            return None
-
-        return org_identities[0]
-
     async def get_co_person_id_for_accessid(self, accessid: str) -> str | None:
         """Return the CoPersonId (string instead of dict) associated with an ACCESS ID."""
         encoded_accessid = quote(accessid)
@@ -654,51 +645,32 @@ class CoManageRegistryClient(RestClient):
 
         return None
 
-    async def delete_co_person_identifier(self, co_person_id: str, identifier_type: str, identifier_value: str):
-        """ Deletes the CoPerson Identifier matching the provided identifier """
-        result = await self._request(
-            "GET",
-            f"identifiers.json?copersonid={co_person_id}",
-        )
-        
-        identifiers = result.get("Identifiers", [])
-        for identifier in identifiers:
-            current_identifier_type = identifier.get("Type")
-            current_identifier_value = identifier.get("Identifier")
-
-            if current_identifier_type == identifier_type and current_identifier_value == identifier_value:
-                identifier_id = identifier.get("Id") or identifier.get("meta", {}).get("id")
-                if identifier_id is not None:
-                    await self.delete_identifier(identifier_id)
-                    return 
-
     async def delete_identifier(self, identifier_id: str | int):
-        """ Delete an Identifier record by ID """
+        """Delete an Identifier record by ID"""
         return await self._request(
             "DELETE",
             f"identifiers/{identifier_id}.json",
         )
 
     async def get_org_identity_links(self, org_identity_id: str | int) -> list[dict]:
-        """ Gets all CoOrgIdenitity Link records given an OrgIdentity ID"""
+        """Gets all CoOrgIdenitity Link records given an OrgIdentity ID"""
         result = await self._request(
-            "GET",
-            f"co_org_identity_links.json?orgidentityid={org_identity_id}"
+            "GET", f"co_org_identity_links.json?orgidentityid={org_identity_id}"
         )
-        
+
         if isinstance(result, dict) and "CoOrgIdentityLinks" in result:
             return result.get("CoOrgIdentityLinks") or []
         return []
-    
+
     async def delete_org_identity_link(self, link_id: str):
-        """ Delete an OrgIdentity record by Link ID """
+        """Delete an OrgIdentity record by Link ID"""
         return await self._request(
             "DELETE",
             f"co_org_identity_links/{link_id}.json",
         )
 
     async def add_ssh_key_for_user(self, accessid: str, public_key: str) -> dict:
-        """ Adds SSH Key for the CoPerson record. """
+        """Adds SSH Key for the CoPerson record."""
         # Gets user id
         coperson_id = await self.get_co_person_id_for_accessid(accessid)
         if not coperson_id:

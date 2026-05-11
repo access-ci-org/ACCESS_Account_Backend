@@ -18,7 +18,9 @@ def safe_get(d: dict, *keys, default=None):
 
 
 async def get_account_data(username: str):
-    return list(await gather(
-        comanage_client.get_user_info(username),
-        identity_client.get_account(username),
-    ))
+    return list(
+        await gather(
+            comanage_client.get_user_info(username),
+            identity_client.get_account(username),
+        )
+    )

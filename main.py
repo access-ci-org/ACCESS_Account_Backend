@@ -798,8 +798,80 @@ async def delete_identity(
     identity_id: int,
     token: TokenPayload = Depends(require_own_username_access),
 ):
-    # TODO: Implement identity deletion logic
-    pass
+    # Get the CoPerson ID for the username provided by the URL.
+    co_person_id = await comanage_client.get_co_person_id_for_accessid(username)
+    if co_person_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"User {username} does not exist",
+        )
+
+    # Get the user's full CoManage record so we can confirm the identity belongs
+    # to this user and access the identity's Identifier records.
+    comanage_user = await comanage_client.get_user_info(username)
+    org_identity = None
+    for identity in comanage_user.get("OrgIdentity", []):
+        if identity.get("meta", {}).get("id") == identity_id:
+            org_identity = identity
+            break
+
+    if org_identity is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="The requested identity does not exist",
+        )
+
+    identifiers = org_identity.get("Identifier") or []
+
+    # Do not allow the ACCESS IdP identity to be deleted.
+    for identifier in identifiers:
+        identifier_type = identifier.get("type")
+        identifier_value = identifier.get("identifier") or ""
+
+        if identifier_type == "eppn" and identifier_value.endswith("@access-ci.org"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="The ACCESS identity cannot be deleted",
+            )
+
+    # Delete each Identifier record on the OrgIdentity and any matching
+    # Identifier records on the parent CoPerson.
+    for identifier in identifiers:
+        identifier_type = identifier.get("type")
+        identifier_value = identifier.get("identifier")
+        identifier_id = identifier.get("meta", {}).get("id")
+
+        if identifier_id is not None:
+            await comanage_client.delete_identifier(identifier_id)
+
+        # Checks for matching identifiers on CoPerson and deletes
+        # them if there is a match in OrgIdentity & CoPerson Identifer.
+        if identifier_type and identifier_value:
+            for co_person_identifier in comanage_user.get("Identifier", []):
+                co_person_identifier_type = co_person_identifier.get("type")
+                co_person_identifier_value = co_person_identifier.get("identifier")
+
+                if (
+                    co_person_identifier_type == identifier_type
+                    and co_person_identifier_value == identifier_value
+                ):
+                    co_person_identifier_id = co_person_identifier.get("meta", {}).get(
+                        "id"
+                    )
+
+                    if co_person_identifier_id is not None:
+                        await comanage_client.delete_identifier(co_person_identifier_id)
+
+    # Get the OrgIdentity Link to delete the OrgIdentity record.
+    org_identity_links = await comanage_client.get_org_identity_links(identity_id)
+
+    for org_identity_link in org_identity_links:
+        org_identity_link_id = org_identity_link.get("Id") or org_identity_link.get(
+            "meta", {}
+        ).get("id")
+        if org_identity_link_id is not None:
+            await comanage_client.delete_org_identity_link(org_identity_link_id)
+    return {"success": True}
 
 
 # SSH Key Routes

@@ -90,7 +90,12 @@ class CoManageRegistryClient(RestClient):
         timeout=COMANAGE_REGISTRY_TIMEOUT,
         propagate_errors=False,
     ):
-        super().__init__(username=username, password=password, timeout=timeout, propagate_errors=propagate_errors)
+        super().__init__(
+            username=username,
+            password=password,
+            timeout=timeout,
+            propagate_errors=propagate_errors,
+        )
         self.base_url = base_url
         self.coid = coid
 
@@ -640,16 +645,32 @@ class CoManageRegistryClient(RestClient):
 
         return None
 
+    async def delete_identifier(self, identifier_id: str | int):
+        """Delete an Identifier record by ID"""
+        return await self._request(
+            "DELETE",
+            f"identifiers/{identifier_id}.json",
+        )
+
+    async def get_org_identity_links(self, org_identity_id: str | int) -> list[dict]:
+        """Gets all CoOrgIdenitity Link records given an OrgIdentity ID"""
+        result = await self._request(
+            "GET", f"co_org_identity_links.json?orgidentityid={org_identity_id}"
+        )
+
+        if isinstance(result, dict) and "CoOrgIdentityLinks" in result:
+            return result.get("CoOrgIdentityLinks") or []
+        return []
+
+    async def delete_org_identity_link(self, link_id: str):
+        """Delete an OrgIdentity record by Link ID"""
+        return await self._request(
+            "DELETE",
+            f"co_org_identity_links/{link_id}.json",
+        )
+
     async def add_ssh_key_for_user(self, accessid: str, public_key: str) -> dict:
-        """Adds SSH Key for the CoPerson record.
-
-        Args:
-            comanage_user: User to add key to
-            public_key: public ssh key
-
-        Returns:
-            Added SSH Key to user record
-        """
+        """Adds SSH Key for the CoPerson record."""
         # Gets user id
         coperson_id = await self.get_co_person_id_for_accessid(accessid)
         if not coperson_id:

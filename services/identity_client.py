@@ -1,5 +1,6 @@
 from typing import TypedDict
 from urllib.parse import quote
+from cachetools import TTLCache
 
 import httpx
 import tldextract
@@ -27,6 +28,7 @@ class IdentityServiceClient(RestClient):
             "XA-REQUESTER": XRAS_IDENTITY_SERVICE_REQUESTER,
             "XA-API-KEY": XRAS_IDENTITY_SERVICE_KEY,
         }
+        self.choice_list_cache = TTLCache(maxsize=3, ttl=3600) # Cache for choice lists lasts an hour
 
     async def _request(self, method: str, path: str, **kwargs) -> dict | list:
         url = f"{self.base_url}{path}"
@@ -105,14 +107,29 @@ class IdentityServiceClient(RestClient):
         return item.get("nsfStatusCode") not in INVALID_ACADEMIC_STATUS_CODES
 
     async def get_academic_statuses(self) -> list[dict]:
-        return await self._request("GET", "/profiles/v1/nsf_status_codes")
+        cache_key = "academic_statuses" # Create a cache key 
+        if cache_key in self.choice_list_cache: # Check if the academic statuses are already cached
+            return self.choice_list_cache[cache_key] # return cached if available
+        academic_statuses = await self._request("GET", "/profiles/v1/nsf_status_codes") # Call API if not cached
+        self.choice_list_cache[cache_key] = academic_statuses # Cache for future use
+        return academic_statuses
 
     async def get_countries(self) -> list[dict]:
+        cache_key = "countries"
+        if cache_key in self.choice_list_cache:
+            return self.choice_list_cache[cache_key]
         countries = await self._request("GET", "/profiles/v1/countries")
-        return sorted(countries, key=lambda c: c["countryName"] != "United States")
+        sorted_countries = sorted(countries, key=lambda c: c["countryName"] != "United States")
+        self.choice_list_cache[cache_key] = sorted_countries # caching sorted countries
+        return sorted_countries
 
     async def get_degrees(self) -> list[dict]:
-        return await self._request("GET", "/profiles/v1/degrees")
+        cache_key = "degrees"
+        if cache_key in self.choice_list_cache:
+            return self.choice_list_cache[cache_key]
+        degrees = await self._request("GET", "/profiles/v1/degrees")
+        self.choice_list_cache[cache_key] = degrees
+        return degrees
 
     async def get_organizations_by_domain(self, domain: str) -> dict:
         # check_domain = quote(domain, safe="")

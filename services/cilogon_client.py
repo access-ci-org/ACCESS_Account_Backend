@@ -37,6 +37,9 @@ class CILogonClient(RestClient):
         }
         params.update(kwargs)
 
+        if self.client == "link":
+            params["prompt"] = "consent"
+
         return f"{CILOGON_AUTHORIZATION_URL}?{urlencode(params, doseq=True)}"
 
     async def get_token(self, **kwargs):

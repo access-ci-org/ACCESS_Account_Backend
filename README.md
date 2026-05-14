@@ -59,8 +59,8 @@ The API will be available at `http://localhost:8000`.
 
 Once the server is running, you can access the interactive API documentation:
 
-- **Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
+- **Swagger UI**: http://localhost:8000/api/docs
+- **ReDoc**: http://localhost:8000/api/redoc
 - **OpenAPI JSON**: http://localhost:8000/openapi.json
 
 All API routes are prefixed with `/api/v1`.
@@ -159,6 +159,58 @@ Redirect to the account frontend URL with these query string parameters:
 - `jwt`: a JWT of type `login`
 - `first_name`: the given_name OIDC claim, if provided by the IDP.
 - `last_name`: the family_name OIDC claim, if provided by the IDP.
+
+### POST `/auth/{client}/refresh`
+Refresh CILogon authentication.
+
+#### Request Headers
+- `Authorization`: containing the current CILogon refresh token.
+
+#### Response Types
+
+##### HTTP 200
+The CILogon authentication was refreshed.
+
+```json
+{
+	"access_token": "<access_token>",
+	"id_token": "<id_token>",
+	"refresh_token": "<refresh_token>"
+}
+```
+
+### POST `/auth/password-reset`
+Request a password reset for an unauthenticated user.
+
+#### Request Headers
+- `Authorization`: containing a JWT of type `otp`.
+
+#### Request Body
+```json
+{
+	"password": "New Password"
+}
+```
+
+#### Response Types
+
+##### HTTP 200
+The password was updated.
+
+```json
+{
+	"success": true
+}
+```
+
+##### HTTP 400
+The password does not conform to the ACCESS password policy
+
+##### HTTP 403
+The JWT is invalid
+
+##### HTTP 404
+No account was found for the provided email address
 
 ### POST `/account`
 Create a new account.
@@ -472,6 +524,31 @@ Return a list of possible countries.
 		{
 			"countryId": 201,
 			"name": "United States"
+		}
+	]
+}
+```
+
+##### HTTP 403
+The JWT is invalid.
+
+### GET `/degree`
+Get a list of all possible academic degrees.
+
+#### Request Headers
+- `Authorization`: containing a JWT of type `otp` or `login`.
+
+#### Response Types
+
+##### HTTP 200
+Return a list of possible academic degrees.
+
+```json
+{
+	"degrees": [
+		{
+			"degree_id": 1,
+			"name": "Bachelor's"
 		}
 	]
 }

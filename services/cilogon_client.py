@@ -68,10 +68,17 @@ async def get_token_user_info(token: str, client_id: str, error_status_code: int
             status_code=error_status_code,
             detail="Invalid token",
         )
-    if user_info["aud"] != client_id:
+    aud = user_info.get("aud")
+    if isinstance(aud, list):
+        if client_id not in aud:
+            raise HTTPException(
+                status_code=error_status_code,
+                detail="Invalid client ID",
+            )
+    elif aud != client_id:
         raise HTTPException(
             status_code=error_status_code,
             detail="Invalid client ID",
         )
-
+    
     return user_info

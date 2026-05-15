@@ -269,7 +269,7 @@ async def verify_otp(request: VerifyOTPRequest):
     username = await comanage_client.get_access_id_for_email(email)
 
     # Create a JWT token of type "otp"
-    token = create_access_token(sub=request.email, token_type="otp", username=username)
+    token = create_access_token(sub=email, token_type="otp", username=username)
 
     logger.info(f"OTP verified successfully for email={email}")
     return JWTResponse(jwt=token)

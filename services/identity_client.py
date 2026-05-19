@@ -17,7 +17,9 @@ class Degree(TypedDict):
     degree_id: int
     degree_field: str
 
+
 INVALID_ACADEMIC_STATUS_CODES = {"N", "UK"}
+
 
 class IdentityServiceClient(RestClient):
     def __init__(self, propagate_errors=False):
@@ -100,7 +102,7 @@ class IdentityServiceClient(RestClient):
             chain.append(base)
 
         return chain
-    
+
     def is_valid_academic_status(self, item: dict) -> bool:
         return item.get("nsfStatusCode") not in INVALID_ACADEMIC_STATUS_CODES
 
@@ -238,7 +240,7 @@ class IdentityServiceClient(RestClient):
             "GET",
             f"/profiles/v1/people/{check_username}",
         )
-    
+
     async def check_valid_academic_status_id(
         self,
         academic_status_id: int | None,
@@ -257,8 +259,8 @@ class IdentityServiceClient(RestClient):
             None,
         )
 
-        if (
-            matching_status is None or not self.is_valid_academic_status(matching_status)
+        if matching_status is None or not self.is_valid_academic_status(
+            matching_status
         ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

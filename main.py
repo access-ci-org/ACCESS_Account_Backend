@@ -432,13 +432,20 @@ async def create_account(
         )
 
     # Perform preliminary checks in parallel
-    [_existing_access_id, active_tandc, organization_name, academic_status_check] = await gather(
+    [
+        _existing_access_id,
+        active_tandc,
+        organization_name,
+        academic_status_check,
+    ] = await gather(
         comanage_client.check_account_does_not_exist(email),
         comanage_client.check_active_tandc_exists(),
         identity_client.check_organization_matches_domain(
             account_request.organization_id, domain
         ),
-        identity_client.check_valid_academic_status_id(account_request.academic_status_id),
+        identity_client.check_valid_academic_status_id(
+            account_request.academic_status_id
+        ),
     )
 
     # Create a new CoPerson record
@@ -633,8 +640,10 @@ async def update_account(
         else None
     )
 
-    await identity_client.check_valid_academic_status_id(account_request.academic_status_id)
-    
+    await identity_client.check_valid_academic_status_id(
+        account_request.academic_status_id
+    )
+
     identity_update = identity_client.update_person(
         username,
         first_name=account_request.first_name,
@@ -811,6 +820,7 @@ async def delete_identity(
 
     # Get the user's full CoManage record so we can confirm the identity belongs
     # to this user and access the identity's Identifier records.
+    # Finding matching OrgIdentity
     comanage_user = await comanage_client.get_user_info(username)
     org_identity = None
     for identity in comanage_user.get("OrgIdentity", []):
@@ -844,12 +854,14 @@ async def delete_identity(
         identifier_value = identifier.get("identifier")
         identifier_id = identifier.get("meta", {}).get("id")
 
+        # Remove identifiers from the OrgIdentity
         if identifier_id is not None:
             await comanage_client.delete_identifier(identifier_id)
 
         # Checks for matching identifiers on CoPerson and deletes
         # them if there is a match in OrgIdentity & CoPerson Identifer.
         if identifier_type and identifier_value:
+            # Remove matching identifiers from the linked CoPerson
             for co_person_identifier in comanage_user.get("Identifier", []):
                 co_person_identifier_type = co_person_identifier.get("type")
                 co_person_identifier_value = co_person_identifier.get("identifier")
@@ -865,7 +877,7 @@ async def delete_identity(
                     if co_person_identifier_id is not None:
                         await comanage_client.delete_identifier(co_person_identifier_id)
 
-    # Get the OrgIdentity Link to delete the OrgIdentity record.
+    # Unlink the OrgIdentity from the CoPerson before the OrgIdentity
     org_identity_links = await comanage_client.get_org_identity_links(identity_id)
 
     for org_identity_link in org_identity_links:
@@ -874,6 +886,8 @@ async def delete_identity(
         ).get("id")
         if org_identity_link_id is not None:
             await comanage_client.delete_org_identity_link(org_identity_link_id)
+    # Delete the OrgIdentity record after it has been unlinked
+    await comanage_client.delete_org_identity(identity_id)
     return {"success": True}
 
 
@@ -968,6 +982,7 @@ async def delete_ssh_key(
     # Call the CoManage API to delete the key
     await comanage_client.delete_ssh_key_for_user(username, key_id)
     return {"success": True}
+
 
 @router.get(
     "/academic-status",

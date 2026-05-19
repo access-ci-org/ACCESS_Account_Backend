@@ -669,6 +669,13 @@ class CoManageRegistryClient(RestClient):
             f"co_org_identity_links/{link_id}.json",
         )
 
+    async def delete_org_identity(self, identity_id: str | int):
+        """Delete an OrgIdentity record by ID"""
+        return await self._request(
+            "DELETE",
+            f"org_identities/{identity_id}.json",
+        )
+
     async def add_ssh_key_for_user(self, accessid: str, public_key: str) -> dict:
         """Adds SSH Key for the CoPerson record."""
         # Gets user id

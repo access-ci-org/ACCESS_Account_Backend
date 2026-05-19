@@ -132,8 +132,8 @@ async def require_auth(
     Returns:
         TokenPayload
     """
-    try:        
-        if(len(token.split(".")) != 3):
+    try:
+        if len(token.split(".")) != 3:
             return await decode_cilogon_token(token)
         return decode_otp_token(token)
     except (jwt.InvalidTokenError, jwt.DecodeError, jwt.ExpiredSignatureError) as err:

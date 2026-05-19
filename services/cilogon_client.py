@@ -80,5 +80,5 @@ async def get_token_user_info(token: str, client_id: str, error_status_code: int
             status_code=error_status_code,
             detail="Invalid client ID",
         )
-    
+
     return user_info

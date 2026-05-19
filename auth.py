@@ -133,15 +133,14 @@ async def require_auth(
         TokenPayload
     """
     try:
+        if len(token.split(".")) != 3:
+            return await decode_cilogon_token(token)
         return decode_otp_token(token)
     except (jwt.InvalidTokenError, jwt.DecodeError, jwt.ExpiredSignatureError) as err:
-        if isinstance(err, jwt.DecodeError) and str(err) == "Not enough segments":
-            return await decode_cilogon_token(token)
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Token error: {str(err)}",
-            )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Token error: {str(err)}",
+        )
 
 
 async def require_otp(

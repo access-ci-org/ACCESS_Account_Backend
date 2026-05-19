@@ -16,4 +16,5 @@ dependencies = [
     "sqlmodel>=0.0.27",
     "tldextract>=5.3.1",
     "cachetools>=7.1.1",
+    "asyncache>=0.1.1",
 ]

@@ -2,6 +2,7 @@ import string
 from asyncio import gather
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
+from enum import Enum
 
 import jwt
 from botocore.exceptions import ClientError
@@ -9,14 +10,10 @@ from fastapi import (
     APIRouter,
     Depends,
     FastAPI,
-    Form,
     HTTPException,
-    Request,
-    Response,
     status,
 )
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
 from fastapi_utilities import repeat_every
 from sqlalchemy import delete
 
@@ -24,7 +21,6 @@ from auth import (
     TokenPayload,
     create_access_token,
     decode_otp_token,
-    get_current_token,
     require_otp,
     require_otp_or_login,
     require_own_username_access,
@@ -32,10 +28,11 @@ from auth import (
 )
 from config import (
     ADMIN_USERNAMES,
+    CILOGON_LINK_CLIENT_ID,
+    CILOGON_LOGIN_CLIENT_ID,
     CORS_ORIGINS,
     DEBUG,
     EXPIRED_OTP_CLEANUP_INTERVAL_SECONDS,
-    FRONTEND_URL,
     IDP_BY_DOMAIN_CACHE_REFRESH_INTERVAL_SECONDS,
     OTP_LIFETIME_MINUTES,
 )
@@ -46,7 +43,6 @@ from models import (
     AccountResponse,
     AddSSHKeyRequest,
     AuthClient,
-    AuthRequest,
     CountriesResponse,
     CreateAccountRequest,
     DegreesResponse,
@@ -55,7 +51,9 @@ from models import (
     Identity,
     JWTResponse,
     LinkIdentityRequest,
-    RefreshResponse,
+    OidcClientIdsResponse,
+    OidcTokenRequest,
+    OidcTokenResponse,
     SendOTPRequest,
     SSHKey,
     SSHKeysResponse,
@@ -275,97 +273,47 @@ async def verify_otp(request: VerifyOTPRequest):
     return JWTResponse(jwt=token)
 
 
-@router.post(
-    "/auth/{client}",
-    tags=["Authentication"],
-    summary="Start CILogon authentication",
-    description="Start the CILogon authentication flow. "
-    "The preferred IDP can be included in the request body. "
-    "Otherwise, the user is prompted to select an IDP by CILogon.",
-    responses={
-        307: {"description": "Redirect to the CILogon URL to start the login process"},
-        400: {
-            "description": "The redirect could not be sent (e.g., due to a malformed email address)"
-        },
-    },
-)
-async def start_auth(
-    client: AuthClient,
-    request: Request,
-    auth_request: AuthRequest = Form(),
-):
-    """Start the CILogon OIDC authentication flow."""
-
-    return RedirectResponse(
-        url=CILogonClient(client.value).get_oidc_start_url(
-            redirect_uri=request.url_for("complete_auth", client=client.value),
-            **dict(auth_request or {}),
-        ),
-        status_code=status.HTTP_303_SEE_OTHER,
-    )
-
-
 @router.get(
-    "/auth/{client}",
+    "/auth/oauth2/client_ids",
     tags=["Authentication"],
-    summary="Complete CILogon authentication",
-    description="Receive the CILogon token after a successful login, and redirect to the front end URL.",
-    responses={
-        307: {
-            "description": "Redirect to the account frontend URL with query string parameters: "
-            "jwt (a JWT of type 'login'), first_name (the given_name OIDC claim), "
-            "and last_name (the family_name OIDC claim)"
-        },
-    },
-    response_class=RedirectResponse,
+    summary="Get the CILogon OIDC client IDs",
+    description="Get the CILogon OIDC client IDs for the link and login clients.",
+    responses={200: {"description": "Return the OIDC client IDs"}},
+    response_model=OidcClientIdsResponse,
 )
-async def complete_auth(
-    client: AuthClient, request: Request, response: Response, code: str
-):
-    """Receive the CILogon token after successful authentication."""
-    cilogon_client = CILogonClient(client.value, propagate_errors=True)
-    token_response = await cilogon_client.get_token(
-        grant_type="authorization_code",
-        code=code,
-        redirect_uri=str(request.url_for("complete_auth", client=client.value)),
-    )
+async def get_oidc_client_ids():
+    """Get the CILogon OIDC client IDs."""
+    return {"link": CILOGON_LINK_CLIENT_ID, "login": CILOGON_LOGIN_CLIENT_ID}
 
-    for key in ["access_token", "id_token", "refresh_token"]:
-        if key in token_response:
-            response.set_cookie(key=key, value=token_response[key])
+
+@router.post(
+    "/auth/oauth2/token",
+    tags=["Authentication"],
+    summary="Get CILogon OIDC tokens",
+    description="Receive the CILogon token after a successful authentication.",
+    responses={
+        200: {"description": "Return the OIDC tokens"},
+    },
+    response_model=OidcTokenResponse,
+)
+async def get_oidc_token(token_request: OidcTokenRequest):
+    """Receive the CILogon token after successful authentication."""
+    cilogon_client = CILogonClient(propagate_errors=True)
+    response = await cilogon_client.get_token(
+        **{
+            k: v.value if isinstance(v, Enum) else v
+            for k, v in token_request.model_dump().items()
+            if v is not None
+        }
+    )
 
     # For login, check whether the user is an admin.
-    if client == "login":
-        user_info = await cilogon_client.get_user_info(token_response["access_token"])
+    if token_request.client_id == CILOGON_LOGIN_CLIENT_ID:
+        user_info = await cilogon_client.get_user_info(response["access_token"])
         username = user_info["sub"].replace("@access-ci.org", "")
-        response.set_cookie(
-            key="is_admin", value=str(username in ADMIN_USERNAMES).lower()
-        )
+        response["is_admin"] = username in ADMIN_USERNAMES
 
-    return f"{FRONTEND_URL}/{client.value}"
-
-
-@router.post(
-    "/auth/{client}/refresh",
-    tags=["Authentication"],
-    summary="Refresh CILogon authentication",
-    description="",
-    responses={},
-    response_model=RefreshResponse,
-)
-async def refresh_auth(
-    request: Request,
-    response: Response,
-    client: AuthClient,
-    token=Depends(get_current_token),
-):
-    """Receive the CILogon token after successful authentication."""
-    cilogon_client = CILogonClient(client.value, propagate_errors=True)
-    return await cilogon_client.get_token(
-        grant_type="refresh_token",
-        refresh_token=token,
-        redirect_uri=str(request.url_for("complete_auth", client=client.value)),
-    )
+    return response
 
 
 @router.post(

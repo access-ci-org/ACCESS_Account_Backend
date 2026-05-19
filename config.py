@@ -21,9 +21,6 @@ CORS_ORIGINS: CommaSeparatedStrings = config(
 )
 DATABASE_URL: str = config("DATABASE_URL", default="sqlite:///./otp_database.db")
 DEBUG: bool = config("DEBUG", cast=bool, default=False)
-FRONTEND_URL: str = config(
-    "FRONTEND_URL", default="http://localhost:3000/access-ci-account/auth-token"
-)
 
 # AWS SES Configuration
 AWS_ACCESS_KEY: Secret = config("AWS_ACCESS_KEY", cast=Secret)
@@ -34,12 +31,6 @@ AWS_SES_SENDER_EMAIL: str = config(
 )
 
 # CILogon
-CILOGON_AUTHORIZATION_URL: str = config(
-    "CILOGON_AUTHORIZATION_URL", default="https://cilogon.org/authorize"
-)
-CILOGON_INTROSPECTION_URL: str = config(
-    "CILOGON_INTROSPECTION_URL", default="https://cilogon.org/oauth2/introspect"
-)
 CILOGON_LINK_CLIENT_ID: str = config("CILOGON_LINK_CLIENT_ID")
 CILOGON_LINK_CLIENT_SECRET: Secret = config("CILOGON_LINK_CLIENT_SECRET", cast=Secret)
 CILOGON_LOGIN_CLIENT_ID: str = config("CILOGON_LOGIN_CLIENT_ID")

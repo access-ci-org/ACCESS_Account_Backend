@@ -126,56 +126,47 @@ The request body is malformed.
 ##### HTTP 403
 The OTP is invalid.
 
-### POST `/auth/login`
-Start the CILogon authentication flow.
-
-#### Request Body
-The preferred IDP can be included in the request body. Otherwise, the user is prompted to select an IDP by CILogon.
-
-```json
-{
-	"idp": "<optional IDP identifier>"
-}
-```
-
-#### Response Types
-
-##### HTTP 307
-Redirect to the CILogon URL to start the login process.
-
-##### HTTP 400
-The redirect could not be sent (e.g., due to a malformed email address).
-
-### GET `/auth/login`
-Receive the CILogon token after a successful login, and redirect to the front end URL.
-
-#### Query Parameters
-- `token`: The token from CILogon
-
-#### Response Types
-
-##### HTTP 307
-Redirect to the account frontend URL with these query string parameters:
-- `jwt`: a JWT of type `login`
-- `first_name`: the given_name OIDC claim, if provided by the IDP.
-- `last_name`: the family_name OIDC claim, if provided by the IDP.
-
-### POST `/auth/{client}/refresh`
-Refresh CILogon authentication.
-
-#### Request Headers
-- `Authorization`: containing the current CILogon refresh token.
+### GET `/auth/oauth2/client_ids`
+Get the CILogon OIDC client IDs for the login and link flows.
 
 #### Response Types
 
 ##### HTTP 200
-The CILogon authentication was refreshed.
+Return the OIDC client IDs.
+
+```json
+{
+	"login": "<login_client_id>",
+	"link": "<link_client_id>"
+}
+```
+
+### POST `/auth/oauth2/token`
+Exchange an authorization code for OIDC tokens, or refresh existing tokens using a refresh token.
+
+#### Request Body
+```json
+{
+	"client_id": "<cilogon_client_id>",
+	"grant_type": "authorization_code",
+	"redirect_uri": "https://example.com/callback",
+	"code": "<authorization_code>"
+}
+```
+
+For token refresh, use `grant_type: "refresh_token"` and provide `refresh_token` instead of `code`.
+
+#### Response Types
+
+##### HTTP 200
+Return the OIDC tokens. `is_admin` is only populated for the login client.
 
 ```json
 {
 	"access_token": "<access_token>",
 	"id_token": "<id_token>",
-	"refresh_token": "<refresh_token>"
+	"refresh_token": "<refresh_token>",
+	"is_admin": false
 }
 ```
 
@@ -375,7 +366,7 @@ Start the process of linking a new identity.
 #### Response Types
 
 ##### HTTP 307
-Redirect to CILogon to start the linking flow. At the end of the flow, CILogon redirects back to `/auth/login` with the OIDC token, indicating that the API should link the new identity to the account.
+Redirect to CILogon to start the linking flow. The frontend should exchange the resulting authorization code via `POST /auth/oauth2/token` using the link client ID, then call the appropriate account endpoint to complete linking.
 
 ##### HTTP 403
 The JWT is invalid or the user does not have permission to modify the account.

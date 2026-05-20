@@ -139,7 +139,7 @@ async def require_auth(
     except (jwt.InvalidTokenError, jwt.DecodeError, jwt.ExpiredSignatureError) as err:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Token error: {str(err)}",
+            detail=f"Invalid token",
         )
 
 

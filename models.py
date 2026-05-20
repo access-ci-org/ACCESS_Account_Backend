@@ -37,8 +37,9 @@ class AuthClient(str, Enum):
     login = "login"
 
 
-class AuthRequest(BaseSchema):
-    idphint: str | None = None
+class OidcGrantType(str, Enum):
+    authorization_code = "authorization_code"
+    refresh_token = "refresh_token"
 
 
 class CreateAccountRequest(BaseSchema):
@@ -209,10 +210,25 @@ class SSHKeysResponse(BaseSchema):
     ssh_keys: List[SSHKey]
 
 
-class RefreshResponse(BaseSchema):
-    access_token: str
-    refresh_token: str
-
-
 class LinkIdentityRequest(BaseSchema):
     cilogon_token: str
+
+
+class OidcClientIdsResponse(BaseSchema):
+    link: str
+    login: str
+
+
+class OidcTokenRequest(BaseSchema):
+    client_id: str
+    code: str | None = None
+    grant_type: OidcGrantType
+    redirect_uri: str
+    refresh_token: str | None = None
+
+
+class OidcTokenResponse(BaseSchema):
+    access_token: str
+    id_token: str | None = None
+    refresh_token: str
+    is_admin: bool | None = None

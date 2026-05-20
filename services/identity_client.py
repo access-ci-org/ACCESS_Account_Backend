@@ -1,5 +1,10 @@
 from typing import TypedDict
 from urllib.parse import quote
+from cachetools import TTLCache
+from asyncache import cached
+from cachetools.keys import methodkey
+from functools import partial
+
 
 import httpx
 import tldextract
@@ -22,6 +27,10 @@ INVALID_ACADEMIC_STATUS_CODES = {"N", "UK"}
 
 
 class IdentityServiceClient(RestClient):
+    choice_list_cache = TTLCache(
+        maxsize=3, ttl=3600
+    )  # Cache for choice lists lasts an hour
+
     def __init__(self, propagate_errors=False):
         super().__init__(propagate_errors=propagate_errors)
         self.base_url = XRAS_IDENTITY_SERVICE_BASE_URL
@@ -29,6 +38,22 @@ class IdentityServiceClient(RestClient):
             "XA-REQUESTER": XRAS_IDENTITY_SERVICE_REQUESTER,
             "XA-API-KEY": XRAS_IDENTITY_SERVICE_KEY,
         }
+
+    @cached(choice_list_cache, key=partial(methodkey, method="academic_statuses"))
+    async def get_academic_statuses(self):
+        return await self._request("GET", "/profiles/v1/nsf_status_codes")
+
+    @cached(choice_list_cache, key=partial(methodkey, method="countries"))
+    async def get_countries(self):
+        countries = await self._request("GET", "/profiles/v1/countries")
+        sorted_countries = sorted(
+            countries, key=lambda c: c["countryName"] != "United States"
+        )
+        return sorted_countries
+
+    @cached(choice_list_cache, key=partial(methodkey, method="degrees"))
+    async def get_degrees(self):
+        return await self._request("GET", "/profiles/v1/degrees")
 
     async def _request(self, method: str, path: str, **kwargs) -> dict | list:
         url = f"{self.base_url}{path}"
@@ -105,16 +130,6 @@ class IdentityServiceClient(RestClient):
 
     def is_valid_academic_status(self, item: dict) -> bool:
         return item.get("nsfStatusCode") not in INVALID_ACADEMIC_STATUS_CODES
-
-    async def get_academic_statuses(self) -> list[dict]:
-        return await self._request("GET", "/profiles/v1/nsf_status_codes")
-
-    async def get_countries(self) -> list[dict]:
-        countries = await self._request("GET", "/profiles/v1/countries")
-        return sorted(countries, key=lambda c: c["countryName"] != "United States")
-
-    async def get_degrees(self) -> list[dict]:
-        return await self._request("GET", "/profiles/v1/degrees")
 
     async def get_organizations_by_domain(self, domain: str) -> dict:
         # check_domain = quote(domain, safe="")

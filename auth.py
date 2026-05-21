@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from typing import Literal
+import logging
 
 import jwt
 from fastapi import Depends, HTTPException, status
@@ -18,6 +19,7 @@ from models import TokenPayload
 from services.cilogon_client import get_token_user_info
 
 security = HTTPBearer(auto_error=False)
+logger = logging.getLogger(__name__)
 
 
 def create_access_token(
@@ -137,9 +139,10 @@ async def require_auth(
             return await decode_cilogon_token(token)
         return decode_otp_token(token)
     except (jwt.InvalidTokenError, jwt.DecodeError, jwt.ExpiredSignatureError) as err:
+        logger.warning("JWT decode failed: %s", err)
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Token error: {str(err)}",
+            detail=f"Invalid token",
         )
 
 

@@ -243,10 +243,18 @@ class IdentityServiceClient(RestClient):
                 and organization["is_eligible"]
             ):
                 return organization["organization_name"]
+        organization = await self._request(
+            "GET",
+            f"/profiles/v1/organizations/{organization_id}",
+        )
+
+        organization_name = organization.get(
+            "organization_name", f"Organization {organization_id}"
+        )
 
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Domain {domain} does not match organization {organization_id} or is ineligible",
+            detail=f"Domain {domain} does not match organization {organization_name} or is ineligible",
         )
 
     async def get_account(self, username: str) -> dict:

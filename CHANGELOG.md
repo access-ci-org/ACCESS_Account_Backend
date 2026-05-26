@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.8.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.7.0...v0.8.0) (2026-05-26)
+
+
+### Features
+
+* **cilogon:** set prompt parameter for link client ([90749d8](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/90749d83b23cefd1ff6f793c398cbe15fc4ebf2b))
+* **identity:** sort US to the top of the countries list ([0bc470d](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/0bc470dd0c122666aa2b2a9819808a8e43edecc1))
+* **otp:** add rate limit for sending OTP codes ([f044429](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/f04442978dd763454425e47f262a48bc371a106e))
+* **rest_client:** add params passthrough to request ([03688cc](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/03688cc57dfaffeb7cd11eaf97f6ff457f5fc557))
+
+
+### Bug Fixes
+
+* **account:** always check that the email domain matches the ([17fa499](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/17fa499189cd88bdbe448c22afeecd5e34551925))
+* Deleting OrgIdentity record by OrgIdentityLinkId ([fa11998](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/fa119984b10e4eca61bd1572b5e2b78e4326aebb))
+* **rest_client:** set Accept header by default ([9f68d8b](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/9f68d8b4d57d8f856110e0a03cb1195d3c91cddc))
+* **rest:** handle SSL errors from upstream APIs ([a7f10ee](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/a7f10ee9b44f41606d6beba5638ca8d41001aa13))
+
+
+### Documentation
+
+* **auth:** update auth route docs ([58b81f0](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/58b81f0c63506917870dc246ef513c99a4b94e28))
+
 ## [0.7.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.6.0...v0.7.0) (2026-04-08)
 
 

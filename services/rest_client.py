@@ -1,3 +1,5 @@
+import ssl
+
 import httpx
 from fastapi import HTTPException
 
@@ -54,12 +56,17 @@ class RestClient:
                     )
                 else:
                     raise exc
-            except httpx.RequestError as exc:
+            except (httpx.RequestError, ssl.SSLError) as exc:
+                # Handle connection or timeout issues.
+                # Python 3.13 raises ssl.SSLError("passed invalid argument") when the
+                # remote closes the connection mid-read, rather than the SSLEOFError /
+                # ConnectionResetError that older Pythons raise (which httpx wraps into
+                # httpx.ReadError). Catch it here so it surfaces as a clean 503 instead
+                # of propagating as an unhandled exception.
                 if self.propagate_errors:
-                    # Handle connection or timeout issues
                     raise HTTPException(
                         status_code=503,
-                        detail=f"{self.__class__.__name__} API is unavailable: {exc}",
+                        detail=f"{self.__class__.__name__} API is unavailable: {exc.response.text}",
                     )
                 else:
                     raise exc

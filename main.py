@@ -11,9 +11,13 @@ from fastapi import (
     Depends,
     FastAPI,
     HTTPException,
+    Request,
     status,
 )
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 from fastapi_utilities import repeat_every
 from sqlalchemy import delete
 
@@ -35,6 +39,7 @@ from config import (
     EXPIRED_OTP_CLEANUP_INTERVAL_SECONDS,
     IDP_BY_DOMAIN_CACHE_REFRESH_INTERVAL_SECONDS,
     OTP_LIFETIME_MINUTES,
+    RATE_LIMIT_STORAGE_URL,
 )
 from database import OTPEntry, get_session, init_db
 from models import (
@@ -79,6 +84,12 @@ from services.otp_service import (
 )
 from services.password_policy import validate_access_password
 from services.ssh_key_service import calculate_ssh_fingerprint_sha256
+
+limiter = Limiter(
+    key_func=get_remote_address,
+    storage_uri=RATE_LIMIT_STORAGE_URL,
+    strategy="fixed-window",
+)
 
 # IDP by Domain
 IDP_BY_DOMAIN: dict[str, dict[str, str]] = {}
@@ -145,6 +156,9 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
@@ -173,8 +187,9 @@ router = APIRouter(prefix="/api/v1")
         },
     },
 )
-async def send_otp(request: SendOTPRequest):
-    email = request.email.lower().strip()
+@limiter.limit("4/hour")
+async def send_otp(request: Request, body: SendOTPRequest):
+    email = body.email.lower().strip()
 
     if "@" not in email:
         logger.warning(f"Rejected OTP request due to invalid email format: {email}")

@@ -66,6 +66,9 @@ JWT_AUDIENCE: str = config("JWT_AUDIENCE", default="https://account.access-ci.or
 JWT_ISSUER: str = config("JWT_ISSUER", default="https://account.access-ci.org")
 JWT_SECRET_KEY: Secret = config("JWT_SECRET_KEY", cast=Secret)
 
+# Rate Limiting
+RATE_LIMIT_STORAGE_URL: str = config("RATE_LIMIT_STORAGE_URL", default="memory://")
+
 # OTP Configuration
 OTP_CHARACTER_LENGTH: int = config("OTP_CHARACTER_LENGTH", cast=int, default=6)
 OTP_LIFETIME_MINUTES: int = config("OTP_LIFETIME_MINUTES", cast=int, default=30)

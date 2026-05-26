@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.2](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.8.1...v0.8.2) (2026-05-26)
+
+
+### Bug Fixes
+
+* add missing comma in dependency list ([a1e2d01](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/a1e2d019cabf18dc9c2b959e87b350f2c65380a5))
+
 ## [0.8.1](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.8.0...v0.8.1) (2026-05-26)
 
 

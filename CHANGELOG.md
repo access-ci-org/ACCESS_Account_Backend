@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.1](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.8.0...v0.8.1) (2026-05-26)
+
+
+### Bug Fixes
+
+* add pymemcache dependency for production ([727e373](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/727e3730ed5e5e1e44be53f85e4c848fd272fd8d))
+
 ## [0.8.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.7.0...v0.8.0) (2026-05-26)
 
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.3](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.8.2...v0.8.3) (2026-05-27)
+
+
+### Bug Fixes
+
+* **otp:** update OTP email text ([6823b4f](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/6823b4f3c0cc73d252c4cc6cc8dc03256920c2f7))
+
 ## [0.8.2](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.8.1...v0.8.2) (2026-05-26)
 
 

@@ -66,7 +66,7 @@ class RestClient:
                 if self.propagate_errors:
                     raise HTTPException(
                         status_code=503,
-                        detail=f"{self.__class__.__name__} API is unavailable: {exc.response.text}",
+                        detail=f"{self.__class__.__name__} API is unavailable",
                     )
                 else:
                     raise exc

@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.9.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.8.3...v0.9.0) (2026-06-05)
+
+
+### Features
+
+* **auth:** send OIDC authorization URL with client IDs ([9a0bb30](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/9a0bb306a53ed0a8c8cad3b0e3c11e89a9b1648b))
+
+
+### Bug Fixes
+
+* **rest:** fix 503 response text ([5d280c6](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/5d280c6a6e86d35f283a8d2de03d9f98b9093bda))
+
 ## [0.8.3](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.8.2...v0.8.3) (2026-05-27)
 
 

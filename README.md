@@ -126,18 +126,21 @@ The request body is malformed.
 ##### HTTP 403
 The OTP is invalid.
 
-### GET `/auth/oauth2/client_ids`
-Get the CILogon OIDC client IDs for the login and link flows.
+### GET `/auth/info`
+Get the CILogon OIDC client IDs and authorization URL.
 
 #### Response Types
 
 ##### HTTP 200
-Return the OIDC client IDs.
+Return the OIDC client IDs and authorization URL.
 
 ```json
 {
-	"login": "<login_client_id>",
-	"link": "<link_client_id>"
+	"authorization_url": "<authorization_url>",
+	"client_ids": {
+		"login": "<login_client_id>",
+		"link": "<link_client_id>"
+	}
 }
 ```
 

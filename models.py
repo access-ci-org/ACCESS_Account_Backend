@@ -32,11 +32,6 @@ class VerifyOTPRequest(BaseSchema):
     otp: str
 
 
-class AuthClient(str, Enum):
-    link = "link"
-    login = "login"
-
-
 class OidcGrantType(str, Enum):
     authorization_code = "authorization_code"
     refresh_token = "refresh_token"
@@ -214,9 +209,14 @@ class LinkIdentityRequest(BaseSchema):
     cilogon_token: str
 
 
-class OidcClientIdsResponse(BaseSchema):
+class OidcClientIds(BaseSchema):
     link: str
     login: str
+
+
+class OidcInfoResponse(BaseSchema):
+    authorization_url: str
+    client_ids: OidcClientIds
 
 
 class OidcTokenRequest(BaseSchema):

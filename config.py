@@ -31,6 +31,9 @@ AWS_SES_SENDER_EMAIL: str = config(
 )
 
 # CILogon
+CILOGON_AUTHORIZATION_URL: str = config(
+    "CILOGON_AUTHORIZATION_URL", default="https://cilogon.org/authorize"
+)
 CILOGON_LINK_CLIENT_ID: str = config("CILOGON_LINK_CLIENT_ID")
 CILOGON_LINK_CLIENT_SECRET: Secret = config("CILOGON_LINK_CLIENT_SECRET", cast=Secret)
 CILOGON_LOGIN_CLIENT_ID: str = config("CILOGON_LOGIN_CLIENT_ID")

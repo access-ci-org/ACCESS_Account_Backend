@@ -15,10 +15,10 @@ from fastapi import (
     status,
 )
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi_utilities import repeat_every
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
-from fastapi_utilities import repeat_every
 from sqlalchemy import delete
 
 from auth import (
@@ -32,6 +32,7 @@ from auth import (
 )
 from config import (
     ADMIN_USERNAMES,
+    CILOGON_AUTHORIZATION_URL,
     CILOGON_LINK_CLIENT_ID,
     CILOGON_LOGIN_CLIENT_ID,
     CORS_ORIGINS,
@@ -47,7 +48,6 @@ from models import (
     AcademicStatusResponse,
     AccountResponse,
     AddSSHKeyRequest,
-    AuthClient,
     CountriesResponse,
     CreateAccountRequest,
     DegreesResponse,
@@ -56,7 +56,7 @@ from models import (
     Identity,
     JWTResponse,
     LinkIdentityRequest,
-    OidcClientIdsResponse,
+    OidcInfoResponse,
     OidcTokenRequest,
     OidcTokenResponse,
     SendOTPRequest,
@@ -289,16 +289,24 @@ async def verify_otp(request: VerifyOTPRequest):
 
 
 @router.get(
-    "/auth/oauth2/client_ids",
+    "/auth/info",
     tags=["Authentication"],
-    summary="Get the CILogon OIDC client IDs",
-    description="Get the CILogon OIDC client IDs for the link and login clients.",
-    responses={200: {"description": "Return the OIDC client IDs"}},
-    response_model=OidcClientIdsResponse,
+    summary="Get CILogon OIDC information",
+    description="Get the CILogon OIDC client IDs and authorization URL.",
+    responses={
+        200: {"description": "Return the OIDC client IDs and authorization URL"}
+    },
+    response_model=OidcInfoResponse,
 )
-async def get_oidc_client_ids():
-    """Get the CILogon OIDC client IDs."""
-    return {"link": CILOGON_LINK_CLIENT_ID, "login": CILOGON_LOGIN_CLIENT_ID}
+async def get_oidc_info():
+    """Get the CILogon OIDC client IDs and authorization URL."""
+    return {
+        "authorization_url": CILOGON_AUTHORIZATION_URL,
+        "client_ids": {
+            "link": CILOGON_LINK_CLIENT_ID,
+            "login": CILOGON_LOGIN_CLIENT_ID,
+        },
+    }
 
 
 @router.post(

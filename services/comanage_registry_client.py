@@ -317,7 +317,7 @@ class CoManageRegistryClient(RestClient):
             json=user,
         )
 
-    async def create_new_org_identity(self) -> str:
+    async def create_new_org_identity(self, organization: str | None = None) -> str:
         """Create a new Organizational Identity for the user.
 
         Returns:
@@ -334,7 +334,7 @@ class CoManageRegistryClient(RestClient):
                     "Version": "1.0",
                     "Affiliation": None,
                     "Title": None,
-                    "O": None,
+                    "O": organization,
                     "Ou": None,
                     "CoId": str(self.coid),
                     "ValidFrom": None,
@@ -483,21 +483,14 @@ class CoManageRegistryClient(RestClient):
 
     # Helper methods
 
-    async def _get_identifiers(
+    def _get_identifiers(
         self,
         access_id: str,
-        cilogon_token: str | None = None,
+        cilogon_user_info: dict | None = None,
     ):
         # Determine the identifiers we expect the new OrgIdentity to have.
         identifiers = []
-        if cilogon_token:
-            # Get user info from CILogon using the token
-            cilogon_user_info = await get_token_user_info(
-                cilogon_token,
-                CILOGON_LINK_CLIENT_ID,
-                status.HTTP_400_BAD_REQUEST,
-            )
-
+        if cilogon_user_info:
             # Create an identifier for each claim that exists in the user info
             for mapping in CLAIM_TO_IDENTIFIER_MAPPING:
                 claim_key = mapping["claim"]
@@ -567,10 +560,21 @@ class CoManageRegistryClient(RestClient):
         access_id: str,
         cilogon_token: str | None = None,
     ):
-        # Determine the identifiers we expect the new OrgIdentity to have.
-        [identifiers, user] = await gather(
-            self._get_identifiers(access_id, cilogon_token), self._get_user(access_id)
+        async def get_cilogon_user_info():
+            if cilogon_token:
+                return await get_token_user_info(
+                    cilogon_token,
+                    CILOGON_LINK_CLIENT_ID,
+                    status.HTTP_400_BAD_REQUEST,
+                )
+            return None
+
+        [cilogon_user_info, user] = await gather(
+            get_cilogon_user_info(), self._get_user(access_id)
         )
+
+        # Determine the identifiers we expect the new OrgIdentity to have.
+        identifiers = self._get_identifiers(access_id, cilogon_user_info)
 
         primary_name = user.get_primary_name()
         if not primary_name:
@@ -588,7 +592,9 @@ class CoManageRegistryClient(RestClient):
                 )
 
         # Create an OrgIdentity record
-        org_identity_id = await self.create_new_org_identity()
+        org_identity_id = await self.create_new_org_identity(
+            cilogon_user_info.get("idp_name", None) if cilogon_user_info else None
+        )
 
         # Link the OrgIdentity to the CoPerson
         await self.create_new_link(co_person_id, org_identity_id)

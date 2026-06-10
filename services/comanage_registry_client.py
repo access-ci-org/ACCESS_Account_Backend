@@ -9,6 +9,7 @@ from config import (
     CILOGON_LINK_CLIENT_ID,
     COMANAGE_REGISTRY_BASE_URL,
     COMANAGE_REGISTRY_COID,
+    COMANAGE_REGISTRY_KRB_AUTH_ID,
     COMANAGE_REGISTRY_PASSWORD,
     COMANAGE_REGISTRY_TIMEOUT,
     COMANAGE_REGISTRY_USER,
@@ -87,6 +88,7 @@ class CoManageRegistryClient(RestClient):
         username=COMANAGE_REGISTRY_USER,
         password=COMANAGE_REGISTRY_PASSWORD,
         coid=COMANAGE_REGISTRY_COID,
+        krb_auth_id=COMANAGE_REGISTRY_KRB_AUTH_ID,
         timeout=COMANAGE_REGISTRY_TIMEOUT,
         propagate_errors=False,
     ):
@@ -98,6 +100,7 @@ class CoManageRegistryClient(RestClient):
         )
         self.base_url = base_url
         self.coid = coid
+        self.krb_auth_id = krb_auth_id
 
     async def _request(
         self, method: str, path: str, json: dict | None = None
@@ -775,44 +778,60 @@ class CoManageRegistryClient(RestClient):
             f"ssh_key_authenticator/ssh_keys/{key_id}.json?coid={self.coid}",
         )
 
-    async def get_password_id_for_user(self, coperson_id: str) -> str | None:
-        """Return the Password object ID for a given ACCESS user"""
+    async def get_krb_id_for_user(self, coperson_id: str) -> str | None:
+        """Return the Krb row ID for a given CO Person under this instance's KrbAuthenticator."""
 
         result = await self._request(
             "GET",
-            f"krb_authenticator/passwords.json?copersonid={coperson_id}",
+            f"krb_authenticator/krbs.json?krbauthid={self.krb_auth_id}&copersonid={coperson_id}",
         )
 
-        if isinstance(result, dict) and "Passwords" in result:
-            passwords = result.get("Passwords") or []
-            if passwords:
-                return str(passwords[0]["Id"])
+        if isinstance(result, dict) and "Krbs" in result:
+            krbs = result.get("Krbs") or []
+            if krbs:
+                return str(krbs[0]["Id"])
 
         return None
 
     async def update_password_for_user(
         self, coperson_id: str, new_password: str
     ) -> dict | None:
-        """Update the user's password using the Krb Authenticator plugin"""
+        """Set or update the Kerberos password for a CO Person via the KrbAuthenticator REST API.
 
-        password_id = await self.get_password_id_for_user(coperson_id)
-        if not password_id:
-            raise HTTPException(status_code=404, detail="Password record not found.")
+        Follows the documented V1 workflow: GET existing row, then POST (new) or PUT (existing).
+        """
 
-        data = {
-            "RequestType": "Passwords",
-            "Version": "1.0",
-            "Passwords": [
-                {
-                    "Id": str(password_id),
-                    "Password": new_password,
-                    "PasswordType": "NO",
-                }
-            ],
-        }
+        krb_id = await self.get_krb_id_for_user(coperson_id)
 
-        return await self._request(
-            "PUT",
-            f"krb_authenticator/passwords/{password_id}.json",
-            json=data,
-        )
+        if krb_id:
+            data = {
+                "Krbs": [
+                    {
+                        "Version": "1.0",
+                        "Password": new_password,
+                        "Password2": new_password,
+                    }
+                ]
+            }
+            return await self._request(
+                "PUT",
+                f"krb_authenticator/krbs/{krb_id}.json",
+                json=data,
+            )
+        else:
+            data = {
+                "Krbs": [
+                    {
+                        "Version": "1.0",
+                        "KrbAuthenticatorId": self.krb_auth_id,
+                        "Person": {"Type": "CO", "Id": int(coperson_id)},
+                        "Password": new_password,
+                        "Password2": new_password,
+                    }
+                ]
+            }
+            return await self._request(
+                "POST",
+                "krb_authenticator/krbs.json",
+                json=data,
+            )

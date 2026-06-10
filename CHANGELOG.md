@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.9.0...v0.10.0) (2026-06-10)
+
+
+### Features
+
+* **comanage:** set IdP name in OrgIdentity record ([b4e4f69](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/b4e4f69513ba7d81262a2af0853bde44ce1ab676))
+
 ## [0.9.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.8.3...v0.9.0) (2026-06-05)
 
 

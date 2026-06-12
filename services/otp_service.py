@@ -20,7 +20,10 @@ ph = PasswordHasher()
 
 
 def generate_otp(length: int = OTP_CHARACTER_LENGTH) -> str:
-    chars = string.ascii_lowercase + string.digits
+    # Uppercase + digits, minus look-alikes: 0/O, 1/I, L
+    chars = "".join(
+        c for c in string.ascii_uppercase + string.digits if c not in "01ILO"
+    )
     return "".join(secrets.choice(chars) for _ in range(length))
 
 

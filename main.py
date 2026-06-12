@@ -259,7 +259,7 @@ async def verify_otp(request: VerifyOTPRequest):
     """Verify an OTP provided by the user."""
     # Validate format
     email = request.email.lower().strip()
-    otp = request.otp.strip()
+    otp = request.otp.strip().upper()
 
     if "@" not in email:
         logger.warning(
@@ -268,7 +268,7 @@ async def verify_otp(request: VerifyOTPRequest):
         raise HTTPException(400, "Invalid email")
 
     if len(otp) != 6 or not all(
-        c in (string.ascii_lowercase + string.digits) for c in otp
+        c in (string.ascii_uppercase + string.digits) for c in otp
     ):
         logger.warning(
             f"Rejected OTP verification due to invalid OTP format: {otp} for email: {email}"

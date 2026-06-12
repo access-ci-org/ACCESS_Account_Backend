@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.10.1](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.10.0...v0.10.1) (2026-06-12)
+
+
+### Bug Fixes
+
+* **comanage:** update password methods for Kerberos authenticator ([592f444](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/592f444a97cf4e0209870b7464c93c807dfc25e2))
+* **otp:** send uppercase letters and numbers without lookalike chars ([5b30cb9](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/5b30cb9a1821789c0ca33d411b0a1c015a6ea534))
+
 ## [0.10.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.9.0...v0.10.0) (2026-06-10)
 
 

@@ -146,6 +146,7 @@ class Organization(BaseSchema):
     state: str | None = None
     country: str | None = None
     org_type: str | None = None
+    ignore_idp: bool | None = None
 
 
 class DomainResponse(BaseSchema):

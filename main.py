@@ -1062,11 +1062,12 @@ async def get_domain_info(
     organizations = await identity_client.get_organizations_by_domain(domain_clean)
 
     idps = []
-    match = IDP_BY_DOMAIN.get(domain_clean)
-    if match:
-        idps.append(
-            {"displayName": match["display_name"], "entityId": match["entity_id"]}
-        )
+    if not any(org["ignore_idp"] for org in organizations):
+        match = IDP_BY_DOMAIN.get(domain_clean)
+        if match:
+            idps.append(
+                {"displayName": match["display_name"], "entityId": match["entity_id"]}
+            )
     # Include the full organization dictionaries from XRAS
     return {
         "domain": domain_clean,

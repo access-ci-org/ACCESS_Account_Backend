@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.11.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.10.1...v0.11.0) (2026-06-26)
+
+
+### Features
+
+* **domain:** ignore IdPs incompatible with CILogon ([2ac8eaf](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/2ac8eaf5ba97d249c45b112f680915abc9752d5c))
+* **models:** add ignore_idp field to Organization response ([b87765f](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/b87765fa4d32871bbfb4db3728183546c40064e4))
+
 ## [0.10.1](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.10.0...v0.10.1) (2026-06-12)
 
 

@@ -187,7 +187,7 @@ router = APIRouter(prefix="/api/v1")
         },
     },
 )
-@limiter.limit("4/hour")
+@limiter.limit("100/hour")
 async def send_otp(request: Request, body: SendOTPRequest):
     email = body.email.lower().strip()
 

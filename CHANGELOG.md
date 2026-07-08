@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.1](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.11.0...v0.11.1) (2026-07-08)
+
+
+### Bug Fixes
+
+* **otp:** increase rate limit ([5ce8c13](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/5ce8c13c64b41e1e2f03e39a8affe486f8984a63))
+
 ## [0.11.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.10.1...v0.11.0) (2026-06-26)
 
 

@@ -91,6 +91,12 @@ limiter = Limiter(
     strategy="fixed-window",
 )
 
+
+def get_email_from_body(request: Request) -> str:
+    # FastAPI caches the parsed JSON body, so this is safe to read synchronously.
+    return getattr(request, "_json", {}).get("email", "").strip().lower()
+
+
 # IDP by Domain
 IDP_BY_DOMAIN: dict[str, dict[str, str]] = {}
 
@@ -185,9 +191,11 @@ router = APIRouter(prefix="/api/v1")
         400: {
             "description": "The OTP could not be sent (e.g., due to a malformed email address)"
         },
+        429: {"description": "Rate limit exceeded (by IP address or by email)"},
     },
 )
-@limiter.limit("100/hour")
+@limiter.limit("1000/day")  # by IP address
+@limiter.limit("4/hour", key_func=get_email_from_body)  # by email
 async def send_otp(request: Request, body: SendOTPRequest):
     email = body.email.lower().strip()
 

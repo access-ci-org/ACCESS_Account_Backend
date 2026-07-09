@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.11.1...v0.12.0) (2026-07-09)
+
+
+### Features
+
+* **otp:** rate limit by email and IP address ([3a300f9](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/3a300f9bfdfec6d644cf879a768d1d7176bcca3d))
+
 ## [0.11.1](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.11.0...v0.11.1) (2026-07-08)
 
 

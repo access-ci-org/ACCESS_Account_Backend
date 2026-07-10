@@ -58,23 +58,23 @@ class CoManageUser(dict):
                 return email["mail"] if address_only else email
         return None
 
-    def get_backup_emails(self) -> list[dict]:
-        """Get the backup (non-primary) email addresses.
+    def get_recovery_emails(self) -> list[dict]:
+        """Get the recovery (non-primary) email addresses.
 
-        A backup email is any non-deleted EmailAddress that is not the primary
+        A recovery email is any non-deleted EmailAddress that is not the primary
         (the first non-deleted "official" address). This surfaces any additional
         addresses on the record regardless of their CoManage type.
         """
         primary = self.get_primary_email(address_only=False)
         primary_id = primary["meta"]["id"] if primary else None
-        backups = []
+        recoveries = []
         for email in self.get("EmailAddress", []):
             if email["meta"]["deleted"]:
                 continue
             if primary_id is not None and email["meta"]["id"] == primary_id:
                 continue
-            backups.append(email)
-        return backups
+            recoveries.append(email)
+        return recoveries
 
     def has_org_identity(self, identifier: Identifier):
         """Iterate over the existing OrgIdentity records and check whether there is one with the specified identifier."""

@@ -513,9 +513,9 @@ async def get_account(
     comanage_last = primary_name.get("family")
     comanage_tz = safe_get(comanage_user, "CoPerson", "timezone")
     primary_email = comanage_user.get_primary_email()
-    backup_emails = [
+    recovery_emails = [
         {"email": e["mail"], "verified": e["verified"]}
-        for e in comanage_user.get_backup_emails()
+        for e in comanage_user.get_recovery_emails()
     ]
 
     # Identity Service values
@@ -541,7 +541,7 @@ async def get_account(
         "first_name": comanage_first,
         "last_name": comanage_last,
         "email": primary_email,
-        "backup_emails": backup_emails,
+        "recovery_emails": recovery_emails,
         "time_zone": comanage_tz,
         "organization_id": organization_id,
         "academic_status_id": academic_status_id,
@@ -560,7 +560,7 @@ async def get_account(
     "If an 'emails' list is provided it fully replaces the account's email "
     "addresses (exactly one must be marked primary). Any address that is new to "
     "the account must include a valid OTP token (type 'otp') proving ownership; "
-    "backup addresses are exempt from the primary-email eligibility check.",
+    "recovery addresses are exempt from the primary-email eligibility check.",
     responses={
         200: {"description": "The account profile was updated"},
         400: {
@@ -603,7 +603,7 @@ async def update_account(
         ]
         primary_email = next(e["mail"] for e in desired_emails if e["primary"])
 
-        # Addresses already on the record (any type). Backup emails are exempt from
+        # Addresses already on the record (any type). Recovery emails are exempt from
         # eligibility, but any address that is NEW to the record must be proven with
         # a valid OTP token, primary or not.
         existing_addresses = {
@@ -625,7 +625,7 @@ async def update_account(
 
     # Check that the PRIMARY email matches the organization. We perform this check
     # even if neither the organization nor email has changed because some profiles
-    # already have invalid combinations. Backup emails are not subject to this check.
+    # already have invalid combinations. Recovery emails are not subject to this check.
     domain = primary_email.strip().split("@")[1]
     organization_name = await identity_client.check_organization_matches_domain(
         organization_id, domain

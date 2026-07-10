@@ -164,7 +164,7 @@ class DomainResponse(BaseSchema):
     idps: List[IdP] = Field(default_factory=list)
 
 
-class BackupEmail(BaseSchema):
+class RecoveryEmail(BaseSchema):
     email: str
     verified: bool
 
@@ -175,7 +175,7 @@ class AccountResponse(BaseSchema):
     first_name: str
     last_name: str
     email: str
-    backup_emails: List[BackupEmail] = Field(default_factory=list)
+    recovery_emails: List[RecoveryEmail] = Field(default_factory=list)
     time_zone: str | None = None
 
     # Allocations Profile (authoritative)

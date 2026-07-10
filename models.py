@@ -53,11 +53,20 @@ class Degree(BaseSchema):
     degree_field: str
 
 
+class EmailEntry(BaseSchema):
+    email: str
+    primary: bool
+    # OTP token proving ownership. Required only for an email that is new to the
+    # account (i.e. not already present on the CoManage record).
+    otp_token: str | None = None
+
+
 class UpdateAccountRequest(BaseSchema):
     first_name: str | None = None
     last_name: str | None = None
-    email: str | None = None
-    email_otp_token: str | None = None
+    # The full desired set of email addresses for the account, with exactly one
+    # marked as primary. If None, the account's emails are left unchanged.
+    emails: list[EmailEntry] | None = None
     organization_id: int | None = None
     academic_status_id: int | None = None
     residence_country_id: int | None = None
@@ -155,12 +164,18 @@ class DomainResponse(BaseSchema):
     idps: List[IdP] = Field(default_factory=list)
 
 
+class BackupEmail(BaseSchema):
+    email: str
+    verified: bool
+
+
 class AccountResponse(BaseSchema):
     # CoManage Registry (authoritative)
     username: str
     first_name: str
     last_name: str
     email: str
+    backup_emails: List[BackupEmail] = Field(default_factory=list)
     time_zone: str | None = None
 
     # Allocations Profile (authoritative)

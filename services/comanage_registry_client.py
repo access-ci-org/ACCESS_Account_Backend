@@ -58,6 +58,24 @@ class CoManageUser(dict):
                 return email["mail"] if address_only else email
         return None
 
+    def get_backup_emails(self) -> list[dict]:
+        """Get the backup (non-primary) email addresses.
+
+        A backup email is any non-deleted EmailAddress that is not the primary
+        (the first non-deleted "official" address). This surfaces any additional
+        addresses on the record regardless of their CoManage type.
+        """
+        primary = self.get_primary_email(address_only=False)
+        primary_id = primary["meta"]["id"] if primary else None
+        backups = []
+        for email in self.get("EmailAddress", []):
+            if email["meta"]["deleted"]:
+                continue
+            if primary_id is not None and email["meta"]["id"] == primary_id:
+                continue
+            backups.append(email)
+        return backups
+
     def has_org_identity(self, identifier: Identifier):
         """Iterate over the existing OrgIdentity records and check whether there is one with the specified identifier."""
         if "OrgIdentity" not in self:
@@ -282,7 +300,7 @@ class CoManageRegistryClient(RestClient):
         access_id: str,
         first_name: str | None = None,
         last_name: str | None = None,
-        email: str | None = None,
+        emails: list[dict] | None = None,
         organization: str | None = None,
         time_zone: str
         | None = "UNSET",  # Use UNSET as default, since None is a valid value.
@@ -299,11 +317,8 @@ class CoManageRegistryClient(RestClient):
             if primary_name and last_name:
                 primary_name["family"] = last_name
 
-        if email:
-            primary_email = user.get_primary_email(address_only=False)
-            if primary_email:
-                primary_email["mail"] = email
-            # TODO: Do we need to handle the case where there is not a primary email?
+        if emails is not None:
+            self._reconcile_email_addresses(user, emails)
 
         if organization:
             for role in user.get("CoPersonRole", []):
@@ -319,6 +334,63 @@ class CoManageRegistryClient(RestClient):
             f"api/co/{self.coid}/core/v1/people/{quote(access_id, safe='')}",
             json=user,
         )
+
+    @staticmethod
+    def _reconcile_email_addresses(user: "CoManageUser", emails: list[dict]) -> None:
+        """Reconcile the user's EmailAddress list against the desired set in place.
+
+        ``emails`` is the full desired set of addresses, each item being
+        ``{"mail": str, "primary": bool}`` (addresses already normalized and, for
+        new addresses, already OTP-verified upstream). The desired primary is
+        written as ``type == "official"``; all other desired addresses as
+        ``type == "delivery"``. Existing non-deleted addresses not in the desired
+        set are marked deleted. New addresses are appended. Matching is done
+        case-insensitively on ``mail``, consuming desired entries one-to-one so
+        legacy duplicate addresses are collapsed rather than duplicated.
+        """
+
+        def desired_type(is_primary: bool) -> str:
+            return "official" if is_primary else "delivery"
+
+        # Desired addresses, with a flag tracking whether each has been matched to
+        # an existing row (consumed one-to-one).
+        desired = [
+            {"mail": e["mail"].lower(), "primary": e["primary"], "consumed": False}
+            for e in emails
+        ]
+
+        existing = user.setdefault("EmailAddress", [])
+        for entry in existing:
+            if entry["meta"]["deleted"]:
+                continue
+            match = next(
+                (
+                    d
+                    for d in desired
+                    if not d["consumed"] and d["mail"] == entry["mail"].lower()
+                ),
+                None,
+            )
+            if match is not None:
+                entry["type"] = desired_type(match["primary"])
+                # Preserve the existing verified flag for addresses already on the
+                # record; only newly added (OTP-verified) addresses are marked True.
+                match["consumed"] = True
+            else:
+                entry["meta"]["deleted"] = True
+
+        # Append any desired addresses that were not already present.
+        for d in desired:
+            if d["consumed"]:
+                continue
+            existing.append(
+                {
+                    "mail": d["mail"],
+                    "description": None,
+                    "type": desired_type(d["primary"]),
+                    "verified": True,
+                }
+            )
 
     async def create_new_org_identity(self, organization: str | None = None) -> str:
         """Create a new Organizational Identity for the user.

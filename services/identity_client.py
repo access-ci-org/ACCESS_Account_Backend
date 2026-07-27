@@ -157,21 +157,23 @@ class IdentityServiceClient(RestClient):
         academic_status_id: int,
         residence_country_id: int,
         citizenship_country_ids: list[int],
-        degrees: list[Degree] = [],
+        degrees: list[Degree] | None = None,
         update_if_exists=False,
         department: str | None = None,
     ):
-        person_kwargs = dict(
-            first_name=first_name,
-            last_name=last_name,
-            email=email,
-            organization_id=organization_id,
-            academic_status_id=academic_status_id,
-            residence_country_id=residence_country_id,
-            citizenship_country_ids=citizenship_country_ids,
-            degrees=degrees,
-            department=department,
-        )
+        if degrees is None:
+            degrees = []
+        person_kwargs = {
+            "first_name": first_name,
+            "last_name": last_name,
+            "email": email,
+            "organization_id": organization_id,
+            "academic_status_id": academic_status_id,
+            "residence_country_id": residence_country_id,
+            "citizenship_country_ids": citizenship_country_ids,
+            "degrees": degrees,
+            "department": department,
+        }
         person_data = self._to_person(**person_kwargs)
 
         try:

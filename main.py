@@ -1,10 +1,12 @@
 import string
+import xml.etree.ElementTree as ET
 from asyncio import gather
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from enum import Enum
 from typing import Annotated
 
+import httpx
 import jwt
 from botocore.exceptions import ClientError
 from fastapi import (
@@ -132,7 +134,7 @@ async def refresh_idp_domain_mapping():
         if DEBUG:
             logger.info(f"Refreshed IdP domain mapping entries: {len(IDP_BY_DOMAIN)}")
 
-    except Exception as e:
+    except (httpx.HTTPError, ET.ParseError) as e:
         logger.exception(f"Failed to refresh IdP domain mapping: {e}")
 
 
@@ -149,7 +151,7 @@ async def lifespan(app: FastAPI):
         print("Fetching IdP metadata...")
         IDP_BY_DOMAIN = await build_idp_domain_mapping()
         logger.info(f"Loaded IdP domain mapping entries: {len(IDP_BY_DOMAIN)}")
-    except Exception as e:
+    except (httpx.HTTPError, ET.ParseError) as e:
         logger.exception(f"Failed to load IdP domain mapping: {e}")
         IDP_BY_DOMAIN = {}
     yield

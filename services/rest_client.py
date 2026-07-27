@@ -21,11 +21,13 @@ class RestClient:
         self,
         url: str,
         method: str = "GET",
-        headers: dict = {},
+        headers: dict | None = None,
         json: dict | None = None,
         data: dict | None = None,
         params: dict | list | None = None,
     ):
+        if headers is None:
+            headers = {}
         client_kwargs = {}
         if self.username and self.password:
             client_kwargs["auth"] = httpx.BasicAuth(

@@ -1,4 +1,5 @@
 import base64
+import binascii
 import hashlib
 
 
@@ -32,7 +33,7 @@ def calculate_ssh_fingerprint_sha256(public_key):
     # Base64 decode the key part
     try:
         key_body_bytes = base64.b64decode(key_body, validate=True)
-    except Exception:
+    except binascii.Error:
         return "Invalid key"
 
     # Calculate the SHA256 hash of the decoded bytes

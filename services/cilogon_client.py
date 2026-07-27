@@ -1,3 +1,6 @@
+import ssl
+
+import httpx
 from fastapi import HTTPException
 
 from config import (
@@ -36,8 +39,7 @@ async def get_token_user_info(token: str, client_id: str, error_status_code: int
     """Get user info using an access token."""
     try:
         user_info = await CILogonClient().get_user_info(token)
-    except:
-        # TODO: Handle specific exceptions
+    except (httpx.HTTPStatusError, httpx.RequestError, ssl.SSLError):
         raise HTTPException(
             status_code=error_status_code,
             detail="Invalid token",

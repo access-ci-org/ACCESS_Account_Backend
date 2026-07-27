@@ -23,6 +23,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from sqlalchemy import delete
+from sqlmodel import col
 
 from auth import (
     TokenPayload,
@@ -79,6 +80,7 @@ from services.account_service import (
 )
 from services.cilogon_client import CILogonClient
 from services.email_service import send_verification_email, ses
+from services.identity_client import Degree as IdentityDegree
 from services.idp_service import build_idp_domain_mapping
 from services.logs_service import logger
 from services.otp_service import (
@@ -113,7 +115,7 @@ def clear_expired_otps():
 
     with get_session() as session:
         # Bulk delete expired OTP entries
-        stmt = delete(OTPEntry).where(OTPEntry.created_at < cutoff)
+        stmt = delete(OTPEntry).where(col(OTPEntry.created_at) < cutoff)
 
         result = session.exec(stmt)
         session.commit()
@@ -144,7 +146,7 @@ async def lifespan(app: FastAPI):
     print("Starting up... Initializing database.")
     init_db()
     print("Database initialized.")
-    await clear_expired_otps()  # Initial cleanup on startup
+    await clear_expired_otps()  # pyright: ignore[reportGeneralTypeIssues]  # Initial cleanup on startup
 
     global IDP_BY_DOMAIN
     try:
@@ -167,7 +169,7 @@ app = FastAPI(
 )
 
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # pyright: ignore[reportArgumentType]
 
 app.add_middleware(
     CORSMiddleware,
@@ -454,6 +456,12 @@ async def create_account(
 
     # Get the CoPerson ID for the new user
     co_person_id = await comanage_client.get_co_person_id_for_email(email)
+    if co_person_id is None:
+        logger.error(f"Could not retrieve CoPerson ID for newly created user {email}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Failed to retrieve CoPerson ID",
+        )
 
     # Create an OrgIdentity record for the ACCESS IdP
     linked_identities = []
@@ -512,6 +520,11 @@ async def get_account(
 
     # Comanage (preferred) values
     primary_name = comanage_user.get_primary_name()
+    if primary_name is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User {username} does not have a primary name",
+        )
     comanage_first = primary_name.get("given")
     comanage_last = primary_name.get("family")
     comanage_tz = safe_get(comanage_user, "CoPerson", "timezone")
@@ -578,6 +591,11 @@ async def update_account(
     prev_organization_id = identity_person["organizationId"]
 
     email = account_request.email or prev_email
+    if email is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Account does not have an email address on file",
+        )
     organization_id = account_request.organization_id or prev_organization_id
 
     # If the email address has changed, check that we have a valid OTP token
@@ -585,6 +603,11 @@ async def update_account(
     if email != prev_email:
         error_message = "Invalid email OTP token"
         error_status = status.HTTP_400_BAD_REQUEST
+        if not account_request.email_otp_token:
+            raise HTTPException(
+                status_code=error_status,
+                detail=error_message,
+            )
         try:
             email_token = decode_otp_token(account_request.email_otp_token)
         except (jwt.InvalidTokenError, jwt.DecodeError, jwt.ExpiredSignatureError):
@@ -616,8 +639,11 @@ async def update_account(
         user=comanage_user,
     )
 
-    degrees_payload = (
-        [d.model_dump() for d in account_request.degrees]
+    degrees_payload: list[IdentityDegree] | None = (
+        [
+            {"degree_id": d.degree_id, "degree_field": d.degree_field}
+            for d in account_request.degrees
+        ]
         if account_request.degrees is not None
         else None
     )

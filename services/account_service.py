@@ -1,6 +1,6 @@
 from asyncio import gather
 
-from services.comanage_registry_client import CoManageRegistryClient
+from services.comanage_registry_client import CoManageRegistryClient, CoManageUser
 from services.identity_client import IdentityServiceClient
 
 comanage_client = CoManageRegistryClient(propagate_errors=True)
@@ -17,10 +17,8 @@ def safe_get(d: dict, *keys, default=None):
     return cur
 
 
-async def get_account_data(username: str):
-    return list(
-        await gather(
-            comanage_client.get_user_info(username),
-            identity_client.get_account(username),
-        )
+async def get_account_data(username: str) -> tuple[CoManageUser, dict]:
+    return await gather(
+        comanage_client.get_user_info(username),
+        identity_client.get_account(username),
     )

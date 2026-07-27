@@ -15,7 +15,7 @@ from services.rest_client import RestClient
 
 
 class CILogonClient(RestClient):
-    async def get_token(self, **kwargs):
+    async def get_token(self, **kwargs) -> dict:
         """Get tokens"""
         data = dict(**kwargs)
 
@@ -26,16 +26,20 @@ class CILogonClient(RestClient):
         elif client_id == CILOGON_LOGIN_CLIENT_ID:
             data["client_secret"] = CILOGON_LOGIN_CLIENT_SECRET
 
-        return await self.request(CILOGON_TOKEN_URL, method="POST", data=data)
+        result = await self.request(CILOGON_TOKEN_URL, method="POST", data=data)
+        return self._expect(result, dict)
 
-    async def get_user_info(self, access_token: str):
+    async def get_user_info(self, access_token: str) -> dict:
         """Get user information from CILogon using the access token."""
-        return await self.request(
+        result = await self.request(
             CILOGON_USER_INFO_URL, headers={"Authorization": f"Bearer {access_token}"}
         )
+        return self._expect(result, dict)
 
 
-async def get_token_user_info(token: str, client_id: str, error_status_code: int):
+async def get_token_user_info(
+    token: str, client_id: str, error_status_code: int
+) -> dict:
     """Get user info using an access token."""
     try:
         user_info = await CILogonClient().get_user_info(token)

@@ -100,18 +100,18 @@ async def decode_cilogon_token(token: str):
 
 async def get_current_token(
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(security)],
-) -> TokenPayload:
+) -> str:
     """
-    Dependency to get and validate the current JWT token.
+    Dependency to get the raw bearer token string from the request header.
 
     Args:
         credentials: HTTP Bearer credentials from request header
 
     Returns:
-        TokenPayload with decoded token data
+        The raw bearer token string
 
     Raises:
-        HTTPException: If authorization header is missing or token is invalid
+        HTTPException: If authorization header is missing
     """
     if credentials is None:
         raise HTTPException(
@@ -123,7 +123,7 @@ async def get_current_token(
 
 
 async def require_auth(
-    token: Annotated[TokenPayload, Depends(get_current_token)],
+    token: Annotated[str, Depends(get_current_token)],
 ) -> TokenPayload:
     """
     Dependency that requires any valid authentication (otp or login).

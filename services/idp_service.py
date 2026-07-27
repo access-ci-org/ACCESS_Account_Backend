@@ -3,6 +3,8 @@ import xml.etree.ElementTree as ET
 import httpx
 from botocore.model import defaultdict
 
+from models import IdP
+
 MDQ_IDPS_ALL_URL = "https://mdq.incommon.org/entities/idps/all"
 
 NS = {
@@ -26,24 +28,24 @@ def best_display_name(entity: ET.Element, entity_id: str) -> str:
                 dn.attrib.get(f"{{{NS['xml']}}}lang") == "en"
                 and (dn.text or "").strip()
             ):
-                return dn.text.strip()
+                return (dn.text or "").strip()
         # Otherwise first non-empty
         for dn in display_names:
             if (dn.text or "").strip():
-                return dn.text.strip()
+                return (dn.text or "").strip()
 
     # OrganizationDisplayName
     org_dn = entity.find(".//md:OrganizationDisplayName", NS)
     if org_dn is not None and (org_dn.text or "").strip():
-        return org_dn.text.strip()
+        return (org_dn.text or "").strip()
 
     return entity_id
 
 
-async def build_idp_domain_mapping() -> dict[str, list[dict[str, str]]]:
+async def build_idp_domain_mapping() -> dict[str, list[IdP]]:
     """
     Fetch the InCommon MDQ IdP metadata bundle and build a mapping:
-      scope_domain -> {"display_name": ..., "entity_id": ...}
+      scope_domain -> [IdP(display_name=..., entity_id=...), ...]
 
     Keys come from shibmd: Scope values.
     """
@@ -56,7 +58,7 @@ async def build_idp_domain_mapping() -> dict[str, list[dict[str, str]]]:
     root = ET.fromstring(xml_text)
 
     # The feed typically contains md:EntityDescriptor nodes under a root
-    domain_mapping: dict[str, list[dict[str, str]]] = defaultdict(list)
+    domain_mapping: dict[str, list[IdP]] = defaultdict(list)
 
     for entity in root.findall(".//md:EntityDescriptor", NS):
         entity_id = entity.attrib.get("entityID")
@@ -73,10 +75,7 @@ async def build_idp_domain_mapping() -> dict[str, list[dict[str, str]]]:
 
             # Store domain - > IdP info
             domain_mapping[scope].append(
-                {
-                    "display_name": display_name,
-                    "entity_id": entity_id,
-                }
+                IdP(display_name=display_name, entity_id=entity_id)
             )
 
     return dict(domain_mapping)

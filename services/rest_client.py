@@ -1,7 +1,10 @@
 import ssl
+from typing import TypeVar
 
 import httpx
 from fastapi import HTTPException
+
+_JsonShapeT = TypeVar("_JsonShapeT", dict, list)
 
 
 class RestClient:
@@ -25,7 +28,7 @@ class RestClient:
         json: dict | None = None,
         data: dict | None = None,
         params: dict | list | None = None,
-    ):
+    ) -> dict | list | None:
         if headers is None:
             headers = {}
         client_kwargs = {}
@@ -74,3 +77,24 @@ class RestClient:
                     raise
 
             return response.json() if response.content else None
+
+    def _expect(
+        self,
+        result: dict | list | None,
+        expected: type[_JsonShapeT],
+        status_code: int = 502,
+    ) -> _JsonShapeT:
+        """Narrow a JSON response to the shape a caller requires, or raise.
+
+        Different endpoints on the same API can legitimately return different
+        top-level JSON shapes (e.g. a bare list for collection endpoints vs. a
+        dict for single-resource endpoints), so `request()` itself stays
+        shape-agnostic. Callers that need a specific shape use this to assert
+        it, choosing the HTTP status code that fits their situation.
+        """
+        if not isinstance(result, expected):
+            raise HTTPException(
+                status_code=status_code,
+                detail=f"Unexpected response from {self.__class__.__name__}",
+            )
+        return result

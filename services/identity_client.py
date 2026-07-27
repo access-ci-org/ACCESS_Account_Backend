@@ -56,7 +56,13 @@ class IdentityServiceClient(RestClient):
 
     async def _request(self, method: str, path: str, **kwargs) -> dict | list:
         url = f"{self.base_url}{path}"
-        return await self.request(url, method=method, headers=self.headers, **kwargs)
+        result = await self.request(url, method=method, headers=self.headers, **kwargs)
+        if result is None:
+            raise HTTPException(
+                status_code=502,
+                detail="Unexpected empty response from Identity Service",
+            )
+        return result
 
     def _to_person(
         self,
@@ -130,16 +136,17 @@ class IdentityServiceClient(RestClient):
     def is_valid_academic_status(self, item: dict) -> bool:
         return item.get("nsfStatusCode") not in INVALID_ACADEMIC_STATUS_CODES
 
-    async def get_organizations_by_domain(self, domain: str) -> dict:
+    async def get_organizations_by_domain(self, domain: str) -> list[dict]:
         # check_domain = quote(domain, safe="")
         domains = self._domain_chain(domain)
 
         params = [("domain[]", d) for d in domains]
-        return await self._request(
+        result = await self._request(
             "GET",
             "/profiles/v1/organizations",
             params=params,
         )
+        return result if isinstance(result, list) else []
 
     async def get_person(self, access_id: str):
         return await self._request(
@@ -249,8 +256,10 @@ class IdentityServiceClient(RestClient):
             f"/profiles/v1/organizations/{organization_id}",
         )
 
-        organization_name = organization.get(
-            "organization_name", f"Organization {organization_id}"
+        organization_name = (
+            organization.get("organization_name", f"Organization {organization_id}")
+            if isinstance(organization, dict)
+            else f"Organization {organization_id}"
         )
 
         raise HTTPException(
@@ -260,10 +269,11 @@ class IdentityServiceClient(RestClient):
 
     async def get_account(self, username: str) -> dict:
         check_username = quote(username, safe="")
-        return await self._request(
+        result = await self._request(
             "GET",
             f"/profiles/v1/people/{check_username}",
         )
+        return self._expect(result, dict)
 
     async def check_valid_academic_status_id(
         self,

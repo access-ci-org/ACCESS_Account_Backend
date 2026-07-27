@@ -1,6 +1,7 @@
 import logging
 from asyncio import gather
 from collections import namedtuple
+from typing import Literal, overload
 from urllib.parse import quote, urlencode
 
 from fastapi import HTTPException, status
@@ -51,7 +52,11 @@ class CoManageUser(dict):
                 return name
         return None
 
-    def get_primary_email(self, address_only=True) -> str | None:
+    @overload
+    def get_primary_email(self, address_only: Literal[True] = True) -> str | None: ...
+    @overload
+    def get_primary_email(self, address_only: Literal[False]) -> dict | None: ...
+    def get_primary_email(self, address_only: bool = True) -> str | dict | None:
         """Get the primary email address."""
         for email in self.get("EmailAddress", []):
             if email["type"] == "official" and not email["meta"]["deleted"]:
@@ -94,7 +99,7 @@ class CoManageRegistryClient(RestClient):
     ):
         super().__init__(
             username=username,
-            password=password,
+            password=str(password),
             timeout=timeout,
             propagate_errors=propagate_errors,
         )
@@ -165,7 +170,7 @@ class CoManageRegistryClient(RestClient):
         user_info = await self._request(
             "GET", f"api/co/{self.coid}/core/v1/people/{quote(accessid, safe='')}"
         )
-        return CoManageUser(user_info)
+        return CoManageUser(self._expect(user_info, dict))
 
     async def get_active_tandc(self) -> dict | None:
         """Return the first active Terms and Conditions element.
@@ -190,7 +195,7 @@ class CoManageRegistryClient(RestClient):
         lastname: str,
         organization: str,
         email: str,
-    ) -> dict:
+    ) -> list[dict]:
         """Create a new ACCESS user by calling the Core API.
 
         Args:
@@ -200,7 +205,7 @@ class CoManageRegistryClient(RestClient):
             email: Email of the user
 
         Returns:
-            Response from API
+            The list of identifiers provisioned for the new CoPerson
 
         Raises:
             httpx.HTTPStatusError: If the API call fails
@@ -273,9 +278,13 @@ class CoManageRegistryClient(RestClient):
             "SshKey": [],
         }
 
-        return await self._request(
+        result = await self._request(
             "POST", f"api/co/{self.coid}/core/v1/people", json=new_user_data
         )
+        # A malformed response here means we can't complete account creation
+        # for this request, so surface it as a 400 rather than a 502 the way
+        # other CoManage response-shape guards do.
+        return self._expect(result, list, status_code=400)
 
     async def update_user(
         self,
@@ -347,8 +356,9 @@ class CoManageRegistryClient(RestClient):
             ],
         }
 
-        result = await self._request(
-            "POST", "org_identities.json", json=org_identity_data
+        result = self._expect(
+            await self._request("POST", "org_identities.json", json=org_identity_data),
+            dict,
         )
         return str(result["Id"])
 
@@ -377,7 +387,10 @@ class CoManageRegistryClient(RestClient):
             ],
         }
 
-        return await self._request("POST", "co_org_identity_links.json", json=link_data)
+        return self._expect(
+            await self._request("POST", "co_org_identity_links.json", json=link_data),
+            dict,
+        )
 
     async def create_new_name(
         self,
@@ -417,7 +430,9 @@ class CoManageRegistryClient(RestClient):
             ],
         }
 
-        return await self._request("POST", "names.json", json=name_data)
+        return self._expect(
+            await self._request("POST", "names.json", json=name_data), dict
+        )
 
     async def create_new_identifier(
         self, identifier: str, type: str, login: bool, linked_type: str, linked_id: str
@@ -451,7 +466,10 @@ class CoManageRegistryClient(RestClient):
             ],
         }
 
-        return await self._request("POST", "identifiers.json", json=identifier_data)
+        return self._expect(
+            await self._request("POST", "identifiers.json", json=identifier_data),
+            dict,
+        )
 
     async def create_new_tandc_agreement(
         self, co_tandc_id: int, co_person_id: int
@@ -480,8 +498,9 @@ class CoManageRegistryClient(RestClient):
             ],
         }
 
-        return await self._request(
-            "POST", "co_t_and_c_agreements.json", json=tandc_data
+        return self._expect(
+            await self._request("POST", "co_t_and_c_agreements.json", json=tandc_data),
+            dict,
         )
 
     # Helper methods
@@ -733,10 +752,13 @@ class CoManageRegistryClient(RestClient):
             ],
         }
 
-        return await self._request(
-            "POST",
-            f"ssh_key_authenticator/ssh_keys.json?coid={self.coid}",
-            json=data,
+        return self._expect(
+            await self._request(
+                "POST",
+                f"ssh_key_authenticator/ssh_keys.json?coid={self.coid}",
+                json=data,
+            ),
+            dict,
         )
 
     async def get_ssh_keys_for_user(self, accessid: str) -> list[dict]:
@@ -757,7 +779,7 @@ class CoManageRegistryClient(RestClient):
 
         return []
 
-    async def delete_ssh_key_for_user(self, accessid: str, key_id: int) -> str:
+    async def delete_ssh_key_for_user(self, accessid: str, key_id: int):
         """Deletes SSH Key from the CoPerson record."""
         # Validates key_id
         if not key_id:
@@ -795,7 +817,7 @@ class CoManageRegistryClient(RestClient):
 
     async def update_password_for_user(
         self, coperson_id: str, new_password: str
-    ) -> dict | None:
+    ) -> dict:
         """Set or update the Kerberos password for a CO Person via the KrbAuthenticator REST API.
 
         Follows the documented V1 workflow: GET existing row, then POST (new) or PUT (existing).
@@ -813,10 +835,13 @@ class CoManageRegistryClient(RestClient):
                     }
                 ]
             }
-            return await self._request(
-                "PUT",
-                f"krb_authenticator/krbs/{krb_id}.json",
-                json=data,
+            return self._expect(
+                await self._request(
+                    "PUT",
+                    f"krb_authenticator/krbs/{krb_id}.json",
+                    json=data,
+                ),
+                dict,
             )
         else:
             data = {
@@ -830,8 +855,11 @@ class CoManageRegistryClient(RestClient):
                     }
                 ]
             }
-            return await self._request(
-                "POST",
-                "krb_authenticator/krbs.json",
-                json=data,
+            return self._expect(
+                await self._request(
+                    "POST",
+                    "krb_authenticator/krbs.json",
+                    json=data,
+                ),
+                dict,
             )

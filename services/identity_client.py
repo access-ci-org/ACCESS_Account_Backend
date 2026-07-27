@@ -1,13 +1,12 @@
+from functools import partial
 from typing import TypedDict
 from urllib.parse import quote
-from cachetools import TTLCache
-from asyncache import cached
-from cachetools.keys import methodkey
-from functools import partial
-
 
 import httpx
 import tldextract
+from asyncache import cached
+from cachetools import TTLCache
+from cachetools.keys import methodkey
 from fastapi import HTTPException, status
 
 from config import (

@@ -1,6 +1,7 @@
 import xml.etree.ElementTree as ET
-from botocore.model import defaultdict
+
 import httpx
+from botocore.model import defaultdict
 
 MDQ_IDPS_ALL_URL = "https://mdq.incommon.org/entities/idps/all"
 
@@ -71,9 +72,11 @@ async def build_idp_domain_mapping() -> dict[str, list[dict[str, str]]]:
                 continue
 
             # Store domain - > IdP info
-            domain_mapping[scope].append({
-                "display_name": display_name,
-                "entity_id": entity_id,
-            })
+            domain_mapping[scope].append(
+                {
+                    "display_name": display_name,
+                    "entity_id": entity_id,
+                }
+            )
 
     return dict(domain_mapping)

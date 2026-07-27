@@ -1,6 +1,6 @@
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Literal
-import logging
 
 import jwt
 from fastapi import Depends, HTTPException, status

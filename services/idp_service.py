@@ -1,4 +1,5 @@
 import xml.etree.ElementTree as ET
+from botocore.model import defaultdict
 import httpx
 
 MDQ_IDPS_ALL_URL = "https://mdq.incommon.org/entities/idps/all"
@@ -38,7 +39,7 @@ def best_display_name(entity: ET.Element, entity_id: str) -> str:
     return entity_id
 
 
-async def build_idp_domain_mapping() -> dict[str, dict[str, str]]:
+async def build_idp_domain_mapping() -> dict[str, list[dict[str, str]]]:
     """
     Fetch the InCommon MDQ IdP metadata bundle and build a mapping:
       scope_domain -> {"display_name": ..., "entity_id": ...}
@@ -54,7 +55,7 @@ async def build_idp_domain_mapping() -> dict[str, dict[str, str]]:
     root = ET.fromstring(xml_text)
 
     # The feed typically contains md:EntityDescriptor nodes under a root
-    domain_mapping: dict[str, dict[str, str]] = {}
+    domain_mapping: dict[str, list[dict[str, str]]] = defaultdict(list)
 
     for entity in root.findall(".//md:EntityDescriptor", NS):
         entity_id = entity.attrib.get("entityID")
@@ -70,9 +71,9 @@ async def build_idp_domain_mapping() -> dict[str, dict[str, str]]:
                 continue
 
             # Store domain - > IdP info
-            domain_mapping[scope] = {
+            domain_mapping[scope].append({
                 "display_name": display_name,
                 "entity_id": entity_id,
-            }
+            })
 
-    return domain_mapping
+    return dict(domain_mapping)

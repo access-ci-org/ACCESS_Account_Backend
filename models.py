@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import Enum
-from typing import List, Literal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
@@ -93,7 +93,7 @@ class Country(BaseSchema):
 
 
 class CountriesResponse(BaseSchema):
-    countries: List[Country]
+    countries: list[Country]
 
 
 class DegreeType(BaseSchema):
@@ -102,7 +102,7 @@ class DegreeType(BaseSchema):
 
 
 class DegreesResponse(BaseSchema):
-    degrees: List[DegreeType]
+    degrees: list[DegreeType]
 
 
 class AcademicStatus(BaseSchema):
@@ -111,18 +111,18 @@ class AcademicStatus(BaseSchema):
 
 
 class AcademicStatusResponse(BaseSchema):
-    academic_statuses: List[AcademicStatus]
+    academic_statuses: list[AcademicStatus]
 
 
 class IdP(BaseSchema):
-    displayName: str
-    entityId: str
+    display_name: str
+    entity_id: str
 
 
 class Domain(BaseSchema):
     domain: str
-    organizations: List[str]
-    idps: List[str]
+    organizations: list[str]
+    idps: list[str]
 
 
 class Organization(BaseSchema):
@@ -142,7 +142,7 @@ class Organization(BaseSchema):
     is_msi: bool | None = None
     is_active: bool | None = None
     is_eligible: bool | None = None
-    carnegie_categories: List[dict] = []
+    carnegie_categories: list[dict] = []
     state: str | None = None
     country: str | None = None
     org_type: str | None = None
@@ -151,8 +151,8 @@ class Organization(BaseSchema):
 
 class DomainResponse(BaseSchema):
     domain: str
-    organizations: List[Organization]
-    idps: List[IdP] = Field(default_factory=list)
+    organizations: list[Organization]
+    idps: list[IdP] = Field(default_factory=list)
 
 
 class AccountResponse(BaseSchema):
@@ -167,8 +167,8 @@ class AccountResponse(BaseSchema):
     organization_id: int | None = None
     academic_status_id: int | None = None
     residence_country_id: int | None = None
-    citizenship_country_ids: List[int] = Field(default_factory=list)
-    degrees: List[Degree] = Field(default_factory=list)
+    citizenship_country_ids: list[int] = Field(default_factory=list)
+    degrees: list[Degree] = Field(default_factory=list)
 
     department: str | None = None
 
@@ -189,11 +189,11 @@ class IdentityIdentifier(BaseSchema):
 class Identity(BaseSchema):
     identity_id: int
     organization: str | None = None
-    identifiers: List[IdentityIdentifier]
+    identifiers: list[IdentityIdentifier]
 
 
 class IdentitiesResponse(BaseSchema):
-    identities: List[Identity]
+    identities: list[Identity]
 
 
 class SSHKey(BaseSchema):
@@ -203,7 +203,7 @@ class SSHKey(BaseSchema):
 
 
 class SSHKeysResponse(BaseSchema):
-    ssh_keys: List[SSHKey]
+    ssh_keys: list[SSHKey]
 
 
 class LinkIdentityRequest(BaseSchema):

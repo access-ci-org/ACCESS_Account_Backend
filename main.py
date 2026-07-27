@@ -52,6 +52,7 @@ from models import (
     CreateAccountRequest,
     DegreesResponse,
     DomainResponse,
+    IdP,
     IdentitiesResponse,
     Identity,
     JWTResponse,
@@ -98,7 +99,7 @@ def get_email_from_body(request: Request) -> str:
 
 
 # IDP by Domain
-IDP_BY_DOMAIN: dict[str, dict[str, str]] = {}
+IDP_BY_DOMAIN: dict[str, list[IdP]] = {}
 
 
 # cron job to clean up expired OTPs
@@ -1063,19 +1064,15 @@ async def get_degrees(
 )
 async def get_domain_info(
     domain: str,
-    token: TokenPayload = Depends(require_otp_or_login),
-) -> DomainResponse:
+    _token: TokenPayload = Depends(require_otp_or_login),
+):
     domain_clean = domain.strip().lower()
     # Call the Identity Service client to get the domain information
     organizations = await identity_client.get_organizations_by_domain(domain_clean)
 
     idps = []
     if not any(org["ignore_idp"] for org in organizations):
-        match = IDP_BY_DOMAIN.get(domain_clean)
-        if match:
-            idps.append(
-                {"displayName": match["display_name"], "entityId": match["entity_id"]}
-            )
+        idps.extend(IDP_BY_DOMAIN.get(domain_clean, []))
     # Include the full organization dictionaries from XRAS
     return {
         "domain": domain_clean,

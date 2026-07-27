@@ -55,8 +55,8 @@ class RestClient:
                         detail=f"{self.__class__.__name__} API error: {exc.response.text}",
                     )
                 else:
-                    raise exc
-            except (httpx.RequestError, ssl.SSLError) as exc:
+                    raise
+            except (httpx.RequestError, ssl.SSLError):
                 # Handle connection or timeout issues.
                 # Python 3.13 raises ssl.SSLError("passed invalid argument") when the
                 # remote closes the connection mid-read, rather than the SSLEOFError /
@@ -69,6 +69,6 @@ class RestClient:
                         detail=f"{self.__class__.__name__} API is unavailable",
                     )
                 else:
-                    raise exc
+                    raise
 
             return response.json() if response.content else None

@@ -1,7 +1,7 @@
 import logging
 import secrets
 import string
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from argon2 import PasswordHasher
 from argon2.exceptions import (
@@ -29,7 +29,7 @@ def generate_otp(length: int = OTP_CHARACTER_LENGTH) -> str:
 
 def store_otp(email, otp):
     hashed = ph.hash(otp)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     with get_session() as session:
         entry = OTPEntry(email=email, hash=hashed, created_at=now)
@@ -55,11 +55,11 @@ def verify_stored_otp(email: str, submitted_otp: str) -> None:
         created_at = entry.created_at
         # SQLite stores naive datetime, so replace tzinfo
         if created_at.tzinfo is None:
-            created_at = created_at.replace(tzinfo=timezone.utc)
+            created_at = created_at.replace(tzinfo=UTC)
 
         expiration_time = created_at + timedelta(minutes=OTP_LIFETIME_MINUTES)
 
-        if datetime.now(timezone.utc) > expiration_time:
+        if datetime.now(UTC) > expiration_time:
             session.delete(entry)
             session.commit()
 

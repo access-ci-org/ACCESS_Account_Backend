@@ -51,6 +51,6 @@ def send_verification_email(email, otp):
 
         # print("SES Message ID:", resp.get("MessageId")) For testing purposes
         return resp
-    except ClientError as e:
+    except ClientError:
         logger.exception(f"SES ClientError when sending verification email to {email}")
-        raise e
+        raise

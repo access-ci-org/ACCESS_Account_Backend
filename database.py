@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlmodel import Field, Session, SQLModel, create_engine
 
@@ -18,4 +18,4 @@ def get_session():
 class OTPEntry(SQLModel, table=True):
     email: str = Field(primary_key=True)
     hash: str
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

@@ -197,7 +197,7 @@ class IdentityServiceClient(RestClient):
                 and update_if_exists
             ):
                 return await self.update_person(access_id, **person_kwargs)
-            raise err
+            raise
 
     async def update_person(
         self,

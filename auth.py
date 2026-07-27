@@ -1,6 +1,6 @@
 import logging
-from datetime import datetime, timedelta, timezone
-from typing import Literal
+from datetime import UTC, datetime, timedelta
+from typing import Annotated, Literal
 
 import jwt
 from fastapi import Depends, HTTPException, status
@@ -42,7 +42,7 @@ def create_access_token(
     """
     import uuid
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     if expires_delta:
         expire = now + expires_delta
@@ -99,7 +99,7 @@ async def decode_cilogon_token(token: str):
 
 
 async def get_current_token(
-    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(security)],
 ) -> TokenPayload:
     """
     Dependency to get and validate the current JWT token.
@@ -123,7 +123,7 @@ async def get_current_token(
 
 
 async def require_auth(
-    token: TokenPayload = Depends(get_current_token),
+    token: Annotated[TokenPayload, Depends(get_current_token)],
 ) -> TokenPayload:
     """
     Dependency that requires any valid authentication (otp or login).
@@ -142,12 +142,12 @@ async def require_auth(
         logger.warning("JWT decode failed: %s", err)
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Invalid token",
+            detail="Invalid token",
         )
 
 
 async def require_otp(
-    token: TokenPayload = Depends(require_auth),
+    token: Annotated[TokenPayload, Depends(require_auth)],
 ) -> TokenPayload:
     """
     Dependency that requires OTP authentication only.
@@ -170,7 +170,7 @@ async def require_otp(
 
 
 async def require_otp_or_login(
-    token: TokenPayload = Depends(require_auth),
+    token: Annotated[TokenPayload, Depends(require_auth)],
 ) -> TokenPayload:
     """
     Dependency that requires either OTP or login authentication.
@@ -190,7 +190,7 @@ async def require_otp_or_login(
 
 
 async def require_login(
-    token: TokenPayload = Depends(require_auth),
+    token: Annotated[TokenPayload, Depends(require_auth)],
 ) -> TokenPayload:
     """
     Dependency that requires login authentication (not OTP).
@@ -236,7 +236,7 @@ def verify_username_access(
 
 async def require_username_access(
     username: str,
-    token: TokenPayload = Depends(require_login),
+    token: Annotated[TokenPayload, Depends(require_login)],
 ) -> TokenPayload:
     """
     Dependency that requires login and verifies access to a specific username.
@@ -258,7 +258,7 @@ async def require_username_access(
 
 async def require_own_username_access(
     username: str,
-    token: TokenPayload = Depends(require_login),
+    token: Annotated[TokenPayload, Depends(require_login)],
 ) -> TokenPayload:
     """
     Dependency that requires login and verifies access to own username only.

@@ -497,7 +497,7 @@ class CoManageRegistryClient(RestClient):
             # Create an identifier for each claim that exists in the user info
             for mapping in CLAIM_TO_IDENTIFIER_MAPPING:
                 claim_key = mapping["claim"]
-                if claim_key in cilogon_user_info and cilogon_user_info[claim_key]:
+                if cilogon_user_info.get(claim_key):
                     identifiers.append(
                         Identifier(
                             str(cilogon_user_info[claim_key]),

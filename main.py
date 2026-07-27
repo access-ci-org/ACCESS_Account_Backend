@@ -1,8 +1,9 @@
 import string
 from asyncio import gather
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from enum import Enum
+from typing import Annotated
 
 import jwt
 from botocore.exceptions import ClientError
@@ -106,7 +107,7 @@ IDP_BY_DOMAIN: dict[str, list[IdP]] = {}
 @repeat_every(seconds=EXPIRED_OTP_CLEANUP_INTERVAL_SECONDS)  # runs every minute
 def clear_expired_otps():
     # logger.info("Running expired OTP cleanup task")
-    cutoff = datetime.now(timezone.utc) - timedelta(minutes=OTP_LIFETIME_MINUTES)
+    cutoff = datetime.now(UTC) - timedelta(minutes=OTP_LIFETIME_MINUTES)
 
     with get_session() as session:
         # Bulk delete expired OTP entries
@@ -115,7 +116,7 @@ def clear_expired_otps():
         result = session.exec(stmt)
         session.commit()
 
-        rows_deleted = result.rowcount or 0
+        _rows_deleted = result.rowcount or 0
     # logger.info(f"Expired OTP cleanup task completed, removed {rows_deleted} entries")
 
 
@@ -355,7 +356,7 @@ async def get_oidc_token(token_request: OidcTokenRequest):
 )
 async def request_password_reset(
     request: UpdatePasswordRequest,
-    token: TokenPayload = Depends(require_otp),
+    token: Annotated[TokenPayload, Depends(require_otp)],
 ):
     # Pull email from OTP token
     email = token.sub.lower().strip()
@@ -399,7 +400,7 @@ async def request_password_reset(
 )
 async def create_account(
     account_request: CreateAccountRequest,
-    token: TokenPayload = Depends(require_otp),
+    token: Annotated[TokenPayload, Depends(require_otp)],
 ):
     """Create a new ACCESS account."""
     email = token.sub.lower().strip()
@@ -416,7 +417,7 @@ async def create_account(
         _existing_access_id,
         active_tandc,
         organization_name,
-        academic_status_check,
+        _academic_status_check,
     ] = await gather(
         comanage_client.check_account_does_not_exist(email),
         comanage_client.check_active_tandc_exists(),
@@ -475,8 +476,7 @@ async def create_account(
 
     # Create or update the person record in the identity service
     identity_data = dict(account_request)
-    if "cilogon_token" in identity_data:
-        del identity_data["cilogon_token"]
+    identity_data.pop("cilogon_token", None)
 
     identity_person = identity_client.create_person(
         access_id, **identity_data, email=email, update_if_exists=True
@@ -504,7 +504,7 @@ async def create_account(
 )
 async def get_account(
     username: str,
-    token: TokenPayload = Depends(require_username_access),
+    _token: Annotated[TokenPayload, Depends(require_username_access)],
 ):
     [comanage_user, identity_person] = await get_account_data(username)
 
@@ -568,7 +568,7 @@ async def get_account(
 async def update_account(
     username: str,
     account_request: UpdateAccountRequest,
-    token: TokenPayload = Depends(require_username_access),
+    _token: Annotated[TokenPayload, Depends(require_username_access)],
 ):
     [comanage_user, identity_person] = await get_account_data(username)
 
@@ -661,7 +661,7 @@ async def update_account(
 async def update_password(
     username: str,
     request: UpdatePasswordRequest,
-    token: TokenPayload = Depends(require_own_username_access),
+    _token: Annotated[TokenPayload, Depends(require_own_username_access)],
 ):
     # Validate the new password against the policy
     policy_result = validate_access_password(request.password)
@@ -702,7 +702,7 @@ async def update_password(
 )
 async def get_identities(
     username: str,
-    token: TokenPayload = Depends(require_username_access),
+    _token: Annotated[TokenPayload, Depends(require_username_access)],
 ) -> IdentitiesResponse:
     comanage_user = await comanage_client.get_user_info(username)
 
@@ -753,7 +753,7 @@ async def get_identities(
 async def link_identity(
     username: str,
     link_request: LinkIdentityRequest,
-    _token: TokenPayload = Depends(require_own_username_access),
+    _token: Annotated[TokenPayload, Depends(require_own_username_access)],
 ):
     co_person_id = await comanage_client.get_co_person_id_for_accessid(username)
     if co_person_id is None:
@@ -788,7 +788,7 @@ async def link_identity(
 async def delete_identity(
     username: str,
     identity_id: int,
-    token: TokenPayload = Depends(require_own_username_access),
+    _token: Annotated[TokenPayload, Depends(require_own_username_access)],
 ):
     # Get the CoPerson ID for the username provided by the URL.
     co_person_id = await comanage_client.get_co_person_id_for_accessid(username)
@@ -887,7 +887,7 @@ async def delete_identity(
 )
 async def get_ssh_keys(
     username: str,
-    token: TokenPayload = Depends(require_username_access),
+    _token: Annotated[TokenPayload, Depends(require_username_access)],
 ) -> SSHKeysResponse:
     comanage_user = await comanage_client.get_user_info(username)
 
@@ -926,7 +926,7 @@ async def get_ssh_keys(
 async def add_ssh_key(
     username: str,
     request: AddSSHKeyRequest,
-    token: TokenPayload = Depends(require_own_username_access),
+    _token: Annotated[TokenPayload, Depends(require_own_username_access)],
 ):
     # Get public key
     public_key = request.public_key.strip()
@@ -957,7 +957,7 @@ async def add_ssh_key(
 async def delete_ssh_key(
     username: str,
     key_id: int,
-    token: TokenPayload = Depends(require_own_username_access),
+    _token: Annotated[TokenPayload, Depends(require_own_username_access)],
 ):
     # Call the CoManage API to delete the key
     await comanage_client.delete_ssh_key_for_user(username, key_id)
@@ -976,20 +976,20 @@ async def delete_ssh_key(
     },
 )
 async def get_academic_statuses(
-    token: TokenPayload = Depends(require_otp_or_login),
+    _token: Annotated[TokenPayload, Depends(require_otp_or_login)],
 ) -> AcademicStatusResponse:
     raw = await identity_client.get_academic_statuses()
 
     transformed = [
         AcademicStatus(
-            academicStatusId=item["nsfStatusCodeId"],
+            academic_status_id=item["nsfStatusCodeId"],
             name=item["nsfStatusCodeName"],
         )
         for item in raw
         if identity_client.is_valid_academic_status(item)
     ]
 
-    return AcademicStatusResponse(academicStatuses=transformed)
+    return AcademicStatusResponse(academic_statuses=transformed)
 
 
 @router.get(
@@ -1004,8 +1004,8 @@ async def get_academic_statuses(
     },
 )
 async def get_countries(
-    token: TokenPayload = Depends(require_otp_or_login),
-) -> CountriesResponse:
+    _token: Annotated[TokenPayload, Depends(require_otp_or_login)],
+):
     # Call the Identity Service client to get the countries
     data = await identity_client.get_countries()
 
@@ -1033,8 +1033,8 @@ async def get_countries(
     },
 )
 async def get_degrees(
-    token: TokenPayload = Depends(require_otp_or_login),
-) -> DegreesResponse:
+    _token: Annotated[TokenPayload, Depends(require_otp_or_login)],
+):
     degrees = await identity_client.get_degrees()
     return {
         "degrees": [
@@ -1064,7 +1064,7 @@ async def get_degrees(
 )
 async def get_domain_info(
     domain: str,
-    _token: TokenPayload = Depends(require_otp_or_login),
+    _token: Annotated[TokenPayload, Depends(require_otp_or_login)],
 ):
     domain_clean = domain.strip().lower()
     # Call the Identity Service client to get the domain information
@@ -1094,7 +1094,7 @@ async def get_domain_info(
     },
 )
 async def get_terms_and_conditions(
-    token: TokenPayload = Depends(require_otp_or_login),
+    _token: Annotated[TokenPayload, Depends(require_otp_or_login)],
 ) -> TermsAndConditionsResponse:
     # Call the CoManage Registry client to get active terms and conditions
     tandc = await comanage_client.get_active_tandc()

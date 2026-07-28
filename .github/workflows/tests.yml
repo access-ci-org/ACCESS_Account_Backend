@@ -1,0 +1,33 @@
+name: Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  test:
+    name: Pytest
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      # The project pins Python 3.13 via .python-version; install it explicitly
+      # since uv's managed downloads default to "manual".
+      - name: Install Python 3.13
+        run: uv python install 3.13
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      # conftest.py sets APP_CONFIG to tests/.env before importing the app, so no
+      # real secrets are needed. Coverage config lives in pyproject.toml.
+      - name: Run tests
+        run: uv run pytest --cov --cov-report=term-missing

@@ -20,3 +20,33 @@ dependencies = [
     "sqlmodel>=0.0.27",
     "tldextract>=5.3.1",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=5.0.0",
+    "respx>=0.21.1",
+]
+
+[tool.pytest.ini_options]
+# All endpoints and service clients are async; "auto" mode lets us write
+# `async def test_...` without decorating each one.
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "-ra"
+# App modules live at the project root; shared test helpers (factories.py) live
+# in tests/. Put both on sys.path so tests in any subdirectory can import them.
+pythonpath = [".", "tests"]
+
+[tool.coverage.run]
+source = ["."]
+omit = [
+    "tests/*",
+    ".venv/*",
+    "generate_token.py",
+    "main.py:main",
+]
+
+[tool.coverage.report]
+show_missing = true

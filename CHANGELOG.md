@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.12.1](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.12.0...v0.12.1) (2026-07-28)
+
+
+### Bug Fixes
+
+* fix Python type errors ([f5c6875](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/f5c6875ec701de90194274ed1304dd45022f5b96))
+* **idp:** allow multiple IdPs per domain ([eee2ca0](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/eee2ca0afb72c6bd97e8e42f53d7c85589795dbc))
+
 ## [0.12.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.11.1...v0.12.0) (2026-07-09)
 
 

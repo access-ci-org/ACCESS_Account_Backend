@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.2](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.12.1...v0.12.2) (2026-07-29)
+
+
+### Bug Fixes
+
+* **identity:** allow empty response from profile update ([758a7a8](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/758a7a8b89127dd0525ae8ecc2b88db3fe4374bf))
+
 ## [0.12.1](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.12.0...v0.12.1) (2026-07-28)
 
 

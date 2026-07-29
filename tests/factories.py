@@ -10,6 +10,7 @@ XRAS Identity-service payload builders are intentionally minimal for now and wil
 be fleshed out alongside the identity-client / account-endpoint tests.
 """
 
+import itertools
 from datetime import UTC, datetime, timedelta
 
 from services.comanage_registry_client import CoManageUser, Identifier
@@ -37,8 +38,14 @@ def expired_time(minutes: int = 5) -> datetime:
 # ---------------------------------------------------------------------------
 # CoManage Registry payloads
 # ---------------------------------------------------------------------------
-def _meta(deleted: bool = False) -> dict:
-    return {"deleted": deleted}
+_meta_id_seq = itertools.count(1)
+
+
+def _meta(deleted: bool = False, id: int | None = None) -> dict:
+    # CoManage record ids are used by production code (e.g. get_recovery_emails,
+    # delete_email_address) to distinguish/target individual records, so each
+    # call gets a distinct id unless the test needs a specific one.
+    return {"deleted": deleted, "id": id if id is not None else next(_meta_id_seq)}
 
 
 def make_name(

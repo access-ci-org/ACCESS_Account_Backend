@@ -175,7 +175,7 @@ class AccountResponse(BaseSchema):
     first_name: str
     last_name: str
     email: str
-    recovery_emails: List[RecoveryEmail] = Field(default_factory=list)
+    recovery_emails: list[RecoveryEmail] = Field(default_factory=list)
     time_zone: str | None = None
 
     # Allocations Profile (authoritative)

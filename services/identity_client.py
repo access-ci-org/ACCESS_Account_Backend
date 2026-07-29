@@ -54,10 +54,12 @@ class IdentityServiceClient(RestClient):
     async def get_degrees(self):
         return await self._request("GET", "/profiles/v1/degrees")
 
-    async def _request(self, method: str, path: str, **kwargs) -> dict | list:
+    async def _request(
+        self, method: str, path: str, allow_empty_response: bool = False, **kwargs
+    ) -> dict | list | None:
         url = f"{self.base_url}{path}"
         result = await self.request(url, method=method, headers=self.headers, **kwargs)
-        if result is None:
+        if result is None and not allow_empty_response:
             raise HTTPException(
                 status_code=502,
                 detail="Unexpected empty response from Identity Service",
@@ -236,6 +238,7 @@ class IdentityServiceClient(RestClient):
             "PATCH",
             f"/profiles/v1/people/{quote(access_id, safe='')}",
             json=person_data,
+            allow_empty_response=True,
         )
 
     # High-level methods

@@ -59,6 +59,12 @@ async def test_empty_response_raises_502(identity, respx_mock):
     assert exc.value.status_code == 502
 
 
+async def test_update_person_tolerates_204_empty_response(identity, respx_mock):
+    respx_mock.patch(f"{XRAS}/profiles/v1/people/ada").respond(204)
+    result = await identity.update_person("ada", first_name="Ada")
+    assert result is None
+
+
 # --- get_account _expect guard ----------------------------------------------
 async def test_get_account_returns_dict(identity, respx_mock):
     respx_mock.get(f"{XRAS}/profiles/v1/people/ada").respond(

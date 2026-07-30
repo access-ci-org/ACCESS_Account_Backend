@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - ramps-1120-recovery-email-updated
 
 jobs:
   release:
@@ -23,3 +24,4 @@ jobs:
         uses: googleapis/release-please-action@v4
         with:
           release-type: python
+          target-branch: ${{ github.ref_name }}

@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.13.0-beta1](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.12.2...v0.13.0-beta1) (2026-07-30)
+
+
+### Bug Fixes
+
+* **tests:** update test suite for merged recovery-email API ([929d3ce](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/929d3cece682dda80080a736f37b71e1a0293baf))
+
+
+### Miscellaneous Chores
+
+* release 0.13.0-beta1 ([c04d126](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/c04d126ac6d023b05662c1a5d1f3e65f24a71e19))
+
 ## [0.12.2](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.12.1...v0.12.2) (2026-07-29)
 
 

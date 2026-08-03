@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.12.2...v0.13.0) (2026-08-03)
+
+
+### Features
+
+* add health check route ([c39cda5](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/c39cda51756d62e1c4c2a212d06f88ec13a1f4ba))
+
 ## [0.12.2](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.12.1...v0.12.2) (2026-07-29)
 
 

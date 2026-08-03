@@ -78,6 +78,33 @@ class RestClient:
 
             return response.json() if response.content else None
 
+    async def request_status(
+        self, url: str, method: str = "GET", headers: dict | None = None
+    ) -> int:
+        """Make a lightweight request and return the raw HTTP status code.
+
+        Used for connectivity health checks: unlike `request()`, this always
+        returns the status code -- even for a 4xx/5xx response -- instead of
+        raising or parsing a JSON body, since getting any response at all is
+        what a health check cares about.
+        """
+        if headers is None:
+            headers = {}
+        client_kwargs = {}
+        if self.username and self.password:
+            client_kwargs["auth"] = httpx.BasicAuth(
+                username=self.username, password=str(self.password)
+            )
+
+        request_headers = {"Accept": "application/json"}
+        request_headers.update(headers)
+
+        async with httpx.AsyncClient(**client_kwargs) as client:
+            response = await client.request(
+                method, url, headers=request_headers, timeout=self.timeout
+            )
+            return response.status_code
+
     def _expect(
         self,
         result: dict | list | None,

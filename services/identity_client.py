@@ -54,6 +54,11 @@ class IdentityServiceClient(RestClient):
     async def get_degrees(self):
         return await self._request("GET", "/profiles/v1/degrees")
 
+    async def ping(self) -> int:
+        """Make a lightweight, uncached request and return the HTTP status code."""
+        url = f"{self.base_url}/profiles/v1/nsf_status_codes"
+        return await self.request_status(url, headers=self.headers)
+
     async def _request(
         self, method: str, path: str, allow_empty_response: bool = False, **kwargs
     ) -> dict | list | None:

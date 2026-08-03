@@ -10,6 +10,7 @@ from config import (
     CILOGON_LOGIN_CLIENT_SECRET,
     CILOGON_TOKEN_URL,
     CILOGON_USER_INFO_URL,
+    CILOGON_WELL_KNOWN_URL,
 )
 from services.rest_client import RestClient
 
@@ -35,6 +36,10 @@ class CILogonClient(RestClient):
             CILOGON_USER_INFO_URL, headers={"Authorization": f"Bearer {access_token}"}
         )
         return self._expect(result, dict)
+
+    async def ping(self) -> int:
+        """Make a lightweight, unauthenticated request and return the HTTP status code."""
+        return await self.request_status(CILOGON_WELL_KNOWN_URL)
 
 
 async def get_token_user_info(

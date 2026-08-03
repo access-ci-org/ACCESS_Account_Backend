@@ -172,6 +172,12 @@ class CoManageRegistryClient(RestClient):
         )
         return CoManageUser(self._expect(user_info, dict))
 
+    async def ping(self) -> int:
+        """Make a lightweight request and return the HTTP status code."""
+        params = {"coid": self.coid}
+        url = f"{self.base_url}/registry/co_terms_and_conditions.json?{urlencode(params)}"
+        return await self.request_status(url)
+
     async def get_active_tandc(self) -> dict | None:
         """Return the first active Terms and Conditions element.
 

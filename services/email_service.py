@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 import boto3
@@ -28,6 +29,12 @@ ses = boto3.client(
     aws_access_key_id=str(AWS_ACCESS_KEY),
     aws_secret_access_key=str(AWS_SECRET_ACCESS_KEY),
 )
+
+
+async def ping() -> int:
+    """Make a free, read-only SES request and return the HTTP status code."""
+    response = await asyncio.to_thread(ses.get_send_quota)
+    return response["ResponseMetadata"]["HTTPStatusCode"]
 
 
 def send_verification_email(email, otp):

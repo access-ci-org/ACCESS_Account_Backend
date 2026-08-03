@@ -44,6 +44,10 @@ CILOGON_TOKEN_URL: str = config(
 CILOGON_USER_INFO_URL: str = config(
     "CILOGON_USER_INFO_URL", default="https://cilogon.org/oauth2/userinfo"
 )
+CILOGON_WELL_KNOWN_URL: str = config(
+    "CILOGON_WELL_KNOWN_URL",
+    default="https://cilogon.org/.well-known/openid-configuration",
+)
 
 # COManage Registry
 COMANAGE_REGISTRY_BASE_URL: str = config("COMANAGE_REGISTRY_BASE_URL")

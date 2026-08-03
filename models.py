@@ -220,6 +220,19 @@ class OidcInfoResponse(BaseSchema):
     client_ids: OidcClientIds
 
 
+class ServiceHealth(BaseSchema):
+    reachable: bool
+    status_code: int | None = None
+    detail: str | None = None
+
+
+class HealthCheckResponse(BaseSchema):
+    comanage_registry: ServiceHealth
+    cilogon: ServiceHealth
+    identity_service: ServiceHealth
+    aws_ses: ServiceHealth
+
+
 class OidcTokenRequest(BaseSchema):
     client_id: str
     code: str | None = None

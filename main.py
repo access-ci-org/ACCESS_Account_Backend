@@ -1,3 +1,4 @@
+import ssl
 import string
 import xml.etree.ElementTree as ET
 from asyncio import gather
@@ -9,6 +10,7 @@ from typing import Annotated
 import httpx
 import jwt
 from botocore.exceptions import ClientError
+from botocore.exceptions import ConnectionError as BotoConnectionError
 from fastapi import (
     APIRouter,
     Depends,
@@ -56,6 +58,7 @@ from models import (
     CreateAccountRequest,
     DegreesResponse,
     DomainResponse,
+    HealthCheckResponse,
     IdentitiesResponse,
     Identity,
     IdP,
@@ -79,8 +82,11 @@ from services.account_service import (
     safe_get,
 )
 from services.cilogon_client import CILogonClient
+from services.comanage_registry_client import CoManageRegistryClient
+from services.email_service import ping as ses_ping
 from services.email_service import send_verification_email, ses
 from services.identity_client import Degree as IdentityDegree
+from services.identity_client import IdentityServiceClient
 from services.idp_service import build_idp_domain_mapping
 from services.logs_service import logger
 from services.otp_service import (
@@ -181,6 +187,56 @@ app.add_middleware(
 
 # Create router with /api/v1 prefix
 router = APIRouter(prefix="/api/v1")
+
+
+# Health Routes
+async def _check_service_health(probe) -> dict:
+    """Run a connectivity probe and report whether the service was reachable.
+
+    `probe()` returns the actual HTTP status code on success (even a 4xx/5xx
+    counts as "reachable" -- we got a response). Only a connection-level
+    failure (timeout, DNS, TLS, refused connection) counts as unreachable.
+    """
+    try:
+        status_code = await probe()
+    except ClientError as exc:
+        # AWS responded (even with an auth/permissions error) -- still reachable.
+        error = exc.response.get("Error", {})
+        status_code = exc.response.get("ResponseMetadata", {}).get("HTTPStatusCode")
+        return {"reachable": True, "status_code": status_code, "detail": error.get("Code")}
+    except (httpx.RequestError, ssl.SSLError, BotoConnectionError) as exc:
+        return {"reachable": False, "status_code": None, "detail": str(exc)}
+    return {"reachable": True, "status_code": status_code, "detail": None}
+
+
+@router.get(
+    "/health",
+    tags=["Health"],
+    summary="Check backend service connectivity",
+    description="Make parallel connectivity checks against CoManage Registry, "
+    "CILogon, the Identity Service, and AWS SES, and report whether each is "
+    "reachable. Always returns HTTP 200 -- inspect the response body for "
+    "per-service status.",
+    responses={200: {"description": "Per-service reachability report"}},
+    response_model=HealthCheckResponse,
+)
+async def health_check():
+    comanage_probe = CoManageRegistryClient()
+    identity_probe = IdentityServiceClient()
+    cilogon_probe = CILogonClient()
+
+    comanage_result, cilogon_result, identity_result, aws_ses_result = await gather(
+        _check_service_health(comanage_probe.ping),
+        _check_service_health(cilogon_probe.ping),
+        _check_service_health(identity_probe.ping),
+        _check_service_health(ses_ping),
+    )
+    return {
+        "comanage_registry": comanage_result,
+        "cilogon": cilogon_result,
+        "identity_service": identity_result,
+        "aws_ses": aws_ses_result,
+    }
 
 
 # Auth Routes

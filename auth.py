@@ -19,7 +19,7 @@ from models import TokenPayload
 from services.cilogon_client import get_token_user_info
 
 security = HTTPBearer(auto_error=False)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("access_account_api.auth")
 
 
 def create_access_token(

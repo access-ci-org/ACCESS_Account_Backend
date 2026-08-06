@@ -21,6 +21,7 @@ CORS_ORIGINS: CommaSeparatedStrings = config(
 )
 DATABASE_URL: str = config("DATABASE_URL", default="sqlite:///./otp_database.db")
 DEBUG: bool = config("DEBUG", cast=bool, default=False)
+LOG_FILE_PATH: str = config("LOG_FILE_PATH", default="access_account_api.log")
 
 # AWS SES Configuration
 AWS_ACCESS_KEY: Secret = config("AWS_ACCESS_KEY", cast=Secret)

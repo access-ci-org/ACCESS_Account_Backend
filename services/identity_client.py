@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from functools import partial
 from typing import TypedDict
 from urllib.parse import quote
@@ -91,6 +92,7 @@ class IdentityServiceClient(RestClient):
             "nsfStatusCodeId": academic_status_id,
             "countryId": residence_country_id,
             "department": department,
+            "profileVerificationDate": datetime.now(UTC).date().isoformat(),
             "citizenships": [
                 {"countryId": country_id}
                 for country_id in citizenship_country_ids or []

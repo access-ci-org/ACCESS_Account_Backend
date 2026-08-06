@@ -656,7 +656,7 @@ async def update_account(
 
     # If the email address has changed, check that we have a valid OTP token
     # proving that the user owns the new email address.
-    if email != prev_email:
+    if prev_email is None or email.lower() != prev_email.lower():
         error_message = "Invalid email OTP token"
         error_status = status.HTTP_400_BAD_REQUEST
         if not account_request.email_otp_token:
@@ -671,7 +671,7 @@ async def update_account(
                 status_code=error_status,
                 detail=error_message,
             )
-        if email_token.typ != "otp" or email_token.sub != email:
+        if email_token.typ != "otp" or email_token.sub.lower() != email.lower():
             raise HTTPException(
                 status_code=error_status,
                 detail=error_message,

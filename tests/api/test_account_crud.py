@@ -169,3 +169,33 @@ def test_update_account_email_change_with_valid_token(
         json={"email": "new@example.org", "emailOtpToken": email_token},
     )
     assert resp.status_code == 200
+
+
+def test_update_account_email_change_with_differently_cased_token(
+    client, override_auth, mock_comanage, mock_identity
+):
+    override_auth(main.require_username_access, uid="ada")
+    _mock_update_happy(mock_comanage, mock_identity)
+    # The OTP token always stores the lowercased email, but the user may
+    # submit the new email with different casing than they verified.
+    email_token = create_access_token(sub="new@example.org", token_type="otp")
+
+    resp = client.post(
+        f"{BASE}/account/ada",
+        json={"email": "New@Example.org", "emailOtpToken": email_token},
+    )
+    assert resp.status_code == 200
+
+
+def test_update_account_email_case_only_change_does_not_require_otp(
+    client, override_auth, mock_comanage, mock_identity
+):
+    override_auth(main.require_username_access, uid="ada")
+    # Existing account email differs only in case from the submitted email.
+    _mock_update_happy(mock_comanage, mock_identity, email="Ada@Example.org")
+
+    resp = client.post(
+        f"{BASE}/account/ada",
+        json={"email": "ada@example.org"},
+    )
+    assert resp.status_code == 200

@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.14.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.13.0...v0.14.0) (2026-08-07)
+
+
+### Features
+
+* **logs:** add an explicit log path ([95523cd](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/95523cd70be3a406a1ac8cea2f2e1efc74c4938f))
+
+
+### Bug Fixes
+
+* **identity:** set profile verification date when creating/updating ([383519a](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/383519a0b2f0157790c2f2a39d63a86f239bf660))
+* use case-insensitive comparison for email ([663b0c0](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/663b0c056c69415ae7501ed5c54874c19205d821))
+
 ## [0.13.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.12.2...v0.13.0) (2026-08-03)
 
 

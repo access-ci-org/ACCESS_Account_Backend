@@ -101,7 +101,7 @@ def test_get_account_merges_comanage_and_identity(
     assert body["username"] == "ada"
     assert body["firstName"] == "Ada"
     assert body["lastName"] == "Lovelace"
-    assert body["email"] == "ada@example.org"
+    assert body["emails"] == [{"email": "ada@example.org", "primary": True}]
     assert body["timeZone"] == "America/New_York"
     assert body["organizationId"] == 7
     assert body["citizenshipCountryIds"] == [2, 3]

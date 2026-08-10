@@ -589,8 +589,8 @@ async def get_account(
     comanage_last = primary_name.get("family")
     comanage_tz = safe_get(comanage_user, "CoPerson", "timezone")
     primary_email = comanage_user.get_primary_email()
-    recovery_emails = [
-        {"email": e["mail"], "verified": e["verified"]}
+    emails = [{"email": primary_email, "primary": True}] + [
+        {"email": e["mail"], "primary": False}
         for e in comanage_user.get_recovery_emails()
     ]
 
@@ -616,8 +616,7 @@ async def get_account(
         "username": username,
         "first_name": comanage_first,
         "last_name": comanage_last,
-        "email": primary_email,
-        "recovery_emails": recovery_emails,
+        "emails": emails,
         "time_zone": comanage_tz,
         "organization_id": organization_id,
         "academic_status_id": academic_status_id,

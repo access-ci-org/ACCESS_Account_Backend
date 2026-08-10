@@ -296,9 +296,9 @@ Return the profile information for the user.
 	"username": "jdoe",
 	"firstName": "Jane",
 	"lastName": "Doe",
-	"email": "jdoe@example.edu",
-	"recoveryEmails": [
-		{"email": "jdoe2@other.edu", "verified": true}
+	"emails": [
+		{"email": "jdoe@example.edu", "primary": true},
+		{"email": "jdoe2@other.edu", "primary": false}
 	],
 	"timeZone": "America/New_York",
 	"organizationId": 123,

@@ -61,6 +61,11 @@ class EmailEntry(BaseSchema):
     otp_token: str | None = None
 
 
+class AccountEmailEntry(BaseSchema):
+    email: str
+    primary: bool
+
+
 class UpdateAccountRequest(BaseSchema):
     first_name: str | None = None
     last_name: str | None = None
@@ -164,18 +169,14 @@ class DomainResponse(BaseSchema):
     idps: list[IdP] = Field(default_factory=list)
 
 
-class RecoveryEmail(BaseSchema):
-    email: str
-    verified: bool
-
-
 class AccountResponse(BaseSchema):
     # CoManage Registry (authoritative)
     username: str
     first_name: str
     last_name: str
-    email: str
-    recovery_emails: list[RecoveryEmail] = Field(default_factory=list)
+    # The full set of email addresses on the account, with exactly one marked
+    # as primary.
+    emails: list[AccountEmailEntry] = Field(default_factory=list)
     time_zone: str | None = None
 
     # Allocations Profile (authoritative)

@@ -41,6 +41,14 @@ JWT_AUDIENCE=https://account.access-ci.org
 CORS_ORIGINS=http://localhost:3000,https://access-ci-org.github.io
 DEBUG=false
 FRONTEND_URL=http://localhost:3000
+
+# Optional: comma-separated ACCESS usernames granted administrative access
+# (e.g., to read or update any user's profile)
+ADMIN_USERNAMES=
+
+# Optional: backing store for rate limiting (defaults to in-memory, which is
+# not shared across multiple worker processes)
+RATE_LIMIT_STORAGE_URL=memory://
 ```
 
 **Important:** The `JWT_SECRET_KEY` is required and must be set. The application will fail to start without it.
@@ -80,8 +88,25 @@ The other routes authenticate using one or both of these JWT types via the Autho
 
 ## Routes
 
+### GET `/health`
+Make parallel connectivity checks against CoManage Registry, CILogon, the Identity Service, and AWS SES, and report whether each is reachable. Always returns HTTP 200; inspect the response body for per-service status. Does not require authentication.
+
+#### Response Types
+
+##### HTTP 200
+```json
+{
+	"comanageRegistry": {"reachable": true, "statusCode": 200, "detail": null},
+	"cilogon": {"reachable": true, "statusCode": 200, "detail": null},
+	"identityService": {"reachable": true, "statusCode": 200, "detail": null},
+	"awsSes": {"reachable": true, "statusCode": 200, "detail": null}
+}
+```
+
 ### POST `/auth/send-otp`
 Send a one-time password (OTP) to the specified email, if it exists. In order to avoid revealing whether the email has an associated account, we should send the OTP regardless of whether the domain is allowed by ACCESS. Prohibited domains will be flagged after the user enters the OTP.
+
+This route is rate-limited to 1000 requests/day per IP address and 4 requests/hour per email address.
 
 #### Request Body
 ```json
@@ -97,6 +122,9 @@ The OTP was sent.
 
 ##### HTTP 400
 The OTP could not be sent (e.g., due to a malformed email address).
+
+##### HTTP 429
+The rate limit was exceeded (by IP address or by email address).
 
 ### POST `/auth/verify-otp`
 Verify an OTP provided by the user.
@@ -157,19 +185,19 @@ Exchange an authorization code for OIDC tokens, or refresh existing tokens using
 }
 ```
 
-For token refresh, use `grant_type: "refresh_token"` and provide `refresh_token` instead of `code`.
+For token refresh, use `grant_type: "refresh_token"` and provide `refresh_token` instead of `code`. `redirect_uri` is still required by the request schema even when refreshing.
 
 #### Response Types
 
 ##### HTTP 200
-Return the OIDC tokens. `is_admin` is only populated for the login client.
+Return the OIDC tokens. `isAdmin` is only populated (and only meaningful) for the login client, based on whether the CILogon username is in `ADMIN_USERNAMES`.
 
 ```json
 {
-	"access_token": "<access_token>",
-	"id_token": "<id_token>",
-	"refresh_token": "<refresh_token>",
-	"is_admin": false
+	"accessToken": "<access_token>",
+	"idToken": "<id_token>",
+	"refreshToken": "<refresh_token>",
+	"isAdmin": false
 }
 ```
 
@@ -207,39 +235,53 @@ The JWT is invalid
 No account was found for the provided email address
 
 ### POST `/account`
-Create a new account.
+Create a new account. The email address is taken from the `sub` claim of the OTP JWT, not from the request body.
 
 #### Request Headers
-- `Authorization`: containing a JWT of type `otp` or `login`.
+- `Authorization`: containing a JWT of type `otp`.
 
 #### Request Body
+`cilogonToken` is optional; if provided (a CILogon access token from another IdP obtained outside this OTP flow), a second linked identity is created for that IdP in addition to the ACCESS IdP identity.
+
 ```json
 {
 	"firstName": "Jane",
 	"lastName": "Doe",
-	"organizationId": 123
+	"organizationId": 123,
+	"academicStatusId": 101,
+	"residenceCountryId": 201,
+	"citizenshipCountryIds": [201],
+	"department": "Computer Science",
+	"cilogonToken": ""
 }
 ```
 
 #### Response Types
 
 ##### HTTP 200
-The account was created.
-
-##### HTTP 400
-The input failed validation (e.g., the organization does not match the e-mail domain or an account for that email address already exists). Return an error message indicating the problem.
+The account was created. Returns the newly created ACCESS ID.
 
 ```json
 {
-	"error": "Organization does not match email domain."
+	"success": true,
+	"access_id": "jdoe"
+}
+```
+
+##### HTTP 400
+The input failed validation (e.g., the organization does not match the e-mail domain, the academic status ID is invalid, or an account for that email address already exists). Return an error message indicating the problem.
+
+```json
+{
+	"detail": "Organization does not match email domain."
 }
 ```
 
 ##### HTTP 403
-The JWT is invalid.
+The JWT is invalid or is not of type `otp`.
 
 ### GET `/account/<username>`
-Get the profile for the given account.
+Get the profile for the given account. Data is merged from CoManage Registry (name, email addresses, time zone) and the Identity Service (organization, academic status, country/citizenship, degrees, department).
 
 #### Request Headers
 - `Authorization`: containing a JWT of type `login`. The uid claim must match the requested username, or be an administrative user.
@@ -252,10 +294,21 @@ Return the profile information for the user.
 ```json
 {
 	"username": "jdoe",
-	"email": "jdoe@example.edu",
 	"firstName": "Jane",
 	"lastName": "Doe",
-	"organizationId": 123
+	"email": "jdoe@example.edu",
+	"recoveryEmails": [
+		{"email": "jdoe2@other.edu", "verified": true}
+	],
+	"timeZone": "America/New_York",
+	"organizationId": 123,
+	"academicStatusId": 101,
+	"residenceCountryId": 201,
+	"citizenshipCountryIds": [201],
+	"degrees": [
+		{"degreeId": 1, "degreeField": "Computer Science"}
+	],
+	"department": "Computer Science"
 }
 ```
 
@@ -263,26 +316,38 @@ Return the profile information for the user.
 The JWT is invalid or the user does not have permission to access the account.
 
 ##### HTTP 404
-The requested user does not exist.
+The requested user does not exist, or does not have a primary name on record.
 
 ### POST `/account/<username>`
-Update the profile information for an account.
+Update the profile information for an account. All fields are optional; omitted fields are left unchanged. Fields set to `null`/omitted are not modified, but fields that are provided always replace the existing value (there is no partial update of a list field like `emails`, `citizenshipCountryIds`, or `degrees`).
 
 #### Request Headers
 - `Authorization`: containing a JWT of type `login`. The uid claim must match the requested username, or be an administrative user.
 
 #### Request Body
-If email is different from the email in the Authorization header (i.e., the user is changing their email address), a valid `emailJWT` of type `otp` must be provided to prove that the user owns the new email address. The new email domain must also match organizationId.
+If an `emails` list is provided, it fully replaces the account's email addresses and exactly one entry must be marked `primary`. Any address in the list that is not already on the account's CoManage record must include a valid `otpToken` (a JWT of type `otp` whose `sub` matches that email address) proving ownership; this applies to new primary and new recovery addresses alike. The domain of the resulting primary email must match `organizationId`.
 
 ```json
 {
 	"firstName": "Jane",
 	"lastName": "Doe",
-	"email": "jdoe2@other.edu",
-	"emailJWT": "<jwt_for_jdoe2>",
-	"organizationId": 123
+	"emails": [
+		{"email": "jdoe@example.edu", "primary": true},
+		{"email": "jdoe2@other.edu", "primary": false, "otpToken": "<jwt_for_jdoe2>"}
+	],
+	"organizationId": 123,
+	"academicStatusId": 101,
+	"residenceCountryId": 201,
+	"citizenshipCountryIds": [201],
+	"degrees": [
+		{"degreeId": 1, "degreeField": "Computer Science"}
+	],
+	"timeZone": "America/New_York",
+	"department": "Computer Science"
 }
 ```
+
+The request schema also accepts a `programRole` field, but the handler does not currently apply it to either backing store.
 
 #### Response Types
 
@@ -290,11 +355,11 @@ If email is different from the email in the Authorization header (i.e., the user
 The account profile was updated.
 
 ##### HTTP 400
-The input failed validation (e.g., the organization does not match the e-mail domain). Return an error message indicating the problem.
+The input failed validation (e.g., not exactly one primary email, a missing/invalid `otpToken` for a new email address, an invalid academic status ID, or the primary email's domain does not match the organization). Return a message describing the problem.
 
 ```json
 {
-	"error": "Country of residence is not the United States."
+	"detail": "Exactly one email address must be marked as primary."
 }
 ```
 
@@ -324,15 +389,21 @@ The password does not conform to the ACCESS password policy. Return a message de
 
 ```json
 {
-	"error": "Passwords must be at least 12 characters."
+	"detail": "The password does not conform to the ACCESS password policy."
 }
 ```
 
 ##### HTTP 403
 The JWT is invalid or the user does not have permission to update the password.
 
+##### HTTP 404
+The account or password record was not found.
+
+##### HTTP 502
+The password update failed in CoManage Registry.
+
 ### GET `/account/<username>/identity`
-Get a list of identities associated with this account.
+Get a list of identities associated with this account. Each identity corresponds to an `OrgIdentity` record in CoManage (one per linked IdP, including the ACCESS IdP itself) and includes its raw `Identifier` records.
 
 #### Request Headers
 - `Authorization`: containing a JWT of type `login`. The uid claim must match the requested username, or be an administrative user.
@@ -340,15 +411,17 @@ Get a list of identities associated with this account.
 #### Response Types
 
 ##### HTTP 200
-Return the list of linked identities with their ePPN (eduPersonPrincipalName).
+Return the list of linked identities.
 
 ```json
 {
 	"identities": [
 		{
 			"identityId": 15,
-			"eppn": "jdoe15@example.edu",
-			"organization": "Example University"
+			"organization": "Example University",
+			"identifiers": [
+				{"type": "eppn", "identifier": "jdoe15@example.edu", "login": true}
+			]
 		}
 	]
 }
@@ -361,21 +434,37 @@ The JWT is invalid or the user does not have permission to access the account.
 The requested user does not exist.
 
 ### POST `/account/<username>/identity`
-Start the process of linking a new identity.
+Link a new identity to the account using a CILogon access token obtained from the link client (via `POST /auth/oauth2/token` with the link client ID).
 
 #### Request Headers
 - `Authorization`: containing a JWT of type `login`. The uid claim must match the requested username.
 
+#### Request Body
+```json
+{
+	"cilogonToken": "<cilogon_access_token>"
+}
+```
+
 #### Response Types
 
-##### HTTP 307
-Redirect to CILogon to start the linking flow. The frontend should exchange the resulting authorization code via `POST /auth/oauth2/token` using the link client ID, then call the appropriate account endpoint to complete linking.
+##### HTTP 200
+The identity was linked.
+
+```json
+{
+	"success": true
+}
+```
+
+##### HTTP 400
+The requested username does not exist.
 
 ##### HTTP 403
 The JWT is invalid or the user does not have permission to modify the account.
 
 ### DELETE `/account/<username>/identity/<identity_id>`
-Delete a linked identity.
+Delete a linked identity, including its `Identifier` records on both the `OrgIdentity` and the parent `CoPerson`, then unlink and delete the `OrgIdentity` itself.
 
 #### Request Headers
 - `Authorization`: containing a JWT of type `login`. The uid claim must match the requested username.
@@ -385,12 +474,18 @@ Delete a linked identity.
 ##### HTTP 200
 The linked identity was deleted.
 
+```json
+{
+	"success": true
+}
+```
+
 ##### HTTP 400
-The specified identity cannot be deleted (e.g., it is the last one associated with this account). Return a message describing the problem.
+The specified identity cannot be deleted (the ACCESS IdP identity, i.e. an identifier of type `eppn` ending in `@access-ci.org`, can never be deleted) or the requested username does not exist. Return a message describing the problem.
 
 ```json
 {
-	"error": "Each account must have at least one identity."
+	"detail": "The ACCESS identity cannot be deleted"
 }
 ```
 
@@ -448,11 +543,11 @@ Add a new SSH key to the account.
 The key was added successfully.
 
 ##### HTTP 400
-The provided key is not valid or is already associated with another account. Return a message describing the problem.
+The provided key is not valid (e.g., empty) or is already associated with another account. Return a message describing the problem.
 
 ```json
 {
-	"error": "Invalid public key."
+	"detail": "The provided key is not valid."
 }
 ```
 
@@ -541,7 +636,7 @@ Return a list of possible academic degrees.
 {
 	"degrees": [
 		{
-			"degree_id": 1,
+			"degreeId": 1,
 			"name": "Bachelor's"
 		}
 	]
@@ -560,13 +655,39 @@ Get information about an email domain, including whether it meets ACCESS eligibi
 #### Response Types
 
 ##### HTTP 200
-Return lists or associated organizations and idps for the domain.
+Return lists of associated organizations and IdPs for the domain. `organizations` is the full XRAS organization record for each match; `idps` is omitted for organizations that set `ignoreIdp`.
 
 ```json
 {
 	"domain": "example.edu",
-	"organizations": [],
-	"idps": []
+	"organizations": [
+		{
+			"organizationId": 123,
+			"orgTypeId": 1,
+			"organizationAbbrev": "EXU",
+			"organizationName": "Example University",
+			"organizationUrl": "https://example.edu",
+			"organizationPhone": null,
+			"nsfOrgCode": null,
+			"isReconciled": true,
+			"amieName": null,
+			"countryId": 201,
+			"stateId": null,
+			"latitude": null,
+			"longitude": null,
+			"isMsi": false,
+			"isActive": true,
+			"isEligible": true,
+			"carnegieCategories": [],
+			"state": null,
+			"country": "United States",
+			"orgType": "Academic",
+			"ignoreIdp": false
+		}
+	],
+	"idps": [
+		{"displayName": "Example University", "entityId": "urn:mace:example.edu"}
+	]
 }
 ```
 

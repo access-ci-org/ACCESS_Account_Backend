@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.15.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.14.0...v0.15.0) (2026-08-10)
+
+
+### Features
+
+* add recovery email management ([5edf691](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/5edf691e877981a37f6ba8c4b9bb39f0457bb125))
+
+
+### Bug Fixes
+
+* use combined email list for get account route ([e5aebd6](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/e5aebd6f048040bb1de2adfd77f9cc254b7099b9))
+
+
+### Documentation
+
+* update readme to match current routes ([1c17605](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/1c176053e1bb00b4d0d8dd4e8705963457af3960))
+
 ## [0.14.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.13.0...v0.14.0) (2026-08-07)
 
 ### Features

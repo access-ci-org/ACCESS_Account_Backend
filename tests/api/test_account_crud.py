@@ -152,8 +152,11 @@ def test_update_account_email_change_requires_otp_token(
     override_auth(main.require_username_access, uid="ada")
     _mock_update_happy(mock_comanage, mock_identity)
 
-    # New email but no emailOtpToken -> 400.
-    resp = client.post(f"{BASE}/account/ada", json={"email": "new@example.org"})
+    # New primary email but no otpToken -> 400.
+    resp = client.post(
+        f"{BASE}/account/ada",
+        json={"emails": [{"email": "new@example.org", "primary": True}]},
+    )
     assert resp.status_code == 400
 
 
@@ -166,7 +169,15 @@ def test_update_account_email_change_with_valid_token(
 
     resp = client.post(
         f"{BASE}/account/ada",
-        json={"email": "new@example.org", "emailOtpToken": email_token},
+        json={
+            "emails": [
+                {
+                    "email": "new@example.org",
+                    "primary": True,
+                    "otpToken": email_token,
+                }
+            ]
+        },
     )
     assert resp.status_code == 200
 

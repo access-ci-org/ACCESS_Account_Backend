@@ -203,7 +203,11 @@ async def _check_service_health(probe) -> dict:
         # AWS responded (even with an auth/permissions error) -- still reachable.
         error = exc.response.get("Error", {})
         status_code = exc.response.get("ResponseMetadata", {}).get("HTTPStatusCode")
-        return {"reachable": True, "status_code": status_code, "detail": error.get("Code")}
+        return {
+            "reachable": True,
+            "status_code": status_code,
+            "detail": error.get("Code"),
+        }
     except (httpx.RequestError, ssl.SSLError, BotoConnectionError) as exc:
         return {"reachable": False, "status_code": None, "detail": str(exc)}
     return {"reachable": True, "status_code": status_code, "detail": None}
@@ -585,6 +589,10 @@ async def get_account(
     comanage_last = primary_name.get("family")
     comanage_tz = safe_get(comanage_user, "CoPerson", "timezone")
     primary_email = comanage_user.get_primary_email()
+    recovery_emails = [
+        {"email": e["mail"], "verified": e["verified"]}
+        for e in comanage_user.get_recovery_emails()
+    ]
 
     # Identity Service values
     organization_id = identity_person.get("organizationId")
@@ -609,6 +617,7 @@ async def get_account(
         "first_name": comanage_first,
         "last_name": comanage_last,
         "email": primary_email,
+        "recovery_emails": recovery_emails,
         "time_zone": comanage_tz,
         "organization_id": organization_id,
         "academic_status_id": academic_status_id,
@@ -624,8 +633,10 @@ async def get_account(
     tags=["Account"],
     summary="Update account profile",
     description="Update the profile information for an account. "
-    "If email is different from the email in the Authorization header, "
-    "a valid emailJWT of type 'otp' must be provided to prove that the user owns the new email address.",
+    "If an 'emails' list is provided it fully replaces the account's email "
+    "addresses (exactly one must be marked primary). Any address that is new to "
+    "the account must include a valid OTP token (type 'otp') proving ownership; "
+    "recovery addresses are exempt from the primary-email eligibility check.",
     responses={
         200: {"description": "The account profile was updated"},
         400: {
@@ -646,41 +657,54 @@ async def update_account(
     prev_email = comanage_user.get_primary_email()
     prev_organization_id = identity_person["organizationId"]
 
-    email = account_request.email or prev_email
-    if email is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Account does not have an email address on file",
-        )
     organization_id = account_request.organization_id or prev_organization_id
 
-    # If the email address has changed, check that we have a valid OTP token
-    # proving that the user owns the new email address.
-    if prev_email is None or email.lower() != prev_email.lower():
-        error_message = "Invalid email OTP token"
-        error_status = status.HTTP_400_BAD_REQUEST
-        if not account_request.email_otp_token:
+    # Resolve the desired set of email addresses (with exactly one primary). If no
+    # emails were supplied, the account's addresses are left unchanged.
+    desired_emails = None
+    primary_email = prev_email
+    if account_request.emails is not None:
+        if sum(1 for e in account_request.emails if e.primary) != 1:
             raise HTTPException(
-                status_code=error_status,
-                detail=error_message,
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Exactly one email address must be marked as primary.",
             )
-        try:
-            email_token = decode_otp_token(account_request.email_otp_token)
-        except (jwt.InvalidTokenError, jwt.DecodeError, jwt.ExpiredSignatureError):
-            raise HTTPException(
-                status_code=error_status,
-                detail=error_message,
-            )
-        if email_token.typ != "otp" or email_token.sub.lower() != email.lower():
-            raise HTTPException(
-                status_code=error_status,
-                detail=error_message,
-            )
+        desired_emails = [
+            {
+                "mail": e.email.strip().lower(),
+                "primary": e.primary,
+                "otp_token": e.otp_token,
+            }
+            for e in account_request.emails
+        ]
+        primary_email = next(e["mail"] for e in desired_emails if e["primary"])
 
-    # Check that the email maches the organization. We need to perform this check
+        # Addresses already on the record (any type). Recovery emails are exempt from
+        # eligibility, but any address that is NEW to the record must be proven with
+        # a valid OTP token, primary or not.
+        existing_addresses = {
+            e["mail"].lower()
+            for e in comanage_user.get("EmailAddress", [])
+            if not e["meta"]["deleted"]
+        }
+        for entry in desired_emails:
+            if entry["mail"] in existing_addresses:
+                continue
+            error_message = "Invalid email OTP token"
+            error_status = status.HTTP_400_BAD_REQUEST
+            if not entry["otp_token"]:
+                raise HTTPException(status_code=error_status, detail=error_message)
+            try:
+                email_token = decode_otp_token(entry["otp_token"])
+            except (jwt.InvalidTokenError, jwt.DecodeError, jwt.ExpiredSignatureError):
+                raise HTTPException(status_code=error_status, detail=error_message)
+            if email_token.typ != "otp" or email_token.sub != entry["mail"]:
+                raise HTTPException(status_code=error_status, detail=error_message)
+
+    # Check that the PRIMARY email matches the organization. We perform this check
     # even if neither the organization nor email has changed because some profiles
-    # already have invalid combinations.
-    domain = email.strip().split("@")[1]
+    # already have invalid combinations. Recovery emails are not subject to this check.
+    domain = primary_email.strip().split("@")[1]
     organization_name = await identity_client.check_organization_matches_domain(
         organization_id, domain
     )
@@ -689,7 +713,9 @@ async def update_account(
         username,
         first_name=account_request.first_name,
         last_name=account_request.last_name,
-        email=account_request.email,
+        emails=[{"mail": e["mail"], "primary": e["primary"]} for e in desired_emails]
+        if desired_emails is not None
+        else None,
         organization=organization_name,
         time_zone=account_request.time_zone,
         user=comanage_user,
@@ -712,7 +738,9 @@ async def update_account(
         username,
         first_name=account_request.first_name,
         last_name=account_request.last_name,
-        email=account_request.email,
+        # The identity service stores only the primary email; leave it unchanged
+        # when no email set was supplied.
+        email=primary_email if account_request.emails is not None else None,
         organization_id=organization_id,
         academic_status_id=account_request.academic_status_id,
         residence_country_id=account_request.residence_country_id,

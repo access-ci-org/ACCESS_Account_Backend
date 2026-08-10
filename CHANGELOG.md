@@ -2,227 +2,207 @@
 
 ## [0.14.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.13.0...v0.14.0) (2026-08-07)
 
-
 ### Features
 
-* **logs:** add an explicit log path ([95523cd](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/95523cd70be3a406a1ac8cea2f2e1efc74c4938f))
+- **logs:** add an explicit log path ([95523cd](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/95523cd70be3a406a1ac8cea2f2e1efc74c4938f))
 
+## [0.13.0-beta1](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.12.2...v0.13.0-beta1) (2026-07-30)
 
 ### Bug Fixes
 
-* **identity:** set profile verification date when creating/updating ([383519a](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/383519a0b2f0157790c2f2a39d63a86f239bf660))
-* use case-insensitive comparison for email ([663b0c0](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/663b0c056c69415ae7501ed5c54874c19205d821))
+- **identity:** set profile verification date when creating/updating ([383519a](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/383519a0b2f0157790c2f2a39d63a86f239bf660))
+- use case-insensitive comparison for email ([663b0c0](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/663b0c056c69415ae7501ed5c54874c19205d821))
 
 ## [0.13.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.12.2...v0.13.0) (2026-08-03)
 
-
 ### Features
 
-* add health check route ([c39cda5](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/c39cda51756d62e1c4c2a212d06f88ec13a1f4ba))
+- add health check route ([c39cda5](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/c39cda51756d62e1c4c2a212d06f88ec13a1f4ba))
+
+- **tests:** update test suite for merged recovery-email API ([929d3ce](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/929d3cece682dda80080a736f37b71e1a0293baf))
+
+### Miscellaneous Chores
+
+- release 0.13.0-beta1 ([c04d126](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/c04d126ac6d023b05662c1a5d1f3e65f24a71e19))
 
 ## [0.12.2](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.12.1...v0.12.2) (2026-07-29)
 
-
 ### Bug Fixes
 
-* **identity:** allow empty response from profile update ([758a7a8](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/758a7a8b89127dd0525ae8ecc2b88db3fe4374bf))
+- **identity:** allow empty response from profile update ([758a7a8](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/758a7a8b89127dd0525ae8ecc2b88db3fe4374bf))
 
 ## [0.12.1](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.12.0...v0.12.1) (2026-07-28)
 
-
 ### Bug Fixes
 
-* fix Python type errors ([f5c6875](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/f5c6875ec701de90194274ed1304dd45022f5b96))
-* **idp:** allow multiple IdPs per domain ([eee2ca0](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/eee2ca0afb72c6bd97e8e42f53d7c85589795dbc))
+- fix Python type errors ([f5c6875](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/f5c6875ec701de90194274ed1304dd45022f5b96))
+- **idp:** allow multiple IdPs per domain ([eee2ca0](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/eee2ca0afb72c6bd97e8e42f53d7c85589795dbc))
 
 ## [0.12.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.11.1...v0.12.0) (2026-07-09)
 
-
 ### Features
 
-* **otp:** rate limit by email and IP address ([3a300f9](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/3a300f9bfdfec6d644cf879a768d1d7176bcca3d))
+- **otp:** rate limit by email and IP address ([3a300f9](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/3a300f9bfdfec6d644cf879a768d1d7176bcca3d))
 
 ## [0.11.1](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.11.0...v0.11.1) (2026-07-08)
 
-
 ### Bug Fixes
 
-* **otp:** increase rate limit ([5ce8c13](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/5ce8c13c64b41e1e2f03e39a8affe486f8984a63))
+- **otp:** increase rate limit ([5ce8c13](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/5ce8c13c64b41e1e2f03e39a8affe486f8984a63))
 
 ## [0.11.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.10.1...v0.11.0) (2026-06-26)
 
-
 ### Features
 
-* **domain:** ignore IdPs incompatible with CILogon ([2ac8eaf](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/2ac8eaf5ba97d249c45b112f680915abc9752d5c))
-* **models:** add ignore_idp field to Organization response ([b87765f](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/b87765fa4d32871bbfb4db3728183546c40064e4))
+- **domain:** ignore IdPs incompatible with CILogon ([2ac8eaf](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/2ac8eaf5ba97d249c45b112f680915abc9752d5c))
+- **models:** add ignore_idp field to Organization response ([b87765f](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/b87765fa4d32871bbfb4db3728183546c40064e4))
 
 ## [0.10.1](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.10.0...v0.10.1) (2026-06-12)
 
-
 ### Bug Fixes
 
-* **comanage:** update password methods for Kerberos authenticator ([592f444](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/592f444a97cf4e0209870b7464c93c807dfc25e2))
-* **otp:** send uppercase letters and numbers without lookalike chars ([5b30cb9](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/5b30cb9a1821789c0ca33d411b0a1c015a6ea534))
+- **comanage:** update password methods for Kerberos authenticator ([592f444](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/592f444a97cf4e0209870b7464c93c807dfc25e2))
+- **otp:** send uppercase letters and numbers without lookalike chars ([5b30cb9](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/5b30cb9a1821789c0ca33d411b0a1c015a6ea534))
 
 ## [0.10.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.9.0...v0.10.0) (2026-06-10)
 
-
 ### Features
 
-* **comanage:** set IdP name in OrgIdentity record ([b4e4f69](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/b4e4f69513ba7d81262a2af0853bde44ce1ab676))
+- **comanage:** set IdP name in OrgIdentity record ([b4e4f69](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/b4e4f69513ba7d81262a2af0853bde44ce1ab676))
 
 ## [0.9.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.8.3...v0.9.0) (2026-06-05)
 
-
 ### Features
 
-* **auth:** send OIDC authorization URL with client IDs ([9a0bb30](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/9a0bb306a53ed0a8c8cad3b0e3c11e89a9b1648b))
-
+- **auth:** send OIDC authorization URL with client IDs ([9a0bb30](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/9a0bb306a53ed0a8c8cad3b0e3c11e89a9b1648b))
 
 ### Bug Fixes
 
-* **rest:** fix 503 response text ([5d280c6](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/5d280c6a6e86d35f283a8d2de03d9f98b9093bda))
+- **rest:** fix 503 response text ([5d280c6](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/5d280c6a6e86d35f283a8d2de03d9f98b9093bda))
 
 ## [0.8.3](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.8.2...v0.8.3) (2026-05-27)
 
-
 ### Bug Fixes
 
-* **otp:** update OTP email text ([6823b4f](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/6823b4f3c0cc73d252c4cc6cc8dc03256920c2f7))
+- **otp:** update OTP email text ([6823b4f](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/6823b4f3c0cc73d252c4cc6cc8dc03256920c2f7))
 
 ## [0.8.2](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.8.1...v0.8.2) (2026-05-26)
 
-
 ### Bug Fixes
 
-* add missing comma in dependency list ([a1e2d01](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/a1e2d019cabf18dc9c2b959e87b350f2c65380a5))
+- add missing comma in dependency list ([a1e2d01](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/a1e2d019cabf18dc9c2b959e87b350f2c65380a5))
 
 ## [0.8.1](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.8.0...v0.8.1) (2026-05-26)
 
-
 ### Bug Fixes
 
-* add pymemcache dependency for production ([727e373](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/727e3730ed5e5e1e44be53f85e4c848fd272fd8d))
+- add pymemcache dependency for production ([727e373](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/727e3730ed5e5e1e44be53f85e4c848fd272fd8d))
 
 ## [0.8.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.7.0...v0.8.0) (2026-05-26)
 
-
 ### Features
 
-* **cilogon:** set prompt parameter for link client ([90749d8](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/90749d83b23cefd1ff6f793c398cbe15fc4ebf2b))
-* **identity:** sort US to the top of the countries list ([0bc470d](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/0bc470dd0c122666aa2b2a9819808a8e43edecc1))
-* **otp:** add rate limit for sending OTP codes ([f044429](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/f04442978dd763454425e47f262a48bc371a106e))
-* **rest_client:** add params passthrough to request ([03688cc](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/03688cc57dfaffeb7cd11eaf97f6ff457f5fc557))
-
+- **cilogon:** set prompt parameter for link client ([90749d8](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/90749d83b23cefd1ff6f793c398cbe15fc4ebf2b))
+- **identity:** sort US to the top of the countries list ([0bc470d](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/0bc470dd0c122666aa2b2a9819808a8e43edecc1))
+- **otp:** add rate limit for sending OTP codes ([f044429](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/f04442978dd763454425e47f262a48bc371a106e))
+- **rest_client:** add params passthrough to request ([03688cc](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/03688cc57dfaffeb7cd11eaf97f6ff457f5fc557))
 
 ### Bug Fixes
 
-* **account:** always check that the email domain matches the ([17fa499](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/17fa499189cd88bdbe448c22afeecd5e34551925))
-* Deleting OrgIdentity record by OrgIdentityLinkId ([fa11998](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/fa119984b10e4eca61bd1572b5e2b78e4326aebb))
-* **rest_client:** set Accept header by default ([9f68d8b](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/9f68d8b4d57d8f856110e0a03cb1195d3c91cddc))
-* **rest:** handle SSL errors from upstream APIs ([a7f10ee](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/a7f10ee9b44f41606d6beba5638ca8d41001aa13))
-
+- **account:** always check that the email domain matches the ([17fa499](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/17fa499189cd88bdbe448c22afeecd5e34551925))
+- Deleting OrgIdentity record by OrgIdentityLinkId ([fa11998](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/fa119984b10e4eca61bd1572b5e2b78e4326aebb))
+- **rest_client:** set Accept header by default ([9f68d8b](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/9f68d8b4d57d8f856110e0a03cb1195d3c91cddc))
+- **rest:** handle SSL errors from upstream APIs ([a7f10ee](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/a7f10ee9b44f41606d6beba5638ca8d41001aa13))
 
 ### Documentation
 
-* **auth:** update auth route docs ([58b81f0](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/58b81f0c63506917870dc246ef513c99a4b94e28))
+- **auth:** update auth route docs ([58b81f0](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/58b81f0c63506917870dc246ef513c99a4b94e28))
 
 ## [0.7.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.6.0...v0.7.0) (2026-04-08)
 
-
 ### Features
 
-* **auth:** allow admins to impersonate another user ([739785f](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/739785f4c4a45b8e596f2280b411263c15c8cca6))
-* **login:** check whether the user is an admin ([6c09779](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/6c0977972c5400ca57063dd648c1afb9c9eea274))
+- **auth:** allow admins to impersonate another user ([739785f](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/739785f4c4a45b8e596f2280b411263c15c8cca6))
+- **login:** check whether the user is an admin ([6c09779](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/6c0977972c5400ca57063dd648c1afb9c9eea274))
 
 ## [0.6.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.5.0...v0.6.0) (2026-04-07)
 
-
 ### Features
 
-* add check that domain matches organization ([4ee65c4](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/4ee65c46e15aa3a6029e8b14236d56dcf5089366))
-* add initial implementation of account creation ([a2913fd](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/a2913fd96e448bcf2f8e88e399c6bd98a129596f))
-* add support for registering with an existing identity ([670f387](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/670f387625b2c0c1367c020fb913e2ed2bb9ba44))
-* **auth:** use CILogon sub claim as the subject for login tokens ([4b58b82](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/4b58b828852a139962a3a6a6dd5b92ad5344f2f7))
-* **comanage:** add update user method ([2a7572e](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/2a7572e7f759387ef5b60692cff578ac44a58971))
-* **comanage:** allow adding different types of identifiers ([36ba701](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/36ba701ba2bce6f6c4d8ef23e0febefff88a467d))
-* **comanage:** use primary email in profile ([4ff59ea](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/4ff59ea971a9d544ca96d3f367dfe07a31c3fed3))
-* create allocations profile during account creation ([7436067](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/7436067bdb27552ed7ceb9764d2ede9fbd29c338))
-* **degrees:** add API route for academic degree types ([b50b15f](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/b50b15fe6278598f9c884bcccefa2a9b55e2ea09))
-* **docs:** put docs under the /api prefix ([5826104](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/58261042761620cd6b51aa4c9cafa8ca4c23868c))
-* include existing username in verify OTP response ([fbc3d3a](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/fbc3d3a71039a26aadf6e9b1c38c4890e52bc0c4))
-* **models:** update UpdateAccountRequest model ([2cc7366](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/2cc73669c02a3f8a2f1eec96a07773250344778d))
-* **otp:** log OTP instead of sending if DEBUG env variable is true ([0fda77d](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/0fda77d22f779060b08e3ea898b8b12d2010ef15))
-* pass through CILogon tokens ([5cb634e](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/5cb634ef01a4f6a0a65063a386ed7a5023a54236))
-* require OTP token for creating an account ([5756492](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/575649286a9afbcf4539fb38523002c9d414441b))
-* **scripts:** add script for generating development tokens ([ea4b7c8](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/ea4b7c87c9da8ad8e5bc1c55ade6027cd218b60a))
-* update identity service during account update ([ee1f030](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/ee1f030005416ca61298d330fdf383e27f5b5c12))
-
+- add check that domain matches organization ([4ee65c4](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/4ee65c46e15aa3a6029e8b14236d56dcf5089366))
+- add initial implementation of account creation ([a2913fd](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/a2913fd96e448bcf2f8e88e399c6bd98a129596f))
+- add support for registering with an existing identity ([670f387](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/670f387625b2c0c1367c020fb913e2ed2bb9ba44))
+- **auth:** use CILogon sub claim as the subject for login tokens ([4b58b82](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/4b58b828852a139962a3a6a6dd5b92ad5344f2f7))
+- **comanage:** add update user method ([2a7572e](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/2a7572e7f759387ef5b60692cff578ac44a58971))
+- **comanage:** allow adding different types of identifiers ([36ba701](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/36ba701ba2bce6f6c4d8ef23e0febefff88a467d))
+- **comanage:** use primary email in profile ([4ff59ea](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/4ff59ea971a9d544ca96d3f367dfe07a31c3fed3))
+- create allocations profile during account creation ([7436067](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/7436067bdb27552ed7ceb9764d2ede9fbd29c338))
+- **degrees:** add API route for academic degree types ([b50b15f](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/b50b15fe6278598f9c884bcccefa2a9b55e2ea09))
+- **docs:** put docs under the /api prefix ([5826104](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/58261042761620cd6b51aa4c9cafa8ca4c23868c))
+- include existing username in verify OTP response ([fbc3d3a](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/fbc3d3a71039a26aadf6e9b1c38c4890e52bc0c4))
+- **models:** update UpdateAccountRequest model ([2cc7366](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/2cc73669c02a3f8a2f1eec96a07773250344778d))
+- **otp:** log OTP instead of sending if DEBUG env variable is true ([0fda77d](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/0fda77d22f779060b08e3ea898b8b12d2010ef15))
+- pass through CILogon tokens ([5cb634e](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/5cb634ef01a4f6a0a65063a386ed7a5023a54236))
+- require OTP token for creating an account ([5756492](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/575649286a9afbcf4539fb38523002c9d414441b))
+- **scripts:** add script for generating development tokens ([ea4b7c8](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/ea4b7c87c9da8ad8e5bc1c55ade6027cd218b60a))
+- update identity service during account update ([ee1f030](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/ee1f030005416ca61298d330fdf383e27f5b5c12))
 
 ### Bug Fixes
 
-* **account:** allow an empty list of degrees ([9463ec8](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/9463ec8473fc229f4b29b73f0340a37c20b82698))
-* add missing email when creating identity profile ([edc5cde](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/edc5cde8b0fd2971ebb612447699d328621f899a))
-* **cilogon:** fix merge issues ([9964510](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/99645106972467b77e1743210f3386659cd76bf8))
-* **comanage:** create OrgIdentity records for both ACCESS and another ([b98a79d](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/b98a79d37958726e0f68470933d404a87004fb86))
-* **comanage:** set organization during account update ([a68949a](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/a68949a9639152aa41168c6f2f70522d94956e7e))
-* **config:** add path to FRONTEND_URL ([a14010f](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/a14010ff04ede6e3c51fd648ce25511008be0962))
-* fix account creation without an existing identity ([ca41f59](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/ca41f59f0357bb9acdf8d9fde4e1f7f329a3aeff))
-* **identity:** fix update if exists behavior ([59b9ed2](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/59b9ed281de29b62746d6ea18fbc428b40034f91))
-* **identity:** separate create and update person methods ([c030053](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/c0300537a8e90d37bdded11d0ab73b8f6794d1f1))
-* **profile:** standardize degrees field name ([6b6fecd](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/6b6fecd2021a4de1755ad790fcbdb68ba572997f))
-* **update_account:** fix checking of email OTP token ([ae857fa](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/ae857fa01535383bf91c28de2b54732dd47b61cd))
+- **account:** allow an empty list of degrees ([9463ec8](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/9463ec8473fc229f4b29b73f0340a37c20b82698))
+- add missing email when creating identity profile ([edc5cde](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/edc5cde8b0fd2971ebb612447699d328621f899a))
+- **cilogon:** fix merge issues ([9964510](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/99645106972467b77e1743210f3386659cd76bf8))
+- **comanage:** create OrgIdentity records for both ACCESS and another ([b98a79d](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/b98a79d37958726e0f68470933d404a87004fb86))
+- **comanage:** set organization during account update ([a68949a](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/a68949a9639152aa41168c6f2f70522d94956e7e))
+- **config:** add path to FRONTEND_URL ([a14010f](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/a14010ff04ede6e3c51fd648ce25511008be0962))
+- fix account creation without an existing identity ([ca41f59](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/ca41f59f0357bb9acdf8d9fde4e1f7f329a3aeff))
+- **identity:** fix update if exists behavior ([59b9ed2](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/59b9ed281de29b62746d6ea18fbc428b40034f91))
+- **identity:** separate create and update person methods ([c030053](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/c0300537a8e90d37bdded11d0ab73b8f6794d1f1))
+- **profile:** standardize degrees field name ([6b6fecd](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/6b6fecd2021a4de1755ad790fcbdb68ba572997f))
+- **update_account:** fix checking of email OTP token ([ae857fa](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/ae857fa01535383bf91c28de2b54732dd47b61cd))
 
 ## [0.5.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.4.1...v0.5.0) (2025-12-23)
 
-
 ### Features
 
-* add CoManage config variables ([52b3267](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/52b3267a7b774bee9b5d288bfa8ea2e3d1b7dca3))
-* add initial account response ([302c3b4](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/302c3b4f676671554156df0b454544a71b780bc9))
-* add terms and conditions route ([5382b82](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/5382b82e3c02be818d4750e3ad6ecf666c2b1260))
-* **auth:** add CILogon client ([96010a6](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/96010a61f7d770f1452bb7d10fa682d4af8c44c6))
-* convert bull enrollment script to Python ([a5af642](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/a5af6420487caade36dc68119737deb4375ac661))
-* implement identities list ([56a556e](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/56a556eea04211acfa01b884e2e2dc5b727368fd))
-* implement SSH key list route ([fa56963](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/fa56963209aec9823fa24d52dc943d8f4b3f3312))
-
+- add CoManage config variables ([52b3267](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/52b3267a7b774bee9b5d288bfa8ea2e3d1b7dca3))
+- add initial account response ([302c3b4](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/302c3b4f676671554156df0b454544a71b780bc9))
+- add terms and conditions route ([5382b82](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/5382b82e3c02be818d4750e3ad6ecf666c2b1260))
+- **auth:** add CILogon client ([96010a6](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/96010a61f7d770f1452bb7d10fa682d4af8c44c6))
+- convert bull enrollment script to Python ([a5af642](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/a5af6420487caade36dc68119737deb4375ac661))
+- implement identities list ([56a556e](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/56a556eea04211acfa01b884e2e2dc5b727368fd))
+- implement SSH key list route ([fa56963](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/fa56963209aec9823fa24d52dc943d8f4b3f3312))
 
 ### Bug Fixes
 
-* **comanage:** cast password to a string ([225ad17](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/225ad176ab25204f40b255f1b18045eeca691cf0))
-* reenable token requirement for identities route ([d6fe9e9](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/d6fe9e98cae3fd13dad84175243d65d8c3cbe82d))
-
+- **comanage:** cast password to a string ([225ad17](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/225ad176ab25204f40b255f1b18045eeca691cf0))
+- reenable token requirement for identities route ([d6fe9e9](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/d6fe9e98cae3fd13dad84175243d65d8c3cbe82d))
 
 ### Documentation
 
-* **comanage:** fix T and C docstring ([a7f7976](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/a7f7976163bfa61409b4efa6b7c06e76c99cc9a1))
+- **comanage:** fix T and C docstring ([a7f7976](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/a7f7976163bfa61409b4efa6b7c06e76c99cc9a1))
 
 ## [0.4.1](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.4.0...v0.4.1) (2025-12-12)
 
-
 ### Bug Fixes
 
-* add missing dependency on fastapi-utilities ([ae3c9f1](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/ae3c9f1ea65d70dce20c12135e381aabe5a256be))
+- add missing dependency on fastapi-utilities ([ae3c9f1](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/ae3c9f1ea65d70dce20c12135e381aabe5a256be))
 
 ## [0.4.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.3.0...v0.4.0) (2025-12-12)
 
-
 ### Features
 
-* store sent OTPs in a SQLite database ([6b03d74](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/6b03d746cb4337698adfc254a734d22b5d1e72a9))
+- store sent OTPs in a SQLite database ([6b03d74](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/6b03d746cb4337698adfc254a734d22b5d1e72a9))
 
 ## [0.3.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.2.0...v0.3.0) (2025-12-03)
 
-
 ### Features
 
-* send and verify OTPs ([781afc4](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/781afc45de4249389924609a0e7b6e232d64e92f))
+- send and verify OTPs ([781afc4](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/781afc45de4249389924609a0e7b6e232d64e92f))
 
 ## [0.2.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.1.0...v0.2.0) (2025-11-19)
 
-
 ### Features
 
-* add CORS middleware ([05c7b22](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/05c7b2245fe4328835aadcaeca1352c687edca39))
-* add httpx dependency ([789b567](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/789b56734f6acf675c5b76c38f911d47954a9588))
+- add CORS middleware ([05c7b22](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/05c7b2245fe4328835aadcaeca1352c687edca39))
+- add httpx dependency ([789b567](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/789b56734f6acf675c5b76c38f911d47954a9588))

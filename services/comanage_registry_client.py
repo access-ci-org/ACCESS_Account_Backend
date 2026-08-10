@@ -63,6 +63,24 @@ class CoManageUser(dict):
                 return email["mail"] if address_only else email
         return None
 
+    def get_recovery_emails(self) -> list[dict]:
+        """Get the recovery (non-primary) email addresses.
+
+        A recovery email is any non-deleted EmailAddress that is not the primary
+        (the first non-deleted "official" address). This surfaces any additional
+        addresses on the record regardless of their CoManage type.
+        """
+        primary = self.get_primary_email(address_only=False)
+        primary_id = primary["meta"]["id"] if primary else None
+        recoveries = []
+        for email in self.get("EmailAddress", []):
+            if email["meta"]["deleted"]:
+                continue
+            if primary_id is not None and email["meta"]["id"] == primary_id:
+                continue
+            recoveries.append(email)
+        return recoveries
+
     def has_org_identity(self, identifier: Identifier):
         """Iterate over the existing OrgIdentity records and check whether there is one with the specified identifier."""
         if "OrgIdentity" not in self:
@@ -297,7 +315,7 @@ class CoManageRegistryClient(RestClient):
         access_id: str,
         first_name: str | None = None,
         last_name: str | None = None,
-        email: str | None = None,
+        emails: list[dict] | None = None,
         organization: str | None = None,
         time_zone: str
         | None = "UNSET",  # Use UNSET as default, since None is a valid value.
@@ -314,11 +332,9 @@ class CoManageRegistryClient(RestClient):
             if primary_name and last_name:
                 primary_name["family"] = last_name
 
-        if email:
-            primary_email = user.get_primary_email(address_only=False)
-            if primary_email:
-                primary_email["mail"] = email
-            # TODO: Do we need to handle the case where there is not a primary email?
+        removed_email_ids: list = []
+        if emails is not None:
+            removed_email_ids = self._reconcile_email_addresses(user, emails)
 
         if organization:
             for role in user.get("CoPersonRole", []):
@@ -329,11 +345,86 @@ class CoManageRegistryClient(RestClient):
         if time_zone != "UNSET":
             user["CoPerson"]["timezone"] = time_zone
 
-        return await self._request(
+        response = await self._request(
             "PUT",
             f"api/co/{self.coid}/core/v1/people/{quote(access_id, safe='')}",
             json=user,
         )
+
+        # The Core API PUT does not delete EmailAddress rows on its own (unlike
+        # updates/creates, which it does honor), so removed addresses have to be
+        # deleted individually via the legacy REST endpoint, same as Identifier/
+        # OrgIdentity/SshKey elsewhere in this client.
+        for email_id in removed_email_ids:
+            await self.delete_email_address(email_id)
+
+        return response
+
+    @staticmethod
+    def _reconcile_email_addresses(user: "CoManageUser", emails: list[dict]) -> list:
+        """Reconcile the user's EmailAddress list against the desired set in place.
+
+        ``emails`` is the full desired set of addresses, each item being
+        ``{"mail": str, "primary": bool}`` (addresses already normalized and, for
+        new addresses, already OTP-verified upstream). The desired primary is
+        written as ``type == "official"``; all other desired addresses as
+        ``type == "delivery"``. Existing non-deleted addresses not in the desired
+        set are dropped from ``user`` and their ids are returned so the caller can
+        issue a follow-up delete request for each. New addresses are appended.
+        Matching is done case-insensitively on ``mail``, consuming desired entries
+        one-to-one so legacy duplicate addresses are collapsed rather than
+        duplicated.
+        """
+
+        def desired_type(is_primary: bool) -> str:
+            return "official" if is_primary else "delivery"
+
+        # Desired addresses, with a flag tracking whether each has been matched to
+        # an existing row (consumed one-to-one).
+        desired = [
+            {"mail": e["mail"].lower(), "primary": e["primary"], "consumed": False}
+            for e in emails
+        ]
+
+        existing = user.setdefault("EmailAddress", [])
+        kept = []
+        removed_ids = []
+        for entry in existing:
+            if entry["meta"]["deleted"]:
+                kept.append(entry)
+                continue
+            match = next(
+                (
+                    d
+                    for d in desired
+                    if not d["consumed"] and d["mail"] == entry["mail"].lower()
+                ),
+                None,
+            )
+            if match is not None:
+                entry["type"] = desired_type(match["primary"])
+                # Preserve the existing verified flag for addresses already on the
+                # record; only newly added (OTP-verified) addresses are marked True.
+                match["consumed"] = True
+                kept.append(entry)
+            else:
+                removed_ids.append(entry["meta"]["id"])
+
+        # Append any desired addresses that were not already present.
+        for d in desired:
+            if d["consumed"]:
+                continue
+            kept.append(
+                {
+                    "mail": d["mail"],
+                    "description": None,
+                    "type": desired_type(d["primary"]),
+                    "verified": True,
+                }
+            )
+
+        user["EmailAddress"] = kept
+        return removed_ids
 
     async def create_new_org_identity(self, organization: str | None = None) -> str:
         """Create a new Organizational Identity for the user.
@@ -685,6 +776,24 @@ class CoManageRegistryClient(RestClient):
             "DELETE",
             f"identifiers/{identifier_id}.json",
         )
+
+    async def delete_email_address(self, email_address_id: str | int):
+        """Delete an EmailAddress record by ID.
+
+        The registry returns 404 on this endpoint even when the delete
+        succeeds (confirmed against the live instance, contrary to the
+        published API docs). Treat 404 as success rather than letting it
+        propagate and fail the enclosing profile update.
+        """
+        try:
+            return await self._request(
+                "DELETE",
+                f"email_addresses/{email_address_id}.json",
+            )
+        except HTTPException as exc:
+            if exc.status_code == status.HTTP_404_NOT_FOUND:
+                return None
+            raise
 
     async def get_org_identity_links(self, org_identity_id: str | int) -> list[dict]:
         """Gets all CoOrgIdenitity Link records given an OrgIdentity ID"""

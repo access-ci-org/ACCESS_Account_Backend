@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.15.0...v0.16.0) (2026-08-12)
+
+
+### Features
+
+* **logs:** improve logging for CoManage Registry ([87d5f2f](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/87d5f2f2a7c01f887a7db31e31d514265d0735e7))
+
 ## [0.15.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.14.0...v0.15.0) (2026-08-10)
 
 

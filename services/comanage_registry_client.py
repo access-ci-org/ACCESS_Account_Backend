@@ -16,6 +16,7 @@ from config import (
     COMANAGE_REGISTRY_USER,
 )
 from services.cilogon_client import get_token_user_info
+from services.logs_service import obfuscate_email
 from services.rest_client import RestClient
 
 # Map CILogon claims to identifier types and login status
@@ -126,8 +127,18 @@ class CoManageRegistryClient(RestClient):
         self.krb_auth_id = krb_auth_id
 
     async def _request(
-        self, method: str, path: str, json: dict | None = None
+        self,
+        method: str,
+        path: str,
+        json: dict | None = None,
+        *,
+        access_id: str | None = None,
+        email: str | None = None,
     ) -> dict | list | None:
+        subject = access_id or (obfuscate_email(email) if email else None)
+        logger.info(
+            f"CoManage Registry API request: {method} {path} (user={subject or 'unknown'})"
+        )
         url = f"{self.base_url}/registry/{path}"
         return await self.request(url, method=method, json=json)
 
@@ -142,7 +153,9 @@ class CoManageRegistryClient(RestClient):
         """
         encoded_email = quote(email)
         result = await self._request(
-            "GET", f"co_people.json?coid={self.coid}&search.mail={encoded_email}"
+            "GET",
+            f"co_people.json?coid={self.coid}&search.mail={encoded_email}",
+            email=email,
         )
 
         if isinstance(result, dict) and "CoPeople" in result:
@@ -166,7 +179,7 @@ class CoManageRegistryClient(RestClient):
             return None
 
         result = await self._request(
-            "GET", f"identifiers.json?copersonid={co_person_id}"
+            "GET", f"identifiers.json?copersonid={co_person_id}", email=email
         )
 
         if isinstance(result, dict) and "Identifiers" in result:
@@ -186,14 +199,21 @@ class CoManageRegistryClient(RestClient):
             Dictionary containing user information
         """
         user_info = await self._request(
-            "GET", f"api/co/{self.coid}/core/v1/people/{quote(accessid, safe='')}"
+            "GET",
+            f"api/co/{self.coid}/core/v1/people/{quote(accessid, safe='')}",
+            access_id=accessid,
         )
         return CoManageUser(self._expect(user_info, dict))
 
     async def ping(self) -> int:
         """Make a lightweight request and return the HTTP status code."""
         params = {"coid": self.coid}
-        url = f"{self.base_url}/registry/co_terms_and_conditions.json?{urlencode(params)}"
+        url = (
+            f"{self.base_url}/registry/co_terms_and_conditions.json?{urlencode(params)}"
+        )
+        logger.info(
+            "CoManage Registry API request: GET co_terms_and_conditions.json (health check)"
+        )
         return await self.request_status(url)
 
     async def get_active_tandc(self) -> dict | None:
@@ -303,7 +323,10 @@ class CoManageRegistryClient(RestClient):
         }
 
         result = await self._request(
-            "POST", f"api/co/{self.coid}/core/v1/people", json=new_user_data
+            "POST",
+            f"api/co/{self.coid}/core/v1/people",
+            json=new_user_data,
+            email=email,
         )
         # A malformed response here means we can't complete account creation
         # for this request, so surface it as a 400 rather than a 502 the way
@@ -349,6 +372,7 @@ class CoManageRegistryClient(RestClient):
             "PUT",
             f"api/co/{self.coid}/core/v1/people/{quote(access_id, safe='')}",
             json=user,
+            access_id=access_id,
         )
 
         # The Core API PUT does not delete EmailAddress rows on its own (unlike
@@ -356,7 +380,7 @@ class CoManageRegistryClient(RestClient):
         # deleted individually via the legacy REST endpoint, same as Identifier/
         # OrgIdentity/SshKey elsewhere in this client.
         for email_id in removed_email_ids:
-            await self.delete_email_address(email_id)
+            await self.delete_email_address(email_id, access_id=access_id)
 
         return response
 
@@ -426,7 +450,9 @@ class CoManageRegistryClient(RestClient):
         user["EmailAddress"] = kept
         return removed_ids
 
-    async def create_new_org_identity(self, organization: str | None = None) -> str:
+    async def create_new_org_identity(
+        self, organization: str | None = None, access_id: str | None = None
+    ) -> str:
         """Create a new Organizational Identity for the user.
 
         Returns:
@@ -454,12 +480,22 @@ class CoManageRegistryClient(RestClient):
         }
 
         result = self._expect(
-            await self._request("POST", "org_identities.json", json=org_identity_data),
+            await self._request(
+                "POST",
+                "org_identities.json",
+                json=org_identity_data,
+                access_id=access_id,
+            ),
             dict,
         )
         return str(result["Id"])
 
-    async def create_new_link(self, co_person_id: str, org_identity_id: str) -> dict:
+    async def create_new_link(
+        self,
+        co_person_id: str,
+        org_identity_id: str,
+        access_id: str | None = None,
+    ) -> dict:
         """Create a new link between the CoPerson record and the Organizational Identity record.
 
         Args:
@@ -485,7 +521,12 @@ class CoManageRegistryClient(RestClient):
         }
 
         return self._expect(
-            await self._request("POST", "co_org_identity_links.json", json=link_data),
+            await self._request(
+                "POST",
+                "co_org_identity_links.json",
+                json=link_data,
+                access_id=access_id,
+            ),
             dict,
         )
 
@@ -494,6 +535,7 @@ class CoManageRegistryClient(RestClient):
         firstname: str,
         lastname: str,
         org_identity_id: str,
+        access_id: str | None = None,
     ) -> dict:
         """Create a new Name object to add to the Organizational Identity record.
 
@@ -528,11 +570,20 @@ class CoManageRegistryClient(RestClient):
         }
 
         return self._expect(
-            await self._request("POST", "names.json", json=name_data), dict
+            await self._request(
+                "POST", "names.json", json=name_data, access_id=access_id
+            ),
+            dict,
         )
 
     async def create_new_identifier(
-        self, identifier: str, type: str, login: bool, linked_type: str, linked_id: str
+        self,
+        identifier: str,
+        type: str,
+        login: bool,
+        linked_type: str,
+        linked_id: str,
+        access_id: str | None = None,
     ) -> dict:
         """Create a new Identity object to add to the Organizational Identity record.
 
@@ -564,12 +615,14 @@ class CoManageRegistryClient(RestClient):
         }
 
         return self._expect(
-            await self._request("POST", "identifiers.json", json=identifier_data),
+            await self._request(
+                "POST", "identifiers.json", json=identifier_data, access_id=access_id
+            ),
             dict,
         )
 
     async def create_new_tandc_agreement(
-        self, co_tandc_id: int, co_person_id: int
+        self, co_tandc_id: int, co_person_id: int, access_id: str | None = None
     ) -> dict:
         """Create new Terms & Conditions Agreement for the CoPerson record.
 
@@ -596,7 +649,12 @@ class CoManageRegistryClient(RestClient):
         }
 
         return self._expect(
-            await self._request("POST", "co_t_and_c_agreements.json", json=tandc_data),
+            await self._request(
+                "POST",
+                "co_t_and_c_agreements.json",
+                json=tandc_data,
+                access_id=access_id,
+            ),
             dict,
         )
 
@@ -655,7 +713,7 @@ class CoManageRegistryClient(RestClient):
         existing_access_id = await self.get_access_id_for_email(email)
         if existing_access_id:
             logger.warning(
-                f"Account creation failed: email {email} already has ACCESS ID {existing_access_id}"
+                f"Account creation failed: email {obfuscate_email(email)} already has ACCESS ID {existing_access_id}"
             )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -712,11 +770,12 @@ class CoManageRegistryClient(RestClient):
 
         # Create an OrgIdentity record
         org_identity_id = await self.create_new_org_identity(
-            cilogon_user_info.get("idp_name", None) if cilogon_user_info else None
+            cilogon_user_info.get("idp_name", None) if cilogon_user_info else None,
+            access_id=access_id,
         )
 
         # Link the OrgIdentity to the CoPerson
-        await self.create_new_link(co_person_id, org_identity_id)
+        await self.create_new_link(co_person_id, org_identity_id, access_id=access_id)
 
         # In parallel:
         # - Create a Name record
@@ -730,6 +789,7 @@ class CoManageRegistryClient(RestClient):
                     login=identifier.login,
                     linked_type="Org",
                     linked_id=org_identity_id,
+                    access_id=access_id,
                 )
             )
 
@@ -743,6 +803,7 @@ class CoManageRegistryClient(RestClient):
                         login=identifier.login,
                         linked_type="CO",
                         linked_id=co_person_id,
+                        access_id=access_id,
                     )
                 )
 
@@ -751,6 +812,7 @@ class CoManageRegistryClient(RestClient):
                 firstname=primary_name["given"],
                 lastname=primary_name["family"],
                 org_identity_id=org_identity_id,
+                access_id=access_id,
             ),
             *identifier_creation,
         )
@@ -761,6 +823,7 @@ class CoManageRegistryClient(RestClient):
         result = await self._request(
             "GET",
             f"co_people.json?coid={self.coid}&search.identifier={encoded_accessid}",
+            access_id=accessid,
         )
 
         if isinstance(result, dict) and "CoPeople" in result:
@@ -770,14 +833,19 @@ class CoManageRegistryClient(RestClient):
 
         return None
 
-    async def delete_identifier(self, identifier_id: str | int):
+    async def delete_identifier(
+        self, identifier_id: str | int, access_id: str | None = None
+    ):
         """Delete an Identifier record by ID"""
         return await self._request(
             "DELETE",
             f"identifiers/{identifier_id}.json",
+            access_id=access_id,
         )
 
-    async def delete_email_address(self, email_address_id: str | int):
+    async def delete_email_address(
+        self, email_address_id: str | int, access_id: str | None = None
+    ):
         """Delete an EmailAddress record by ID.
 
         The registry returns 404 on this endpoint even when the delete
@@ -789,34 +857,45 @@ class CoManageRegistryClient(RestClient):
             return await self._request(
                 "DELETE",
                 f"email_addresses/{email_address_id}.json",
+                access_id=access_id,
             )
         except HTTPException as exc:
             if exc.status_code == status.HTTP_404_NOT_FOUND:
                 return None
             raise
 
-    async def get_org_identity_links(self, org_identity_id: str | int) -> list[dict]:
+    async def get_org_identity_links(
+        self, org_identity_id: str | int, access_id: str | None = None
+    ) -> list[dict]:
         """Gets all CoOrgIdenitity Link records given an OrgIdentity ID"""
         result = await self._request(
-            "GET", f"co_org_identity_links.json?orgidentityid={org_identity_id}"
+            "GET",
+            f"co_org_identity_links.json?orgidentityid={org_identity_id}",
+            access_id=access_id,
         )
 
         if isinstance(result, dict) and "CoOrgIdentityLinks" in result:
             return result.get("CoOrgIdentityLinks") or []
         return []
 
-    async def delete_org_identity_link(self, link_id: str):
+    async def delete_org_identity_link(
+        self, link_id: str, access_id: str | None = None
+    ):
         """Delete an OrgIdentity record by Link ID"""
         return await self._request(
             "DELETE",
             f"co_org_identity_links/{link_id}.json",
+            access_id=access_id,
         )
 
-    async def delete_org_identity(self, identity_id: str | int):
+    async def delete_org_identity(
+        self, identity_id: str | int, access_id: str | None = None
+    ):
         """Delete an OrgIdentity record by ID"""
         return await self._request(
             "DELETE",
             f"org_identities/{identity_id}.json",
+            access_id=access_id,
         )
 
     async def add_ssh_key_for_user(self, accessid: str, public_key: str) -> dict:
@@ -872,6 +951,7 @@ class CoManageRegistryClient(RestClient):
                 "POST",
                 f"ssh_key_authenticator/ssh_keys.json?coid={self.coid}",
                 json=data,
+                access_id=accessid,
             ),
             dict,
         )
@@ -887,6 +967,7 @@ class CoManageRegistryClient(RestClient):
         result = await self._request(
             "GET",
             f"ssh_key_authenticator/ssh_keys.json?coid={self.coid}&copersonid={coperson_id}",
+            access_id=accessid,
         )
 
         if isinstance(result, dict) and "SshKeys" in result:
@@ -913,14 +994,22 @@ class CoManageRegistryClient(RestClient):
         return await self._request(
             "DELETE",
             f"ssh_key_authenticator/ssh_keys/{key_id}.json?coid={self.coid}",
+            access_id=accessid,
         )
 
-    async def get_krb_id_for_user(self, coperson_id: str) -> str | None:
+    async def get_krb_id_for_user(
+        self,
+        coperson_id: str,
+        access_id: str | None = None,
+        email: str | None = None,
+    ) -> str | None:
         """Return the Krb row ID for a given CO Person under this instance's KrbAuthenticator."""
 
         result = await self._request(
             "GET",
             f"krb_authenticator/krbs.json?krbauthid={self.krb_auth_id}&copersonid={coperson_id}",
+            access_id=access_id,
+            email=email,
         )
 
         if isinstance(result, dict) and "Krbs" in result:
@@ -931,14 +1020,20 @@ class CoManageRegistryClient(RestClient):
         return None
 
     async def update_password_for_user(
-        self, coperson_id: str, new_password: str
+        self,
+        coperson_id: str,
+        new_password: str,
+        access_id: str | None = None,
+        email: str | None = None,
     ) -> dict:
         """Set or update the Kerberos password for a CO Person via the KrbAuthenticator REST API.
 
         Follows the documented V1 workflow: GET existing row, then POST (new) or PUT (existing).
         """
 
-        krb_id = await self.get_krb_id_for_user(coperson_id)
+        krb_id = await self.get_krb_id_for_user(
+            coperson_id, access_id=access_id, email=email
+        )
 
         if krb_id:
             data = {
@@ -955,6 +1050,8 @@ class CoManageRegistryClient(RestClient):
                     "PUT",
                     f"krb_authenticator/krbs/{krb_id}.json",
                     json=data,
+                    access_id=access_id,
+                    email=email,
                 ),
                 dict,
             )
@@ -975,6 +1072,8 @@ class CoManageRegistryClient(RestClient):
                     "POST",
                     "krb_authenticator/krbs.json",
                     json=data,
+                    access_id=access_id,
+                    email=email,
                 ),
                 dict,
             )

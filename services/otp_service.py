@@ -13,6 +13,7 @@ from fastapi import HTTPException
 
 from config import OTP_CHARACTER_LENGTH, OTP_LIFETIME_MINUTES
 from database import OTPEntry, get_session
+from services.logs_service import obfuscate_email
 
 logger = logging.getLogger("access_account_api.otp")
 
@@ -48,7 +49,9 @@ def verify_stored_otp(email: str, submitted_otp: str) -> None:
         entry = session.get(OTPEntry, email)
 
         if not entry:
-            logger.warning(f"OTP verification failed: no OTP found for email={email}")
+            logger.warning(
+                f"OTP verification failed: no OTP found for email={obfuscate_email(email)}"
+            )
             raise HTTPException(status_code=403, detail="Invalid verification code")
 
         # Expiration check (30 minutes)
@@ -63,7 +66,9 @@ def verify_stored_otp(email: str, submitted_otp: str) -> None:
             session.delete(entry)
             session.commit()
 
-            logger.warning(f"OTP verification failed: OTP expired for email={email}")
+            logger.warning(
+                f"OTP verification failed: OTP expired for email={obfuscate_email(email)}"
+            )
             raise HTTPException(
                 status_code=403,
                 detail="Verification code has expired. Please request a new one.",
@@ -77,7 +82,7 @@ def verify_stored_otp(email: str, submitted_otp: str) -> None:
             session.delete(entry)
             session.commit()
 
-            logger.warning(f"OTP mismatch for email={email}")
+            logger.warning(f"OTP mismatch for email={obfuscate_email(email)}")
             raise HTTPException(403, "Invalid verification code")
 
         except InvalidHash:
@@ -86,7 +91,7 @@ def verify_stored_otp(email: str, submitted_otp: str) -> None:
             session.commit()
 
             logger.error(
-                f"OTP verification failed due to invalid hash for email={email}"
+                f"OTP verification failed due to invalid hash for email={obfuscate_email(email)}"
             )
             raise HTTPException(
                 403, "Verification system error. Please request a new code."
@@ -97,7 +102,9 @@ def verify_stored_otp(email: str, submitted_otp: str) -> None:
             session.delete(entry)
             session.commit()
 
-            logger.exception(f"General Argon2 verification error for email={email}")
+            logger.exception(
+                f"General Argon2 verification error for email={obfuscate_email(email)}"
+            )
             raise HTTPException(403, "Verification failed. Please request a new code.")
 
         # Delete OTP after successful verification

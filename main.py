@@ -88,7 +88,7 @@ from services.email_service import send_verification_email, ses
 from services.identity_client import Degree as IdentityDegree
 from services.identity_client import IdentityServiceClient
 from services.idp_service import build_idp_domain_mapping
-from services.logs_service import logger
+from services.logs_service import logger, obfuscate_email
 from services.otp_service import (
     generate_otp,
     store_otp,
@@ -266,52 +266,64 @@ async def send_otp(request: Request, body: SendOTPRequest):
     email = body.email.lower().strip()
 
     if "@" not in email:
-        logger.warning(f"Rejected OTP request due to invalid email format: {email}")
+        logger.warning(
+            f"Rejected OTP request due to invalid email format: {obfuscate_email(email)}"
+        )
         raise HTTPException(400, "Invalid email")
 
     otp = generate_otp()
     store_otp(email, otp)
 
     if DEBUG:
-        logger.info(f"OTP for {email}: {otp}")
+        logger.info(f"OTP for {obfuscate_email(email)}: {otp}")
     else:
         try:
             resp = send_verification_email(email, otp)
             message_id = resp.get("MessageId")
 
         except ses.exceptions.MessageRejected:
-            logger.error(f"SES MessageRejected for email={email}")
+            logger.error(f"SES MessageRejected for email={obfuscate_email(email)}")
             raise HTTPException(400, "Email was rejected by SES")
 
         except ses.exceptions.MailFromDomainNotVerifiedException:
-            logger.error(f"SES MailFromDomainNotVerifiedException for email={email}")
+            logger.error(
+                f"SES MailFromDomainNotVerifiedException for email={obfuscate_email(email)}"
+            )
             raise HTTPException(400, "Sender domain is not verified in SES")
 
         except ses.exceptions.ConfigurationSetDoesNotExistException:
-            logger.error(f"SES ConfigurationSetDoesNotExistException for email={email}")
+            logger.error(
+                f"SES ConfigurationSetDoesNotExistException for email={obfuscate_email(email)}"
+            )
             raise HTTPException(400, "SES configuration set does not exist")
 
         except ses.exceptions.ConfigurationSetSendingPausedException:
             logger.error(
-                f"SES ConfigurationSetSendingPausedException for email={email}"
+                f"SES ConfigurationSetSendingPausedException for email={obfuscate_email(email)}"
             )
             raise HTTPException(400, "SES configuration set sending is paused")
 
         except ses.exceptions.AccountSendingPausedException:
-            logger.error(f"SES AccountSendingPausedException for email={email}")
+            logger.error(
+                f"SES AccountSendingPausedException for email={obfuscate_email(email)}"
+            )
             raise HTTPException(400, "SES account sending is paused")
 
         except ses.exceptions.InvalidParameterValue:
-            logger.error(f"SES InvalidParameterValue for email={email}")
+            logger.error(
+                f"SES InvalidParameterValue for email={obfuscate_email(email)}"
+            )
             raise HTTPException(400, "Invalid email or SES parameter value")
 
         except ClientError as e:
             code = e.response["Error"]["Code"]
-            logger.exception(f"Unexpected SES error for email={email}: {code}")
+            logger.exception(
+                f"Unexpected SES error for email={obfuscate_email(email)}: {code}"
+            )
             raise HTTPException(400, f"Email send failed: {code}")
 
         logger.info(
-            f"Verification email sent successfully: {email}, Message ID: {message_id}"
+            f"Verification email sent successfully: {obfuscate_email(email)}, Message ID: {message_id}"
         )
 
     return {"success": True}
@@ -358,7 +370,7 @@ async def verify_otp(request: VerifyOTPRequest):
     # Create a JWT token of type "otp"
     token = create_access_token(sub=email, token_type="otp", username=username)
 
-    logger.info(f"OTP verified successfully for email={email}")
+    logger.info(f"OTP verified successfully for email={obfuscate_email(email)}")
     return JWTResponse(jwt=token)
 
 
@@ -442,7 +454,9 @@ async def request_password_reset(
         )
 
     # Update the password for the account
-    await comanage_client.update_password_for_user(coperson_id, request.password)
+    await comanage_client.update_password_for_user(
+        coperson_id, request.password, email=email
+    )
 
     return {"success": True}
 
@@ -508,7 +522,9 @@ async def create_account(
     ):
         access_id = co_person_response[0]["identifier"]
     else:
-        logger.error(f"Could not retrieve ACCESS ID for newly created user {email}")
+        logger.error(
+            f"Could not retrieve ACCESS ID for newly created user {obfuscate_email(email)}"
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Failed to retrieve ACCESS ID",
@@ -517,7 +533,9 @@ async def create_account(
     # Get the CoPerson ID for the new user
     co_person_id = await comanage_client.get_co_person_id_for_email(email)
     if co_person_id is None:
-        logger.error(f"Could not retrieve CoPerson ID for newly created user {email}")
+        logger.error(
+            f"Could not retrieve CoPerson ID for newly created user {obfuscate_email(email)}"
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Failed to retrieve CoPerson ID",
@@ -542,6 +560,7 @@ async def create_account(
     tandc_agreement = comanage_client.create_new_tandc_agreement(
         co_tandc_id=active_tandc["Id"],
         co_person_id=int(co_person_id),
+        access_id=access_id,
     )
 
     # Create or update the person record in the identity service
@@ -790,7 +809,9 @@ async def update_password(
         )
 
     # Update the password for the user in CoManage Registry
-    await comanage_client.update_password_for_user(coperson_id, request.password)
+    await comanage_client.update_password_for_user(
+        coperson_id, request.password, access_id=username
+    )
 
     return {"success": True}
 
@@ -947,7 +968,7 @@ async def delete_identity(
 
         # Remove identifiers from the OrgIdentity
         if identifier_id is not None:
-            await comanage_client.delete_identifier(identifier_id)
+            await comanage_client.delete_identifier(identifier_id, access_id=username)
 
         # Checks for matching identifiers on CoPerson and deletes
         # them if there is a match in OrgIdentity & CoPerson Identifer.
@@ -966,19 +987,25 @@ async def delete_identity(
                     )
 
                     if co_person_identifier_id is not None:
-                        await comanage_client.delete_identifier(co_person_identifier_id)
+                        await comanage_client.delete_identifier(
+                            co_person_identifier_id, access_id=username
+                        )
 
     # Unlink the OrgIdentity from the CoPerson before the OrgIdentity
-    org_identity_links = await comanage_client.get_org_identity_links(identity_id)
+    org_identity_links = await comanage_client.get_org_identity_links(
+        identity_id, access_id=username
+    )
 
     for org_identity_link in org_identity_links:
         org_identity_link_id = org_identity_link.get("Id") or org_identity_link.get(
             "meta", {}
         ).get("id")
         if org_identity_link_id is not None:
-            await comanage_client.delete_org_identity_link(org_identity_link_id)
+            await comanage_client.delete_org_identity_link(
+                org_identity_link_id, access_id=username
+            )
     # Delete the OrgIdentity record after it has been unlinked
-    await comanage_client.delete_org_identity(identity_id)
+    await comanage_client.delete_org_identity(identity_id, access_id=username)
     return {"success": True}
 
 

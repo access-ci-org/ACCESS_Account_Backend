@@ -14,3 +14,28 @@ formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(name)s - %(messag
 
 handler.setFormatter(formatter)
 logger.addHandler(handler)
+
+
+def obfuscate_string(value: str, char: str = "*") -> str:
+    """Mask the middle portion of a string, keeping its outer edges visible.
+
+    The number of characters replaced is half the string's length (rounded up,
+    at least 1), centered within the string.
+    """
+    length = len(value)
+    replace = max(-(-length // 2), 1)
+    start = (length - replace) // 2
+    return value[:start] + char * replace + value[start + replace :]
+
+
+def obfuscate_email(address: str | None) -> str | None:
+    """Obfuscate the account and domain portions of an email address separately.
+
+    Returns None if ``address`` is falsy or does not contain an "@".
+    """
+    if not address:
+        return None
+    account, sep, domain = address.partition("@")
+    if not sep:
+        return None
+    return obfuscate_string(account) + "@" + obfuscate_string(domain)

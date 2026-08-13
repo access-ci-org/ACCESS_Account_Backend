@@ -161,7 +161,11 @@ class CoManageRegistryClient(RestClient):
         if isinstance(result, dict) and "CoPeople" in result:
             co_people = result["CoPeople"]
             if co_people and len(co_people) > 0:
-                return str(co_people[0]["Id"])
+                active_co_people = [
+                    cp for cp in co_people if cp.get("Status") == "Active"
+                ]
+                if active_co_people:
+                    return str(active_co_people[0]["Id"])
 
         return None
 

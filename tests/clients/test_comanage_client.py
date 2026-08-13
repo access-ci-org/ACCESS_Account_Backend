@@ -22,7 +22,7 @@ def comanage():
 # --- get_co_person_id_for_email --------------------------------------------
 async def test_get_co_person_id_found(comanage, respx_mock):
     respx_mock.get(f"{REGISTRY}/co_people.json").respond(
-        200, json={"CoPeople": [{"Id": 123}]}
+        200, json={"CoPeople": [{"Id": 123, "Status": "Active"}]}
     )
     assert await comanage.get_co_person_id_for_email("ada@example.org") == "123"
 
@@ -30,6 +30,43 @@ async def test_get_co_person_id_found(comanage, respx_mock):
 async def test_get_co_person_id_none_when_empty(comanage, respx_mock):
     respx_mock.get(f"{REGISTRY}/co_people.json").respond(200, json={"CoPeople": []})
     assert await comanage.get_co_person_id_for_email("ada@example.org") is None
+
+
+async def test_get_co_person_id_skips_inactive(comanage, respx_mock):
+    respx_mock.get(f"{REGISTRY}/co_people.json").respond(
+        200,
+        json={"CoPeople": [
+            {"Id": 1, "Status": "Deleted"},
+            {"Id": 2, "Status": "Active"},
+        ]},
+    )
+    assert await comanage.get_co_person_id_for_email("ada@example.org") == "2"
+
+
+async def test_get_co_person_id_none_when_no_active(comanage, respx_mock):
+    respx_mock.get(f"{REGISTRY}/co_people.json").respond(
+        200, json={"CoPeople": [{"Id": 1, "Status": "Deleted"}]}
+    )
+    assert await comanage.get_co_person_id_for_email("ada@example.org") is None
+
+
+# --- get_co_person_id_for_accessid ------------------------------------------
+async def test_get_co_person_id_for_accessid_skips_inactive(comanage, respx_mock):
+    respx_mock.get(f"{REGISTRY}/co_people.json").respond(
+        200,
+        json={"CoPeople": [
+            {"Id": 1, "Status": "Deleted"},
+            {"Id": 2, "Status": "Active"},
+        ]},
+    )
+    assert await comanage.get_co_person_id_for_accessid("ada") == "2"
+
+
+async def test_get_co_person_id_for_accessid_none_when_no_active(comanage, respx_mock):
+    respx_mock.get(f"{REGISTRY}/co_people.json").respond(
+        200, json={"CoPeople": [{"Id": 1, "Status": "Deleted"}]}
+    )
+    assert await comanage.get_co_person_id_for_accessid("ada") is None
 
 
 async def test_basic_auth_is_sent(comanage, respx_mock):
@@ -43,7 +80,7 @@ async def test_basic_auth_is_sent(comanage, respx_mock):
 # --- get_access_id_for_email (chained lookups) ------------------------------
 async def test_get_access_id_for_email(comanage, respx_mock):
     respx_mock.get(f"{REGISTRY}/co_people.json").respond(
-        200, json={"CoPeople": [{"Id": 123}]}
+        200, json={"CoPeople": [{"Id": 123, "Status": "Active"}]}
     )
     respx_mock.get(f"{REGISTRY}/identifiers.json").respond(
         200, json={"Identifiers": [{"Type": "accessid", "Identifier": "ada"}]}
@@ -112,7 +149,7 @@ async def test_upstream_500_becomes_httpexception(comanage, respx_mock):
 async def test_add_ssh_key_rejects_invalid_type(comanage, respx_mock):
     # CoPerson lookup succeeds, then key-type validation fails locally.
     respx_mock.get(f"{REGISTRY}/co_people.json").respond(
-        200, json={"CoPeople": [{"Id": 123}]}
+        200, json={"CoPeople": [{"Id": 123, "Status": "Active"}]}
     )
     with pytest.raises(HTTPException) as exc:
         await comanage.add_ssh_key_for_user("ada", "not-a-real-type AAAAB3Nz")
@@ -121,7 +158,7 @@ async def test_add_ssh_key_rejects_invalid_type(comanage, respx_mock):
 
 async def test_add_ssh_key_rejects_empty_key(comanage, respx_mock):
     respx_mock.get(f"{REGISTRY}/co_people.json").respond(
-        200, json={"CoPeople": [{"Id": 123}]}
+        200, json={"CoPeople": [{"Id": 123, "Status": "Active"}]}
     )
     with pytest.raises(HTTPException) as exc:
         await comanage.add_ssh_key_for_user("ada", "   ")
@@ -130,7 +167,7 @@ async def test_add_ssh_key_rejects_empty_key(comanage, respx_mock):
 
 async def test_delete_ssh_key_404_when_not_owned(comanage, respx_mock):
     respx_mock.get(f"{REGISTRY}/co_people.json").respond(
-        200, json={"CoPeople": [{"Id": 123}]}
+        200, json={"CoPeople": [{"Id": 123, "Status": "Active"}]}
     )
     respx_mock.get(f"{REGISTRY}/ssh_key_authenticator/ssh_keys.json").respond(
         200, json={"SshKeys": [{"Id": 999}]}

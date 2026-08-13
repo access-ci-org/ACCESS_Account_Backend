@@ -143,7 +143,7 @@ def make_identifier(
 # ---------------------------------------------------------------------------
 def co_people_envelope(co_person_id: int | str = 123) -> dict:
     """Response shape for ``co_people.json`` lookups."""
-    return {"CoPeople": [{"Id": co_person_id}]}
+    return {"CoPeople": [{"Id": co_person_id, "Status": "Active"}]}
 
 
 def identifiers_envelope(access_id: str = "user") -> dict:

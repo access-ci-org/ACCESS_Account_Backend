@@ -142,6 +142,26 @@ class CoManageRegistryClient(RestClient):
         url = f"{self.base_url}/registry/{path}"
         return await self.request(url, method=method, json=json)
 
+    @staticmethod
+    def _active_co_person_id(result: dict | list | None) -> str | None:
+        """Return the Id of the first Active CoPerson in a co_people.json response.
+
+        Args:
+            result: Parsed response body from a co_people.json request
+
+        Returns:
+            CoPersonId of the first CoPerson with status "Active", or None if the
+            response holds no active CoPerson.
+        """
+        if isinstance(result, dict) and "CoPeople" in result:
+            active_co_people = [
+                cp for cp in result["CoPeople"] or [] if cp.get("Status") == "Active"
+            ]
+            if active_co_people:
+                return str(active_co_people[0]["Id"])
+
+        return None
+
     async def get_co_person_id_for_email(self, email: str) -> str | None:
         """Return the COPersonIdentifier associated with an email address.
 
@@ -158,16 +178,7 @@ class CoManageRegistryClient(RestClient):
             email=email,
         )
 
-        if isinstance(result, dict) and "CoPeople" in result:
-            co_people = result["CoPeople"]
-            if co_people and len(co_people) > 0:
-                active_co_people = [
-                    cp for cp in co_people if cp.get("Status") == "Active"
-                ]
-                if active_co_people:
-                    return str(active_co_people[0]["Id"])
-
-        return None
+        return self._active_co_person_id(result)
 
     async def get_access_id_for_email(self, email: str) -> str | None:
         """Return the ACCESS ID associated with an email address.
@@ -830,12 +841,7 @@ class CoManageRegistryClient(RestClient):
             access_id=accessid,
         )
 
-        if isinstance(result, dict) and "CoPeople" in result:
-            co_people = result["CoPeople"]
-            if co_people and len(co_people) > 0:
-                return str(co_people[0]["Id"])
-
-        return None
+        return self._active_co_person_id(result)
 
     async def delete_identifier(
         self, identifier_id: str | int, access_id: str | None = None

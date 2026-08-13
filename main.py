@@ -473,9 +473,7 @@ async def request_password_reset(
         )
 
     # Update the password for the account
-    await comanage_client.update_password_for_user(
-        coperson_id, request.password, email=email
-    )
+    await comanage_client.update_password_for_user(coperson_id, request.password)
 
     return {"success": True}
 
@@ -579,7 +577,6 @@ async def create_account(
     tandc_agreement = comanage_client.create_new_tandc_agreement(
         co_tandc_id=active_tandc["Id"],
         co_person_id=int(co_person_id),
-        access_id=access_id,
     )
 
     # Create or update the person record in the identity service
@@ -828,9 +825,7 @@ async def update_password(
         )
 
     # Update the password for the user in CoManage Registry
-    await comanage_client.update_password_for_user(
-        coperson_id, request.password, access_id=username
-    )
+    await comanage_client.update_password_for_user(coperson_id, request.password)
 
     return {"success": True}
 
@@ -987,7 +982,7 @@ async def delete_identity(
 
         # Remove identifiers from the OrgIdentity
         if identifier_id is not None:
-            await comanage_client.delete_identifier(identifier_id, access_id=username)
+            await comanage_client.delete_identifier(identifier_id)
 
         # Checks for matching identifiers on CoPerson and deletes
         # them if there is a match in OrgIdentity & CoPerson Identifer.
@@ -1006,25 +1001,19 @@ async def delete_identity(
                     )
 
                     if co_person_identifier_id is not None:
-                        await comanage_client.delete_identifier(
-                            co_person_identifier_id, access_id=username
-                        )
+                        await comanage_client.delete_identifier(co_person_identifier_id)
 
     # Unlink the OrgIdentity from the CoPerson before the OrgIdentity
-    org_identity_links = await comanage_client.get_org_identity_links(
-        identity_id, access_id=username
-    )
+    org_identity_links = await comanage_client.get_org_identity_links(identity_id)
 
     for org_identity_link in org_identity_links:
         org_identity_link_id = org_identity_link.get("Id") or org_identity_link.get(
             "meta", {}
         ).get("id")
         if org_identity_link_id is not None:
-            await comanage_client.delete_org_identity_link(
-                org_identity_link_id, access_id=username
-            )
+            await comanage_client.delete_org_identity_link(org_identity_link_id)
     # Delete the OrgIdentity record after it has been unlinked
-    await comanage_client.delete_org_identity(identity_id, access_id=username)
+    await comanage_client.delete_org_identity(identity_id)
     return {"success": True}
 
 

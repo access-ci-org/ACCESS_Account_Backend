@@ -13,7 +13,7 @@ from fastapi import HTTPException
 
 from config import OTP_CHARACTER_LENGTH, OTP_LIFETIME_MINUTES
 from database import OTPEntry, get_session
-from services.logs_service import obfuscate_email
+from services.logs_service import obfuscate_email, record_exception
 
 logger = logging.getLogger("access_account_api.otp")
 
@@ -102,8 +102,9 @@ def verify_stored_otp(email: str, submitted_otp: str) -> None:
             session.delete(entry)
             session.commit()
 
-            logger.exception(
-                f"General Argon2 verification error for email={obfuscate_email(email)}"
+            record_exception(
+                f"General Argon2 verification error for email={obfuscate_email(email)}",
+                fallback=logger,
             )
             raise HTTPException(403, "Verification failed. Please request a new code.")
 

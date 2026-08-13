@@ -17,6 +17,7 @@ from config import (
 )
 from models import TokenPayload
 from services.cilogon_client import get_token_user_info
+from services.logs_service import set_request_user
 
 security = HTTPBearer(auto_error=False)
 logger = logging.getLogger("access_account_api.auth")
@@ -136,14 +137,22 @@ async def require_auth(
     """
     try:
         if len(token.split(".")) != 3:
-            return await decode_cilogon_token(token)
-        return decode_otp_token(token)
+            payload = await decode_cilogon_token(token)
+        else:
+            payload = decode_otp_token(token)
     except (jwt.InvalidTokenError, jwt.DecodeError, jwt.ExpiredSignatureError) as err:
         logger.warning("JWT decode failed: %s", err)
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Invalid token",
         )
+
+    # Every authenticated route reaches its token through this dependency, so
+    # this is the one place that has to name the user for the request log. OTP
+    # tokens carry an email in `sub` and may have no `uid` yet (the account does
+    # not necessarily exist); login tokens always have a `uid`.
+    set_request_user(payload.uid, payload.sub)
+    return payload
 
 
 async def require_otp(

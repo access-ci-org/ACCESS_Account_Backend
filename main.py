@@ -88,7 +88,14 @@ from services.email_service import send_verification_email, ses
 from services.identity_client import Degree as IdentityDegree
 from services.identity_client import IdentityServiceClient
 from services.idp_service import build_idp_domain_mapping
-from services.logs_service import logger, obfuscate_email
+from services.logs_service import (
+    log_requests,
+    logger,
+    obfuscate_email,
+    obfuscate_string,
+    record_exception,
+    set_request_user,
+)
 from services.otp_service import (
     generate_otp,
     store_otp,
@@ -177,6 +184,12 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # pyright: ignore[reportArgumentType]
 
+# Registered before CORSMiddleware so that CORS ends up the outer of the two:
+# preflight requests are answered by CORS and never reach the request log, while
+# every real request -- including the error responses built by the exception and
+# rate-limit handlers, which run further in -- passes through it.
+app.middleware("http")(log_requests)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
@@ -264,6 +277,8 @@ async def health_check():
 @limiter.limit("4/hour", key_func=get_email_from_body)  # by email
 async def send_otp(request: Request, body: SendOTPRequest):
     email = body.email.lower().strip()
+    # Unauthenticated route: the user is named by the request body, not a token.
+    set_request_user(None, email)
 
     if "@" not in email:
         logger.warning(
@@ -317,7 +332,7 @@ async def send_otp(request: Request, body: SendOTPRequest):
 
         except ClientError as e:
             code = e.response["Error"]["Code"]
-            logger.exception(
+            record_exception(
                 f"Unexpected SES error for email={obfuscate_email(email)}: {code}"
             )
             raise HTTPException(400, f"Email send failed: {code}")
@@ -346,10 +361,13 @@ async def verify_otp(request: VerifyOTPRequest):
     # Validate format
     email = request.email.lower().strip()
     otp = request.otp.strip().upper()
+    # Unauthenticated route: the user is named by the request body, not a token.
+    set_request_user(None, email)
 
     if "@" not in email:
+        # obfuscate_email() needs an "@" to split on, so mask the whole string.
         logger.warning(
-            f"Rejected OTP verification due to invalid email format: {email}"
+            f"Rejected OTP verification due to invalid email format: {obfuscate_string(email)}"
         )
         raise HTTPException(400, "Invalid email")
 
@@ -357,7 +375,7 @@ async def verify_otp(request: VerifyOTPRequest):
         c in (string.ascii_uppercase + string.digits) for c in otp
     ):
         logger.warning(
-            f"Rejected OTP verification due to invalid OTP format: {otp} for email: {email}"
+            f"Rejected OTP verification due to invalid OTP format: {otp} for email: {obfuscate_email(email)}"
         )
         raise HTTPException(400, "Invalid OTP format")
 
@@ -366,6 +384,7 @@ async def verify_otp(request: VerifyOTPRequest):
 
     # Look up the email address to see if it has an existing account.
     username = await comanage_client.get_access_id_for_email(email)
+    set_request_user(username)
 
     # Create a JWT token of type "otp"
     token = create_access_token(sub=email, token_type="otp", username=username)

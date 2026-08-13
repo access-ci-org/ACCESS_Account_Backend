@@ -12,7 +12,7 @@ from config import (
     AWS_SES_SENDER_EMAIL,
     OTP_LIFETIME_MINUTES,
 )
-from services.logs_service import obfuscate_email
+from services.logs_service import obfuscate_email, record_exception
 
 logger = logging.getLogger("access_account_api.email")
 
@@ -60,7 +60,8 @@ def send_verification_email(email, otp):
         # print("SES Message ID:", resp.get("MessageId")) For testing purposes
         return resp
     except ClientError:
-        logger.exception(
-            f"SES ClientError when sending verification email to {obfuscate_email(email)}"
+        record_exception(
+            f"SES ClientError when sending verification email to {obfuscate_email(email)}",
+            fallback=logger,
         )
         raise

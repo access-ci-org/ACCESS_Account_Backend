@@ -1,8 +1,11 @@
 import ssl
+import time
 from typing import TypeVar
 
 import httpx
 from fastapi import HTTPException
+
+from services.logs_service import record_backend_call
 
 _JsonShapeT = TypeVar("_JsonShapeT", dict, list)
 
@@ -41,6 +44,12 @@ class RestClient:
         request_headers.update(headers)
 
         async with httpx.AsyncClient(**client_kwargs) as client:
+            # Every backend call the app makes funnels through here, so this is
+            # where they get timed and attached to the request that triggered
+            # them. `record_backend_call` no-ops outside a request context.
+            started = time.perf_counter()
+            logged_url = url
+            outcome: int | str = "ERR"
             try:
                 response = await client.request(
                     method,
@@ -51,6 +60,9 @@ class RestClient:
                     params=params,
                     timeout=self.timeout,
                 )
+                # Log the URL httpx actually built, so `params` show up too.
+                logged_url = str(response.request.url)
+                outcome = response.status_code
                 response.raise_for_status()
             except httpx.HTTPStatusError as exc:
                 if self.propagate_errors:
@@ -61,13 +73,14 @@ class RestClient:
                     )
                 else:
                     raise
-            except (httpx.RequestError, ssl.SSLError):
+            except (httpx.RequestError, ssl.SSLError) as exc:
                 # Handle connection or timeout issues.
                 # Python 3.13 raises ssl.SSLError("passed invalid argument") when the
                 # remote closes the connection mid-read, rather than the SSLEOFError /
                 # ConnectionResetError that older Pythons raise (which httpx wraps into
                 # httpx.ReadError). Catch it here so it surfaces as a clean 503 instead
                 # of propagating as an unhandled exception.
+                outcome = type(exc).__name__
                 if self.propagate_errors:
                     raise HTTPException(
                         status_code=503,
@@ -75,6 +88,13 @@ class RestClient:
                     )
                 else:
                     raise
+            finally:
+                record_backend_call(
+                    method,
+                    logged_url,
+                    outcome,
+                    (time.perf_counter() - started) * 1000,
+                )
 
             return response.json() if response.content else None
 
@@ -100,9 +120,20 @@ class RestClient:
         request_headers.update(headers)
 
         async with httpx.AsyncClient(**client_kwargs) as client:
-            response = await client.request(
-                method, url, headers=request_headers, timeout=self.timeout
-            )
+            started = time.perf_counter()
+            outcome: int | str = "ERR"
+            try:
+                response = await client.request(
+                    method, url, headers=request_headers, timeout=self.timeout
+                )
+                outcome = response.status_code
+            except (httpx.RequestError, ssl.SSLError) as exc:
+                outcome = type(exc).__name__
+                raise
+            finally:
+                record_backend_call(
+                    method, url, outcome, (time.perf_counter() - started) * 1000
+                )
             return response.status_code
 
     def _expect(

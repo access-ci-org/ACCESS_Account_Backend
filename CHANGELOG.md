@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.16.1](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.16.0...v0.16.1) (2026-08-13)
+
+
+### Bug Fixes
+
+* **comanage:** add missing coperson filtering method ([4c464d8](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/4c464d8bb1cb422d4129b3a048379c87e467ff20))
+* **comanage:** only select active CoPerson records ([b92059e](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/b92059e71ac826ca501ea23b872be8d2fa4a7ca4))
+
 ## [0.16.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.15.0...v0.16.0) (2026-08-12)
 
 

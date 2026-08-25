@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.17.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.16.1...v0.17.0) (2026-08-25)
+
+
+### Features
+
+* **logs:** consolidate request information into a unified log ([65c21e0](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/65c21e06bb2e1a9e5684cacae35190ddfb4fc148))
+
+
+### Bug Fixes
+
+* **idp:** respect hide from discovery attribute ([4007c23](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/4007c2308d83081baffb81ca085d9ed14386a744))
+
 ## [0.16.1](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.16.0...v0.16.1) (2026-08-13)
 
 

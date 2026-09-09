@@ -201,10 +201,25 @@ class CoManageRegistryClient(RestClient):
         Returns:
             Dictionary containing user information
         """
-        user_info = await self._request(
+        response = await self._request(
             "GET", f"api/co/{self.coid}/core/v1/people/{quote(accessid, safe='')}"
         )
-        return CoManageUser(self._expect(user_info, dict))
+
+        if not response:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Could not find a user with ACCESS ID: {accessid}",
+            )
+
+        user_info = CoManageUser(self._expect(response, dict))
+
+        if not user_info["CoPerson"]["status"] == "A":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"ACCESS ID is not active: {accessid}",
+            )
+
+        return user_info
 
     async def ping(self) -> int:
         """Make a lightweight request and return the HTTP status code."""
@@ -646,16 +661,6 @@ class CoManageRegistryClient(RestClient):
 
         return identifiers
 
-    async def _get_user(self, access_id: str):
-        """Get the user info for the ACCESS ID."""
-        user = await self.get_user_info(access_id)
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Could not find a user with ACCESS ID: ${access_id}",
-            )
-        return user
-
     # High-level methods
 
     async def check_account_does_not_exist(self, email: str):
@@ -707,7 +712,7 @@ class CoManageRegistryClient(RestClient):
             return None
 
         [cilogon_user_info, user] = await gather(
-            get_cilogon_user_info(), self._get_user(access_id)
+            get_cilogon_user_info(), self.get_user_info(access_id)
         )
 
         # Determine the identifiers we expect the new OrgIdentity to have.
@@ -773,15 +778,17 @@ class CoManageRegistryClient(RestClient):
             *identifier_creation,
         )
 
-    async def get_co_person_id_for_accessid(self, accessid: str) -> str | None:
-        """Return the CoPersonId (string instead of dict) associated with an ACCESS ID."""
-        encoded_accessid = quote(accessid)
-        result = await self._request(
-            "GET",
-            f"co_people.json?coid={self.coid}&search.identifier={encoded_accessid}",
-        )
+    async def get_co_person_id_for_accessid(self, accessid: str) -> str:
+        """Return the CoPersonId (string instead of dict) associated with an ACCESS ID.
 
-        return self._active_co_person_id(result)
+        Raises:
+            HTTPException: 404 if no user has this ACCESS ID, 400 if they are inactive
+        """
+        # Use the Core API to get the user by ACCESS ID. The REST API's
+        # /co_people.<format>?coid=<id>&search.identifier=<identifier> endpoint does
+        # a wildcard search on all identifier types, which can lead to incorrect matches.
+        user = await self.get_user_info(accessid)
+        return str(user["CoPerson"]["meta"]["id"])
 
     async def delete_identifier(self, identifier_id: str | int):
         """Delete an Identifier record by ID"""
@@ -836,8 +843,6 @@ class CoManageRegistryClient(RestClient):
         """Adds SSH Key for the CoPerson record."""
         # Gets user id
         coperson_id = await self.get_co_person_id_for_accessid(accessid)
-        if not coperson_id:
-            raise HTTPException(status_code=404, detail="User not found.")
 
         # Get SSH Key type
         public_key = public_key.strip()
@@ -893,8 +898,6 @@ class CoManageRegistryClient(RestClient):
         """Helper method to get all SSH keys for a user."""
 
         coperson_id = await self.get_co_person_id_for_accessid(accessid)
-        if not coperson_id:
-            raise HTTPException(status_code=404, detail="User not found.")
 
         # List keys for this CO Person
         result = await self._request(

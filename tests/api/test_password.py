@@ -2,6 +2,8 @@
 
 from unittest.mock import AsyncMock
 
+from fastapi import HTTPException
+
 import main
 
 BASE = "/api/v1"
@@ -37,7 +39,10 @@ def test_update_password_too_short_is_422(client, override_auth):
 
 def test_update_password_user_not_found(client, override_auth, mock_comanage):
     override_auth(main.require_own_username_access, uid="ada")
-    mock_comanage.get_co_person_id_for_accessid = AsyncMock(return_value=None)
+    # The client raises rather than returning None for an unknown ACCESS ID.
+    mock_comanage.get_co_person_id_for_accessid = AsyncMock(
+        side_effect=HTTPException(status_code=404, detail="User not found.")
+    )
 
     resp = client.post(f"{BASE}/account/ada/password", json={"password": GOOD_PASSWORD})
     assert resp.status_code == 404

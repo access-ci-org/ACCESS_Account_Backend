@@ -818,11 +818,6 @@ async def update_password(
         )
     # Get the CoPerson ID for the user
     coperson_id = await comanage_client.get_co_person_id_for_accessid(username)
-    if not coperson_id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found.",
-        )
 
     # Update the password for the user in CoManage Registry
     await comanage_client.update_password_for_user(coperson_id, request.password)
@@ -902,10 +897,6 @@ async def link_identity(
     _token: Annotated[TokenPayload, Depends(require_own_username_access)],
 ):
     co_person_id = await comanage_client.get_co_person_id_for_accessid(username)
-    if co_person_id is None:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, f"User {username} does not exist"
-        )
 
     await comanage_client.create_linked_identity(
         co_person_id, username, link_request.cilogon_token
@@ -938,11 +929,6 @@ async def delete_identity(
 ):
     # Get the CoPerson ID for the username provided by the URL.
     co_person_id = await comanage_client.get_co_person_id_for_accessid(username)
-    if co_person_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"User {username} does not exist",
-        )
 
     # Get the user's full CoManage record so we can confirm the identity belongs
     # to this user and access the identity's Identifier records.

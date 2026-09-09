@@ -4,7 +4,6 @@ Uses respx to stub the Registry/Core-API responses. Base URL comes from the test
 env (COMANAGE_REGISTRY_BASE_URL=https://comanage.test), COID=2.
 """
 
-import httpx
 import pytest
 from fastapi import HTTPException
 
@@ -17,6 +16,21 @@ REGISTRY = "https://comanage.test/registry"
 def comanage():
     # propagate_errors=True mirrors the app singleton.
     return CoManageRegistryClient(propagate_errors=True)
+
+
+def core_person(co_person_id=123, co_person_status="A"):
+    """A minimal Core API person payload for ACCESS ID "ada"."""
+    return {
+        "CoPerson": {
+            "status": co_person_status,
+            "meta": {"id": co_person_id},
+        },
+        "Identifier": [{"type": "accessid", "identifier": "ada"}],
+        "Name": [{"primary_name": True, "given": "Ada", "family": "Lovelace",
+                  "meta": {"deleted": False}}],
+        "EmailAddress": [{"type": "official", "mail": "ada@example.org",
+                          "meta": {"deleted": False}}],
+    }
 
 
 # --- get_co_person_id_for_email --------------------------------------------
@@ -51,22 +65,28 @@ async def test_get_co_person_id_none_when_no_active(comanage, respx_mock):
 
 
 # --- get_co_person_id_for_accessid ------------------------------------------
-async def test_get_co_person_id_for_accessid_skips_inactive(comanage, respx_mock):
-    respx_mock.get(f"{REGISTRY}/co_people.json").respond(
-        200,
-        json={"CoPeople": [
-            {"Id": 1, "Status": "Deleted"},
-            {"Id": 2, "Status": "Active"},
-        ]},
+async def test_get_co_person_id_for_accessid_uses_core_api(comanage, respx_mock):
+    # The Core API matches the ACCESS ID exactly, unlike search.identifier.
+    respx_mock.get(f"{REGISTRY}/api/co/2/core/v1/people/ada").respond(
+        200, json=core_person(co_person_id=2)
     )
     assert await comanage.get_co_person_id_for_accessid("ada") == "2"
 
 
-async def test_get_co_person_id_for_accessid_none_when_no_active(comanage, respx_mock):
-    respx_mock.get(f"{REGISTRY}/co_people.json").respond(
-        200, json={"CoPeople": [{"Id": 1, "Status": "Deleted"}]}
+async def test_get_co_person_id_for_accessid_rejects_inactive(comanage, respx_mock):
+    respx_mock.get(f"{REGISTRY}/api/co/2/core/v1/people/ada").respond(
+        200, json=core_person(co_person_id=2, co_person_status="D")
     )
-    assert await comanage.get_co_person_id_for_accessid("ada") is None
+    with pytest.raises(HTTPException) as exc:
+        await comanage.get_co_person_id_for_accessid("ada")
+    assert exc.value.status_code == 400
+
+
+async def test_get_co_person_id_for_accessid_404_when_no_user(comanage, respx_mock):
+    respx_mock.get(f"{REGISTRY}/api/co/2/core/v1/people/nobody").respond(200, json={})
+    with pytest.raises(HTTPException) as exc:
+        await comanage.get_co_person_id_for_accessid("nobody")
+    assert exc.value.status_code == 404
 
 
 async def test_basic_auth_is_sent(comanage, respx_mock):
@@ -95,19 +115,30 @@ async def test_get_access_id_none_when_no_co_person(comanage, respx_mock):
 
 # --- get_user_info ----------------------------------------------------------
 async def test_get_user_info_returns_comanage_user(comanage, respx_mock):
-    payload = {
-        "Identifier": [{"type": "accessid", "identifier": "ada"}],
-        "Name": [{"primary_name": True, "given": "Ada", "family": "Lovelace",
-                  "meta": {"deleted": False}}],
-        "EmailAddress": [{"type": "official", "mail": "ada@example.org",
-                          "meta": {"deleted": False}}],
-    }
-    respx_mock.get(f"{REGISTRY}/api/co/2/core/v1/people/ada").respond(200, json=payload)
+    respx_mock.get(f"{REGISTRY}/api/co/2/core/v1/people/ada").respond(
+        200, json=core_person()
+    )
 
     user = await comanage.get_user_info("ada")
     assert isinstance(user, CoManageUser)
     assert user.get_username() == "ada"
     assert user.get_primary_email() == "ada@example.org"
+
+
+async def test_get_user_info_404_when_empty(comanage, respx_mock):
+    respx_mock.get(f"{REGISTRY}/api/co/2/core/v1/people/ada").respond(200, json={})
+    with pytest.raises(HTTPException) as exc:
+        await comanage.get_user_info("ada")
+    assert exc.value.status_code == 404
+
+
+async def test_get_user_info_400_when_inactive(comanage, respx_mock):
+    respx_mock.get(f"{REGISTRY}/api/co/2/core/v1/people/ada").respond(
+        200, json=core_person(co_person_status="D")
+    )
+    with pytest.raises(HTTPException) as exc:
+        await comanage.get_user_info("ada")
+    assert exc.value.status_code == 400
 
 
 async def test_get_user_info_non_dict_raises_502(comanage, respx_mock):
@@ -148,8 +179,8 @@ async def test_upstream_500_becomes_httpexception(comanage, respx_mock):
 # --- add_ssh_key_for_user validation ----------------------------------------
 async def test_add_ssh_key_rejects_invalid_type(comanage, respx_mock):
     # CoPerson lookup succeeds, then key-type validation fails locally.
-    respx_mock.get(f"{REGISTRY}/co_people.json").respond(
-        200, json={"CoPeople": [{"Id": 123, "Status": "Active"}]}
+    respx_mock.get(f"{REGISTRY}/api/co/2/core/v1/people/ada").respond(
+        200, json=core_person()
     )
     with pytest.raises(HTTPException) as exc:
         await comanage.add_ssh_key_for_user("ada", "not-a-real-type AAAAB3Nz")
@@ -157,8 +188,8 @@ async def test_add_ssh_key_rejects_invalid_type(comanage, respx_mock):
 
 
 async def test_add_ssh_key_rejects_empty_key(comanage, respx_mock):
-    respx_mock.get(f"{REGISTRY}/co_people.json").respond(
-        200, json={"CoPeople": [{"Id": 123, "Status": "Active"}]}
+    respx_mock.get(f"{REGISTRY}/api/co/2/core/v1/people/ada").respond(
+        200, json=core_person()
     )
     with pytest.raises(HTTPException) as exc:
         await comanage.add_ssh_key_for_user("ada", "   ")
@@ -166,8 +197,8 @@ async def test_add_ssh_key_rejects_empty_key(comanage, respx_mock):
 
 
 async def test_delete_ssh_key_404_when_not_owned(comanage, respx_mock):
-    respx_mock.get(f"{REGISTRY}/co_people.json").respond(
-        200, json={"CoPeople": [{"Id": 123, "Status": "Active"}]}
+    respx_mock.get(f"{REGISTRY}/api/co/2/core/v1/people/ada").respond(
+        200, json=core_person()
     )
     respx_mock.get(f"{REGISTRY}/ssh_key_authenticator/ssh_keys.json").respond(
         200, json={"SshKeys": [{"Id": 999}]}

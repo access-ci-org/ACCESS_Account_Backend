@@ -2,6 +2,8 @@
 
 from unittest.mock import AsyncMock
 
+from fastapi import HTTPException
+
 import main
 from services.comanage_registry_client import CoManageUser
 
@@ -50,12 +52,15 @@ def test_link_identity_success(client, override_auth, mock_comanage):
 
 def test_link_identity_user_not_found(client, override_auth, mock_comanage):
     override_auth(main.require_own_username_access, uid="ada")
-    mock_comanage.get_co_person_id_for_accessid = AsyncMock(return_value=None)
+    # The client raises rather than returning None for an unknown ACCESS ID.
+    mock_comanage.get_co_person_id_for_accessid = AsyncMock(
+        side_effect=HTTPException(status_code=404, detail="User not found.")
+    )
 
     resp = client.post(
         f"{BASE}/account/ada/identity", json={"cilogonToken": "tok123"}
     )
-    assert resp.status_code == 400
+    assert resp.status_code == 404
 
 
 # --- DELETE /account/{username}/identity/{id} -------------------------------
@@ -109,7 +114,9 @@ def test_delete_identity_blocks_access_idp(client, override_auth, mock_comanage)
 
 def test_delete_identity_user_not_found(client, override_auth, mock_comanage):
     override_auth(main.require_own_username_access, uid="ada")
-    mock_comanage.get_co_person_id_for_accessid = AsyncMock(return_value=None)
+    mock_comanage.get_co_person_id_for_accessid = AsyncMock(
+        side_effect=HTTPException(status_code=404, detail="User not found.")
+    )
 
     resp = client.request("DELETE", f"{BASE}/account/ada/identity/5")
-    assert resp.status_code == 400
+    assert resp.status_code == 404

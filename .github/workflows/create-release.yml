@@ -20,7 +20,7 @@ jobs:
     steps:
       - name: Release please
         id: rp
-        uses: googleapis/release-please-action@v4
+        uses: googleapis/release-please-action@v5
         with:
           release-type: python
           target-branch: ${{ github.ref_name }}

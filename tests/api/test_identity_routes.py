@@ -66,7 +66,6 @@ def test_link_identity_user_not_found(client, override_auth, mock_comanage):
 # --- DELETE /account/{username}/identity/{id} -------------------------------
 def test_delete_identity_success(client, override_auth, mock_comanage):
     override_auth(main.require_own_username_access, uid="ada")
-    mock_comanage.get_co_person_id_for_accessid = AsyncMock(return_value="500")
     mock_comanage.get_user_info = AsyncMock(
         return_value=CoManageUser(
             {
@@ -86,7 +85,6 @@ def test_delete_identity_success(client, override_auth, mock_comanage):
 
 def test_delete_identity_not_found(client, override_auth, mock_comanage):
     override_auth(main.require_own_username_access, uid="ada")
-    mock_comanage.get_co_person_id_for_accessid = AsyncMock(return_value="500")
     mock_comanage.get_user_info = AsyncMock(
         return_value=CoManageUser({"OrgIdentity": [], "Identifier": []})
     )
@@ -97,7 +95,6 @@ def test_delete_identity_not_found(client, override_auth, mock_comanage):
 
 def test_delete_identity_blocks_access_idp(client, override_auth, mock_comanage):
     override_auth(main.require_own_username_access, uid="ada")
-    mock_comanage.get_co_person_id_for_accessid = AsyncMock(return_value="500")
     mock_comanage.get_user_info = AsyncMock(
         return_value=CoManageUser(
             {
@@ -114,7 +111,8 @@ def test_delete_identity_blocks_access_idp(client, override_auth, mock_comanage)
 
 def test_delete_identity_user_not_found(client, override_auth, mock_comanage):
     override_auth(main.require_own_username_access, uid="ada")
-    mock_comanage.get_co_person_id_for_accessid = AsyncMock(
+    # get_user_info is the route's only lookup, and it raises for an unknown ACCESS ID.
+    mock_comanage.get_user_info = AsyncMock(
         side_effect=HTTPException(status_code=404, detail="User not found.")
     )
 

@@ -927,9 +927,6 @@ async def delete_identity(
     identity_id: int,
     _token: Annotated[TokenPayload, Depends(require_own_username_access)],
 ):
-    # Get the CoPerson ID for the username provided by the URL.
-    co_person_id = await comanage_client.get_co_person_id_for_accessid(username)
-
     # Get the user's full CoManage record so we can confirm the identity belongs
     # to this user and access the identity's Identifier records.
     # Finding matching OrgIdentity

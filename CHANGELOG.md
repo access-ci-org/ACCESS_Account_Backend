@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.18.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.17.0...v0.18.0) (2026-09-23)
+
+
+### Features
+
+* add time zone options route ([79f3dc8](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/79f3dc8005b267cc709eeccb6b8c77841a930c8e))
+
+
+### Bug Fixes
+
+* **comanage:** use Core API to look up CoPerson ID by ACCESS ID ([f2631fc](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/f2631fc4c1ba53c20b70b8f2a1bdd8efe7045057))
+* remove duplicate ACCESS ID lookup in delete identity route ([795917e](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/795917e37d4e29591db998cd3fdb98e70fef587f))
+
 ## [0.17.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.16.1...v0.17.0) (2026-08-25)
 
 

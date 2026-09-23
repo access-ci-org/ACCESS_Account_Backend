@@ -722,3 +722,29 @@ The JWT is invalid.
 
 ##### HTTP 404
 No active terms and conditions found.
+
+### GET `/time-zone`
+Get a list of all selectable IANA time zone identifiers. The list is generated
+from the system time zone database with Python's `zoneinfo` module, filtered to
+the identifiers CoManage Registry accepts: those listed in the database's
+`zone.tab`, plus `UTC`. That excludes deprecated aliases (`Asia/Calcutta`,
+`Europe/Kiev`), country groupings (`US/Eastern`), legacy single-name zones
+(`Egypt`), and fixed-offset zones (`Etc/GMT+5`), while keeping the current
+identifier for every country and region.
+
+#### Request Headers
+- `Authorization`: containing a JWT of type `otp` or `login`.
+
+#### Response Types
+
+##### HTTP 200
+Return a list of time zone identifiers, sorted alphabetically.
+
+```json
+{
+	"timeZones": ["Africa/Abidjan", "America/New_York", "UTC"]
+}
+```
+
+##### HTTP 403
+The JWT is invalid.

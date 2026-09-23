@@ -124,3 +124,19 @@ def test_terms_and_conditions_404_when_none(client, override_auth, mock_comanage
 
     resp = client.get(f"{BASE}/terms-and-conditions")
     assert resp.status_code == 404
+
+
+# --- GET /time-zone ---------------------------------------------------------
+def test_time_zone_list(client, override_auth):
+    _auth(override_auth)
+
+    resp = client.get(f"{BASE}/time-zone")
+    assert resp.status_code == 200
+    time_zones = resp.json()["timeZones"]
+    assert time_zones == sorted(time_zones)
+    assert "America/New_York" in time_zones
+    assert "UTC" in time_zones
+    # Identifiers CoManage does not accept are filtered out.
+    assert "Asia/Calcutta" not in time_zones
+    assert "US/Eastern" not in time_zones
+    assert "Etc/GMT+5" not in time_zones

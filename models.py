@@ -128,6 +128,10 @@ class AcademicStatusResponse(BaseSchema):
     academic_statuses: list[AcademicStatus]
 
 
+class TimeZonesResponse(BaseSchema):
+    time_zones: list[str]
+
+
 class IdP(BaseSchema):
     display_name: str
     entity_id: str

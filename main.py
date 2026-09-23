@@ -71,6 +71,7 @@ from models import (
     SSHKey,
     SSHKeysResponse,
     TermsAndConditionsResponse,
+    TimeZonesResponse,
     UpdateAccountRequest,
     UpdatePasswordRequest,
     VerifyOTPRequest,
@@ -103,6 +104,7 @@ from services.otp_service import (
 )
 from services.password_policy import validate_access_password
 from services.ssh_key_service import calculate_ssh_fingerprint_sha256
+from services.time_zone_service import get_time_zones
 
 limiter = Limiter(
     key_func=get_remote_address,
@@ -1240,6 +1242,23 @@ async def get_terms_and_conditions(
         url=tandc["Url"],
         body=tandc["Body"],
     )
+
+
+@router.get(
+    "/time-zone",
+    tags=["Reference Data"],
+    summary="Get time zones",
+    description="Get a list of all selectable IANA time zone identifiers.",
+    response_model=TimeZonesResponse,
+    responses={
+        200: {"description": "Return a list of time zone identifiers"},
+        403: {"description": "The JWT is invalid"},
+    },
+)
+async def get_time_zone_list(
+    _token: Annotated[TokenPayload, Depends(require_otp_or_login)],
+) -> TimeZonesResponse:
+    return TimeZonesResponse(time_zones=get_time_zones())
 
 
 # Include router in the app

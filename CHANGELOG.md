@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.20.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.19.0...v0.20.0) (2026-10-21)
+
+
+### Features
+
+* **rest:** improve handling of unavailable upstream APIs ([4e76c61](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/4e76c6101125391974e1bb48e61e1ab216959589))
+
 ## [0.19.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.18.0...v0.19.0) (2026-10-21)
 
 

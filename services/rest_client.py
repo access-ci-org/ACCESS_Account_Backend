@@ -9,6 +9,10 @@ from services.logs_service import record_backend_call
 
 _JsonShapeT = TypeVar("_JsonShapeT", dict, list)
 
+# Upstream statuses that mean the service itself is down (e.g. a maintenance
+# page in front of it), as opposed to an error about this particular request.
+_UNAVAILABLE_STATUSES = {502, 503, 504}
+
 
 class RestClient:
     def __init__(
@@ -65,6 +69,13 @@ class RestClient:
                 outcome = response.status_code
                 response.raise_for_status()
             except httpx.HTTPStatusError as exc:
+                if (
+                    self.propagate_errors
+                    and exc.response.status_code in _UNAVAILABLE_STATUSES
+                ):
+                    # Don't pass the upstream body through: during an outage it
+                    # is typically an HTML maintenance page, not an API error.
+                    raise self._unavailable()
                 if self.propagate_errors:
                     # Map the external error to a FastAPI HTTPException
                     raise HTTPException(
@@ -82,10 +93,7 @@ class RestClient:
                 # of propagating as an unhandled exception.
                 outcome = type(exc).__name__
                 if self.propagate_errors:
-                    raise HTTPException(
-                        status_code=503,
-                        detail=f"{self.__class__.__name__} API is unavailable",
-                    )
+                    raise self._unavailable()
                 else:
                     raise
             finally:
@@ -96,7 +104,22 @@ class RestClient:
                     (time.perf_counter() - started) * 1000,
                 )
 
-            return response.json() if response.content else None
+            if not response.content:
+                return None
+            try:
+                return response.json()
+            except ValueError:
+                # A 2xx response that isn't JSON (e.g. a maintenance page served
+                # with a 200) means the API isn't really answering.
+                if self.propagate_errors:
+                    raise self._unavailable()
+                raise
+
+    def _unavailable(self) -> HTTPException:
+        return HTTPException(
+            status_code=503,
+            detail=f"{self.__class__.__name__} API is unavailable",
+        )
 
     async def request_status(
         self, url: str, method: str = "GET", headers: dict | None = None

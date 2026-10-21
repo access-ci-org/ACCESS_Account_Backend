@@ -3,7 +3,8 @@
 respx stubs the outbound httpx layer so we exercise the real request building and,
 crucially, the error-mapping behavior:
   * HTTPStatusError -> HTTPException(same status)   when propagate_errors=True
-  * connection/timeout errors -> HTTPException(503) when propagate_errors=True
+  * upstream 502/503/504, connection/timeout errors, and non-JSON 2xx bodies
+    -> HTTPException(503)                            when propagate_errors=True
   * both re-raise the original httpx error           when propagate_errors=False
 plus the _expect() JSON-shape guard.
 """
@@ -52,6 +53,30 @@ async def test_http_error_maps_to_httpexception_when_propagating(respx_mock):
         await RestClient(propagate_errors=True).request(URL)
     assert exc.value.status_code == 404
     assert "RestClient API error" in exc.value.detail
+
+
+@pytest.mark.parametrize("status_code", [502, 503, 504])
+async def test_upstream_outage_maps_to_503_without_body(respx_mock, status_code):
+    respx_mock.get(URL).respond(
+        status_code, text="<html>Down for maintenance</html>"
+    )
+    with pytest.raises(HTTPException) as exc:
+        await RestClient(propagate_errors=True).request(URL)
+    assert exc.value.status_code == 503
+    assert exc.value.detail == "RestClient API is unavailable"
+
+
+async def test_non_json_success_maps_to_503_when_propagating(respx_mock):
+    respx_mock.get(URL).respond(200, text="<html>Down for maintenance</html>")
+    with pytest.raises(HTTPException) as exc:
+        await RestClient(propagate_errors=True).request(URL)
+    assert exc.value.status_code == 503
+
+
+async def test_non_json_success_reraised_when_not_propagating(respx_mock):
+    respx_mock.get(URL).respond(200, text="<html>Down for maintenance</html>")
+    with pytest.raises(ValueError):
+        await RestClient(propagate_errors=False).request(URL)
 
 
 async def test_http_error_reraised_when_not_propagating(respx_mock):

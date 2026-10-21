@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.18.0...v0.19.0) (2026-10-21)
+
+
+### Features
+
+* **email:** add Amazon SES callback route ([413726f](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/413726f393392ee60c8686a477bf612c817f6f56))
+
 ## [0.18.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.17.0...v0.18.0) (2026-09-23)
 
 

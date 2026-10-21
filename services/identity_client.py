@@ -40,20 +40,23 @@ class IdentityServiceClient(RestClient):
         }
 
     @cached(choice_list_cache, key=partial(methodkey, method="academic_statuses"))
-    async def get_academic_statuses(self):
-        return await self._request("GET", "/profiles/v1/nsf_status_codes")
+    async def get_academic_statuses(self) -> list:
+        result = await self._request("GET", "/profiles/v1/nsf_status_codes")
+        return self._expect(result, list)
 
     @cached(choice_list_cache, key=partial(methodkey, method="countries"))
-    async def get_countries(self):
+    async def get_countries(self) -> list:
         countries = await self._request("GET", "/profiles/v1/countries")
         sorted_countries = sorted(
-            countries, key=lambda c: c["countryName"] != "United States"
+            self._expect(countries, list),
+            key=lambda c: c["countryName"] != "United States",
         )
         return sorted_countries
 
     @cached(choice_list_cache, key=partial(methodkey, method="degrees"))
-    async def get_degrees(self):
-        return await self._request("GET", "/profiles/v1/degrees")
+    async def get_degrees(self) -> list:
+        result = await self._request("GET", "/profiles/v1/degrees")
+        return self._expect(result, list)
 
     async def ping(self) -> int:
         """Make a lightweight, uncached request and return the HTTP status code."""

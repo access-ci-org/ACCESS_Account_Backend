@@ -59,6 +59,21 @@ async def test_empty_response_raises_502(identity, respx_mock):
     assert exc.value.status_code == 502
 
 
+@pytest.mark.parametrize(
+    "method, path",
+    [
+        ("get_academic_statuses", "nsf_status_codes"),
+        ("get_countries", "countries"),
+        ("get_degrees", "degrees"),
+    ],
+)
+async def test_choice_list_non_list_raises_502(identity, respx_mock, method, path):
+    respx_mock.get(f"{XRAS}/profiles/v1/{path}").respond(200, json={"error": "x"})
+    with pytest.raises(HTTPException) as exc:
+        await getattr(identity, method)()
+    assert exc.value.status_code == 502
+
+
 async def test_update_person_tolerates_204_empty_response(identity, respx_mock):
     respx_mock.patch(f"{XRAS}/profiles/v1/people/ada").respond(204)
     result = await identity.update_person("ada", first_name="Ada")
@@ -83,7 +98,10 @@ async def test_get_account_non_dict_raises_502(identity, respx_mock):
 # --- check_valid_academic_status_id -----------------------------------------
 STATUSES = [
     {"nsfStatusCodeId": 1, "nsfStatusCode": "GD"},
-    {"nsfStatusCodeId": 2, "nsfStatusCode": "N"},  # invalid per INVALID_ACADEMIC_STATUS_CODES
+    {
+        "nsfStatusCodeId": 2,
+        "nsfStatusCode": "N",
+    },  # invalid per INVALID_ACADEMIC_STATUS_CODES
 ]
 
 

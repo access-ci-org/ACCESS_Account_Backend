@@ -748,6 +748,11 @@ async def update_account(
     # Check that the PRIMARY email matches the organization. We perform this check
     # even if neither the organization nor email has changed because some profiles
     # already have invalid combinations. Recovery emails are not subject to this check.
+    if primary_email is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The account has no primary email address; one must be provided.",
+        )
     domain = primary_email.strip().split("@")[1]
     organization_name = await identity_client.check_organization_matches_domain(
         organization_id, domain

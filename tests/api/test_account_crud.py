@@ -146,6 +146,22 @@ def test_update_account_no_email_change(
     assert resp.json() == {"success": True}
 
 
+def test_update_account_without_primary_email_returns_400(
+    client, override_auth, mock_comanage, mock_identity
+):
+    override_auth(main.require_username_access, uid="ada")
+    _mock_update_happy(mock_comanage, mock_identity)
+    mock_comanage.get_user_info = AsyncMock(
+        return_value=make_comanage_user(access_id="ada", emails=[])
+    )
+
+    # No emails supplied and none on the record -> nothing to check the
+    # organization against.
+    resp = client.post(f"{BASE}/account/ada", json={"firstName": "Adele"})
+    assert resp.status_code == 400
+    mock_comanage.update_user.assert_not_called()
+
+
 def test_update_account_email_change_requires_otp_token(
     client, override_auth, mock_comanage, mock_identity
 ):

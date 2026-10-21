@@ -30,6 +30,11 @@ AWS_SECRET_ACCESS_KEY: Secret = config("AWS_SECRET_ACCESS_KEY", cast=Secret)
 AWS_SES_SENDER_EMAIL: str = config(
     "AWS_SES_SENDER_EMAIL", default="allocations@access-ci.org"
 )
+# SES publishes delivery events for messages sent with this configuration set to
+# an SNS topic, which in turn POSTs them to /api/v1/email/callback. The callback
+# only accepts messages from AWS_SNS_TOPIC_ARN; leave either unset to disable.
+AWS_SES_CONFIGURATION_SET: str = config("AWS_SES_CONFIGURATION_SET", default="")
+AWS_SNS_TOPIC_ARN: str = config("AWS_SNS_TOPIC_ARN", default="")
 
 # CILogon
 CILOGON_AUTHORIZATION_URL: str = config(

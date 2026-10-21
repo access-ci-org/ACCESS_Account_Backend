@@ -1,3 +1,4 @@
+import json
 import ssl
 import string
 import xml.etree.ElementTree as ET
@@ -38,6 +39,7 @@ from auth import (
 )
 from config import (
     ADMIN_USERNAMES,
+    AWS_SNS_TOPIC_ARN,
     CILOGON_AUTHORIZATION_URL,
     CILOGON_LINK_CLIENT_ID,
     CILOGON_LOGIN_CLIENT_ID,
@@ -84,8 +86,14 @@ from services.account_service import (
 )
 from services.cilogon_client import CILogonClient
 from services.comanage_registry_client import CoManageRegistryClient
+from services.email_service import (
+    confirm_sns_subscription,
+    log_ses_event,
+    send_verification_email,
+    ses,
+    verify_sns_message,
+)
 from services.email_service import ping as ses_ping
-from services.email_service import send_verification_email, ses
 from services.identity_client import Degree as IdentityDegree
 from services.identity_client import IdentityServiceClient
 from services.idp_service import build_idp_domain_mapping
@@ -1259,6 +1267,74 @@ async def get_time_zone_list(
     _token: Annotated[TokenPayload, Depends(require_otp_or_login)],
 ) -> TimeZonesResponse:
     return TimeZonesResponse(time_zones=get_time_zones())
+
+
+# Email Routes
+@router.post(
+    "/email/callback",
+    tags=["Email"],
+    summary="Receive SES delivery status events",
+    description="Receive Amazon SES delivery events (send, delivery, bounce, "
+    "complaint, ...) relayed by Amazon SNS, and log the message ID and status. "
+    "Also confirms the SNS subscription when SNS first subscribes this endpoint. "
+    "Only signed messages from the configured SNS topic are accepted.",
+    responses={
+        200: {"description": "The message was logged (or the subscription confirmed)"},
+        400: {"description": "The request body is not a valid SNS message"},
+        403: {
+            "description": "The message is not from the configured SNS topic, "
+            "or its signature is invalid"
+        },
+        429: {"description": "Rate limit exceeded (by IP address)"},
+    },
+)
+@limiter.limit("1000/hour")  # by IP address
+async def email_callback(request: Request):
+    # SNS sends its JSON with a text/plain content type, so parse the raw body
+    # rather than declaring a body model.
+    try:
+        message = json.loads(await request.body())
+    except ValueError:
+        raise HTTPException(400, "Invalid SNS message")
+    if not isinstance(message, dict):
+        raise HTTPException(400, "Invalid SNS message")
+
+    if not AWS_SNS_TOPIC_ARN or message.get("TopicArn") != AWS_SNS_TOPIC_ARN:
+        logger.warning(
+            f"Rejected email callback from unexpected SNS topic: {message.get('TopicArn')}"
+        )
+        raise HTTPException(403, "Unrecognized SNS topic")
+
+    # Checked after the topic so that stray requests can't make the server
+    # fetch signing certificates.
+    try:
+        await verify_sns_message(message)
+    except (ValueError, httpx.HTTPError):
+        record_exception("Rejected email callback with an invalid SNS signature")
+        raise HTTPException(403, "Invalid SNS signature")
+
+    match message.get("Type"):
+        case "Notification":
+            try:
+                event = json.loads(message["Message"])
+            except (KeyError, TypeError, ValueError):
+                raise HTTPException(400, "Invalid SNS notification")
+            if not isinstance(event, dict):
+                raise HTTPException(400, "Invalid SNS notification")
+            log_ses_event(event)
+
+        case "SubscriptionConfirmation":
+            try:
+                await confirm_sns_subscription(str(message.get("SubscribeURL")))
+            except (ValueError, httpx.HTTPError):
+                record_exception("Failed to confirm SNS subscription")
+                raise HTTPException(400, "Could not confirm SNS subscription")
+            logger.info(f"Confirmed SNS subscription to {AWS_SNS_TOPIC_ARN}")
+
+        case "UnsubscribeConfirmation":
+            logger.warning(f"Email callback unsubscribed from {AWS_SNS_TOPIC_ARN}")
+
+    return {"success": True}
 
 
 # Include router in the app

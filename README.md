@@ -49,6 +49,11 @@ ADMIN_USERNAMES=
 # Optional: backing store for rate limiting (defaults to in-memory, which is
 # not shared across multiple worker processes)
 RATE_LIMIT_STORAGE_URL=memory://
+
+# Optional: SES delivery status logging (see POST /email/callback). Both must be
+# set for SES events to reach the callback.
+AWS_SES_CONFIGURATION_SET=
+AWS_SNS_TOPIC_ARN=
 ```
 
 **Important:** The `JWT_SECRET_KEY` is required and must be set. The application will fail to start without it.
@@ -748,3 +753,30 @@ Return a list of time zone identifiers, sorted alphabetically.
 
 ##### HTTP 403
 The JWT is invalid.
+
+### POST `/email/callback`
+Receive Amazon SES delivery events (send, delivery, bounce, complaint, delivery delay, reject) relayed by Amazon SNS, and log the SES message ID and status. Events are only logged, not stored. Does not require authentication, but only accepts messages whose `TopicArn` matches `AWS_SNS_TOPIC_ARN` and whose [SNS signature](https://docs.aws.amazon.com/sns/latest/dg/sns-verify-signature-of-message.html) is valid. Signing certificates are only fetched from the SNS endpoint (`https://sns.<region>.amazonaws.com`) and are cached per process. When SNS first subscribes the endpoint, the route confirms the subscription automatically.
+
+This route is rate-limited to 1000 requests/hour per IP address.
+
+To set it up in AWS:
+1. Create an SNS topic, and set `AWS_SNS_TOPIC_ARN` to its ARN.
+2. Create an SES configuration set with an SNS event destination pointing at the topic, choosing the event types to log. Set `AWS_SES_CONFIGURATION_SET` to its name. Verification emails are sent with this configuration set.
+3. Subscribe `https://<host>/api/v1/email/callback` to the topic with the HTTPS protocol.
+
+#### Request Body
+An SNS message (`Notification`, `SubscriptionConfirmation`, or `UnsubscribeConfirmation`), sent by SNS with a `text/plain` content type.
+
+#### Response Types
+
+##### HTTP 200
+The event was logged, or the subscription was confirmed.
+
+##### HTTP 400
+The body is not a valid SNS message, or the subscription could not be confirmed.
+
+##### HTTP 403
+The message is not from the configured SNS topic, or its signature is invalid.
+
+##### HTTP 429
+The rate limit was exceeded.

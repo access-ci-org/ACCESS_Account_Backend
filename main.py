@@ -72,6 +72,8 @@ from models import (
     SendOTPRequest,
     SSHKey,
     SSHKeysResponse,
+    ResourceUsernamesResponse,
+    ResourceUsernameOrganization,
     TermsAndConditionsResponse,
     TimeZonesResponse,
     UpdateAccountRequest,
@@ -1107,6 +1109,36 @@ async def delete_ssh_key(
     await comanage_client.delete_ssh_key_for_user(username, key_id)
     return {"success": True}
 
+@router.get(
+    "/account/{username}/resource-usernames",
+    tags=["SSH Keys"],
+    summary="Get resource usernames",
+    description="Get the usernames assigned to this account on ACCESS resources, grouped by organization.",
+    responses={
+        200: {"description": "Return the list of resource usernames"},
+        403: {
+            "description": "The JWT is invalid or the user does not have permission to access the account"
+        },
+    },
+)
+async def get_resource_usernames(
+    username: str,
+    _token: Annotated[TokenPayload, Depends(require_username_access)],
+) -> ResourceUsernamesResponse:
+    try:
+        site_logins = await identity_client.get_site_logins(username)
+    except HTTPException as exc:
+        # A user without an XRAS person record has no resource usernames
+        if exc.status_code == status.HTTP_404_NOT_FOUND:
+            site_logins = []
+        else:
+            raise
+
+    return ResourceUsernamesResponse(
+        organizations=[
+            ResourceUsernameOrganization.model_validate(org) for org in site_logins
+        ]
+    )
 
 @router.get(
     "/academic-status",

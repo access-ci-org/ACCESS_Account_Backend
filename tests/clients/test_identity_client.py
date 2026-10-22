@@ -155,3 +155,56 @@ async def test_org_does_not_match_domain_raises_400(identity, respx_mock):
     with pytest.raises(HTTPException) as exc:
         await identity.check_organization_matches_domain(7, "example.org")
     assert exc.value.status_code == 400
+
+
+# --- get_site_logins --------------------------------------------------------
+SITE_LOGINS = [
+    {
+        "organizationId": 848,
+        "organizationName": "Pittsburgh Supercomputing Center",
+        "logins": [
+            {
+                "resourceName": "bridges2-rm.psc.xsede.org",
+                "displayName": "PSC Bridges-2 RM",
+                "rdrResourceId": 123,
+                "ciderResourceId": "bridges2-rm.psc.access-ci.org",
+                "username": "ada1",
+            }
+        ],
+    }
+]
+
+
+async def test_get_site_logins_returns_list(identity, respx_mock):
+    route = respx_mock.get(f"{XRAS}/profiles/v1/people/ada/site_logins").respond(
+        200, json=SITE_LOGINS
+    )
+    assert await identity.get_site_logins("ada") == SITE_LOGINS
+    assert route.called
+
+
+async def test_get_site_logins_quotes_username(identity, respx_mock):
+    # Usernames are quoted so characters like "/" can't change the path.
+    route = respx_mock.get(
+        f"{XRAS}/profiles/v1/people/a%2Fb/site_logins"
+    ).respond(200, json=[])
+    assert await identity.get_site_logins("a/b") == []
+    assert route.called
+
+
+async def test_get_site_logins_unknown_user_raises_404(identity, respx_mock):
+    respx_mock.get(f"{XRAS}/profiles/v1/people/nobody/site_logins").respond(
+        404, json={}
+    )
+    with pytest.raises(HTTPException) as exc:
+        await identity.get_site_logins("nobody")
+    assert exc.value.status_code == 404
+
+
+async def test_get_site_logins_non_list_raises_502(identity, respx_mock):
+    respx_mock.get(f"{XRAS}/profiles/v1/people/ada/site_logins").respond(
+        200, json={"unexpected": "shape"}
+    )
+    with pytest.raises(HTTPException) as exc:
+        await identity.get_site_logins("ada")
+    assert exc.value.status_code == 502

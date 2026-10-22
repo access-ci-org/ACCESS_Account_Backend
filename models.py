@@ -225,6 +225,22 @@ class SSHKey(BaseSchema):
 class SSHKeysResponse(BaseSchema):
     ssh_keys: list[SSHKey]
 
+class ResourceLogin(BaseSchema):
+    resource_name: str
+    display_name: str | None = None
+    rdr_resource_id: int | None = None
+    cider_resource_id: str
+    username: str
+
+
+class ResourceUsernameOrganization(BaseSchema):
+    organization_id: int
+    organization_name: str
+    logins: list[ResourceLogin]
+
+
+class ResourceUsernamesResponse(BaseSchema):
+    organizations: list[ResourceUsernameOrganization]
 
 class LinkIdentityRequest(BaseSchema):
     cilogon_token: str

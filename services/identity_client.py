@@ -165,6 +165,13 @@ class IdentityServiceClient(RestClient):
             "GET",
             f"/profiles/v1/people/{quote(access_id, safe='')}",
         )
+    
+    async def get_site_logins(self, username: str) -> list:
+        result = await self._request(
+            "GET",
+            f"/profiles/v1/people/{quote(username, safe='')}/site_logins",
+        )
+        return self._expect(result, list)
 
     async def create_person(
         self,

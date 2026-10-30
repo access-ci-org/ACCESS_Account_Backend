@@ -69,11 +69,11 @@ from models import (
     OidcInfoResponse,
     OidcTokenRequest,
     OidcTokenResponse,
+    ResourceUsernameOrganization,
+    ResourceUsernamesResponse,
     SendOTPRequest,
     SSHKey,
     SSHKeysResponse,
-    ResourceUsernamesResponse,
-    ResourceUsernameOrganization,
     TermsAndConditionsResponse,
     TimeZonesResponse,
     UpdateAccountRequest,
@@ -1020,7 +1020,7 @@ async def delete_identity(
 # SSH Key Routes
 @router.get(
     "/account/{username}/ssh-key",
-    tags=["SSH Keys"],
+    tags=["SSH Keys / Resource Usernames"],
     summary="Get SSH keys",
     description="Get a list of SSH keys associated with this account.",
     responses={
@@ -1056,7 +1056,7 @@ async def get_ssh_keys(
 
 @router.post(
     "/account/{username}/ssh-key",
-    tags=["SSH Keys"],
+    tags=["SSH Keys / Resource Usernames"],
     summary="Add SSH key",
     description="Add an SSH key to the account.",
     responses={
@@ -1089,7 +1089,7 @@ async def add_ssh_key(
 
 @router.delete(
     "/account/{username}/ssh-key/{key_id}",
-    tags=["SSH Keys"],
+    tags=["SSH Keys / Resource Usernames"],
     summary="Delete SSH key",
     description="Delete an SSH key.",
     responses={
@@ -1109,9 +1109,10 @@ async def delete_ssh_key(
     await comanage_client.delete_ssh_key_for_user(username, key_id)
     return {"success": True}
 
+
 @router.get(
     "/account/{username}/resource-usernames",
-    tags=["SSH Keys"],
+    tags=["SSH Keys / Resource Usernames"],
     summary="Get resource usernames",
     description="Get the usernames assigned to this account on ACCESS resources, grouped by organization.",
     responses={
@@ -1139,6 +1140,7 @@ async def get_resource_usernames(
             ResourceUsernameOrganization.model_validate(org) for org in site_logins
         ]
     )
+
 
 @router.get(
     "/academic-status",

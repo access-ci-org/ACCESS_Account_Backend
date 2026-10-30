@@ -165,7 +165,7 @@ class IdentityServiceClient(RestClient):
             "GET",
             f"/profiles/v1/people/{quote(access_id, safe='')}",
         )
-    
+     
     async def get_site_logins(self, username: str) -> list:
         result = await self._request(
             "GET",

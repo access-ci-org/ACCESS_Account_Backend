@@ -225,6 +225,7 @@ class SSHKey(BaseSchema):
 class SSHKeysResponse(BaseSchema):
     ssh_keys: list[SSHKey]
 
+
 class ResourceLogin(BaseSchema):
     resource_name: str
     display_name: str | None = None

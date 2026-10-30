@@ -50,6 +50,34 @@ def test_get_resource_usernames(client, override_auth, mock_identity):
     mock_identity.get_site_logins.assert_awaited_once_with("ada")
 
 
+def test_get_resource_usernames_hides_access_portal_login(
+    client, override_auth, mock_identity
+):
+    portal_login = {
+        "resourceName": "portal.teragrid",
+        "displayName": "portal.teragrid",
+        "rdrResourceId": None,
+        "ciderResourceId": "portal.teragrid",
+        "username": "ada",
+    }
+    override_auth(main.require_username_access, uid="ada")
+    mock_identity.get_site_logins = AsyncMock(
+        return_value=[
+            # An organization whose only login is the portal is dropped.
+            {"organizationId": 1, "organizationName": "ACCESS", "logins": [portal_login]},
+            # Other logins in the same organization are kept.
+            {
+                **SITE_LOGINS[0],
+                "logins": [portal_login, *SITE_LOGINS[0]["logins"]],
+            },
+        ]
+    )
+
+    resp = client.get(f"{BASE}/account/ada/resource-usernames")
+    assert resp.status_code == 200
+    assert resp.json() == {"organizations": [SITE_LOGINS[0]]}
+
+
 def test_get_resource_usernames_empty(client, override_auth, mock_identity):
     override_auth(main.require_username_access, uid="ada")
     mock_identity.get_site_logins = AsyncMock(return_value=[])

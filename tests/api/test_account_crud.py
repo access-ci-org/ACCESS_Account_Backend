@@ -80,6 +80,26 @@ def test_create_account_waits_for_all_steps_before_failing(
     assert finished == ["tandc"]
 
 
+def test_create_account_rejects_cilogon_login_in_use(
+    client, override_auth, mock_comanage, mock_identity
+):
+    override_auth(main.require_otp, typ="otp", sub="ada@example.org", uid=None)
+    _mock_create_happy(mock_comanage, mock_identity)
+    mock_comanage.check_cilogon_identifiers_available = AsyncMock(
+        side_effect=HTTPException(400, "Your Uni login is already linked to X")
+    )
+
+    resp = client.post(
+        f"{BASE}/account", json={**CREATE_BODY, "cilogonToken": "tok123"}
+    )
+    assert resp.status_code == 400
+    mock_comanage.check_cilogon_identifiers_available.assert_awaited_once_with(
+        "tok123"
+    )
+    # Checked before anything is created.
+    mock_comanage.create_new_user.assert_not_called()
+
+
 def test_create_account_org_domain_mismatch(
     client, override_auth, mock_comanage, mock_identity
 ):

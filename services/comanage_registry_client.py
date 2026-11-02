@@ -17,7 +17,7 @@ from config import (
 )
 from services.async_utils import gather_all
 from services.cilogon_client import get_token_user_info
-from services.logs_service import obfuscate_email
+from services.logs_service import obfuscate_email, record_exception
 from services.rest_client import RestClient
 
 # Map CILogon claims to identifier types and login status
@@ -597,10 +597,27 @@ class CoManageRegistryClient(RestClient):
             ],
         }
 
-        return self._expect(
-            await self._request("POST", "identifiers.json", json=identifier_data),
-            dict,
-        )
+        try:
+            response = await self._request(
+                "POST", "identifiers.json", json=identifier_data
+            )
+        except HTTPException as exc:
+            if exc.status_code != status.HTTP_403_FORBIDDEN:
+                raise
+            # CoManage answers 403 when an Identifier of this type and value
+            # already exists on a CoPerson; `check_cilogon_identifiers_available`
+            # should have caught that, so keep CoManage's response for debugging.
+            # Don't pass the 403 on: to the frontend it means the JWT is invalid.
+            record_exception(
+                f"CoManage rejected {type} Identifier {identifier}: {exc.detail}"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"The {type} identifier {identifier} could not be added. "
+                "It may already be linked to another ACCESS account",
+            ) from exc
+
+        return self._expect(response, dict)
 
     async def create_new_tandc_agreement(
         self, co_tandc_id: int, co_person_id: int
@@ -642,24 +659,26 @@ class CoManageRegistryClient(RestClient):
         cilogon_user_info: dict | None = None,
     ):
         # Determine the identifiers we expect the new OrgIdentity to have.
-        identifiers = []
         if cilogon_user_info:
-            # Create an identifier for each claim that exists in the user info
-            for mapping in CLAIM_TO_IDENTIFIER_MAPPING:
-                claim_key = mapping["claim"]
-                if cilogon_user_info.get(claim_key):
-                    identifiers.append(
-                        Identifier(
-                            str(cilogon_user_info[claim_key]),
-                            mapping["type"],
-                            mapping["login"],
-                        )
+            return self._get_cilogon_identifiers(cilogon_user_info)
+
+        # Create a single ePPN identifier with login=True
+        return [Identifier(f"{access_id}@access-ci.org", "eppn", True)]
+
+    @staticmethod
+    def _get_cilogon_identifiers(cilogon_user_info: dict) -> list[Identifier]:
+        # Create an identifier for each claim that exists in the user info
+        identifiers = []
+        for mapping in CLAIM_TO_IDENTIFIER_MAPPING:
+            claim_key = mapping["claim"]
+            if cilogon_user_info.get(claim_key):
+                identifiers.append(
+                    Identifier(
+                        str(cilogon_user_info[claim_key]),
+                        mapping["type"],
+                        mapping["login"],
                     )
-
-        else:
-            # Create a single ePPN identifier with login=True
-            identifiers.append(Identifier(f"{access_id}@access-ci.org", "eppn", True))
-
+                )
         return identifiers
 
     # High-level methods
@@ -696,6 +715,119 @@ class CoManageRegistryClient(RestClient):
                 detail="No active terms and conditions available",
             )
         return active_tandc
+
+    async def check_cilogon_identifiers_available(
+        self, cilogon_token: str | None, co_person_id: str | None = None
+    ):
+        """Check that no CoPerson already has the identifiers from a CILogon login.
+
+        `create_linked_identity` copies these identifiers onto the CoPerson, and
+        CoManage rejects an Identifier whose type and value already exist on any
+        CoPerson in the CO, whatever that person's status, with a 403 -- by which
+        point the OrgIdentity, its link and possibly other Identifiers have been
+        created. Run this first to fail cleanly instead.
+
+        Args:
+            cilogon_token: Access token from the CILogon link client. If None,
+                there is nothing to check.
+            co_person_id: CoPerson the login is being linked to, if it exists yet
+
+        Raises:
+            HTTPException: 400 if any of the identifiers is already in use.
+        """
+        if not cilogon_token:
+            return
+
+        cilogon_user_info = await get_token_user_info(
+            cilogon_token, CILOGON_LINK_CLIENT_ID, status.HTTP_400_BAD_REQUEST
+        )
+        identifiers = self._get_cilogon_identifiers(cilogon_user_info)
+
+        # Exact match on the identifier value, of any type, across all CoPeople
+        # regardless of status (unlike the browser's LIKE search).
+        searches = await gather(
+            *(
+                self._request(
+                    "GET",
+                    f"co_people.json?coid={self.coid}"
+                    f"&search.identifier={quote(identifier.identifier, safe='')}",
+                )
+                for identifier in identifiers
+            )
+        )
+        candidates: dict[str, str] = {}
+        for result in searches:
+            if isinstance(result, dict):
+                for co_person in result.get("CoPeople") or []:
+                    candidates[str(co_person["Id"])] = co_person.get("Status", "")
+        if not candidates:
+            return
+
+        # The search ignores the type, so check each candidate's Identifiers.
+        candidate_ids = list(candidates)
+        candidate_identifiers = await gather(
+            *(
+                self._request("GET", f"identifiers.json?copersonid={candidate_id}")
+                for candidate_id in candidate_ids
+            )
+        )
+        for candidate_id, result in zip(candidate_ids, candidate_identifiers):
+            existing = (
+                result.get("Identifiers") or [] if isinstance(result, dict) else []
+            )
+            in_use = [
+                identifier
+                for identifier in identifiers
+                if any(
+                    e.get("Type") == identifier.type
+                    and e.get("Identifier") == identifier.identifier
+                    for e in existing
+                )
+            ]
+            if not in_use:
+                continue
+
+            login = f"Your {cilogon_user_info.get('idp_name') or 'CILogon'} login"
+            # The frontend turns "open a help ticket" into its help ticket link.
+            if candidate_id == co_person_id:
+                detail = f"{login} is already linked to this ACCESS account."
+            else:
+                access_id = next(
+                    (
+                        e.get("Identifier")
+                        for e in existing
+                        if e.get("Type") == "accessid"
+                    ),
+                    None,
+                )
+                if not access_id:
+                    detail = (
+                        f"{login} is already linked to another ACCESS account. "
+                        "Please open a help ticket."
+                    )
+                elif candidates[candidate_id] != "Active":
+                    detail = (
+                        f"{login} is already linked to ACCESS account {access_id}, "
+                        "which is not active. Please open a help ticket."
+                    )
+                elif co_person_id:
+                    # A logged-in user is linking a login from another account.
+                    detail = (
+                        f"{login} is already linked to ACCESS account {access_id}. "
+                        "If you believe that account is a duplicate of yours, "
+                        "please open a help ticket."
+                    )
+                else:
+                    detail = (
+                        f"{login} is already linked to ACCESS account {access_id}. "
+                        "Please log in with that account, or open a help ticket "
+                        "if you need help."
+                    )
+            logger.warning(
+                f"CILogon identifiers {[i.type for i in in_use]} already in use by "
+                f"CoPerson {candidate_id} ({candidates[candidate_id]})"
+            )
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
 
     async def create_linked_identity(
         self,

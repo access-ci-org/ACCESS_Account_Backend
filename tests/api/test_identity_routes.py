@@ -50,6 +50,53 @@ def test_link_identity_success(client, override_auth, mock_comanage):
     assert resp.json() == {"success": True}
 
 
+def test_link_identity_rejects_login_in_use(client, override_auth, mock_comanage):
+    override_auth(main.require_own_username_access, uid="ada")
+    mock_comanage.get_co_person_id_for_accessid = AsyncMock(return_value="500")
+    mock_comanage.check_cilogon_identifiers_available = AsyncMock(
+        side_effect=HTTPException(400, "Your Uni login is already linked to X")
+    )
+
+    resp = client.post(
+        f"{BASE}/account/ada/identity", json={"cilogonToken": "tok123"}
+    )
+    assert resp.status_code == 400
+    mock_comanage.check_cilogon_identifiers_available.assert_awaited_once_with(
+        "tok123", "500"
+    )
+    mock_comanage.create_linked_identity.assert_not_called()
+
+
+# --- POST /identity/check ---------------------------------------------------
+def test_check_identity_available(client, override_auth, mock_comanage):
+    override_auth(main.require_otp, typ="otp", sub="ada@example.org", uid=None)
+    mock_comanage.check_cilogon_identifiers_available = AsyncMock(return_value=None)
+
+    resp = client.post(f"{BASE}/identity/check", json={"cilogonToken": "tok123"})
+    assert resp.status_code == 200
+    assert resp.json() == {"success": True}
+    # Registering: there is no CoPerson yet to exclude.
+    mock_comanage.check_cilogon_identifiers_available.assert_awaited_once_with(
+        "tok123"
+    )
+
+
+def test_check_identity_in_use(client, override_auth, mock_comanage):
+    override_auth(main.require_otp, typ="otp", sub="ada@example.org", uid=None)
+    mock_comanage.check_cilogon_identifiers_available = AsyncMock(
+        side_effect=HTTPException(400, "Your Uni login is already linked to X")
+    )
+
+    resp = client.post(f"{BASE}/identity/check", json={"cilogonToken": "tok123"})
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "Your Uni login is already linked to X"
+
+
+def test_check_identity_requires_otp_token(client):
+    resp = client.post(f"{BASE}/identity/check", json={"cilogonToken": "tok123"})
+    assert resp.status_code in (401, 403)
+
+
 def test_link_identity_user_not_found(client, override_auth, mock_comanage):
     override_auth(main.require_own_username_access, uid="ada")
     # The client raises rather than returning None for an unknown ACCESS ID.

@@ -499,7 +499,8 @@ async def request_password_reset(
         200: {"description": "The account was created"},
         400: {
             "description": "The input failed validation (e.g., the organization does not match "
-            "the e-mail domain or an account for that email address already exists)"
+            "the e-mail domain, an account for that email address already exists, or "
+            "the CILogon login is already linked to an account)"
         },
         403: {"description": "The JWT is invalid"},
     },
@@ -524,6 +525,7 @@ async def create_account(
         active_tandc,
         organization_name,
         _academic_status_check,
+        _identifiers_check,
     ] = await gather(
         comanage_client.check_account_does_not_exist(email),
         comanage_client.check_active_tandc_exists(),
@@ -532,6 +534,9 @@ async def create_account(
         ),
         identity_client.check_valid_academic_status_id(
             account_request.academic_status_id
+        ),
+        comanage_client.check_cilogon_identifiers_available(
+            account_request.cilogon_token
         ),
     )
 
@@ -904,6 +909,7 @@ async def get_identities(
             "description": "Redirect to CILogon to start the linking flow. "
             "At the end of the flow, CILogon redirects back to /auth/login with the OIDC token"
         },
+        400: {"description": "The CILogon login is already linked to an account"},
         403: {
             "description": "The JWT is invalid or the user does not have permission to modify the account"
         },
@@ -916,10 +922,36 @@ async def link_identity(
 ):
     co_person_id = await comanage_client.get_co_person_id_for_accessid(username)
 
+    await comanage_client.check_cilogon_identifiers_available(
+        link_request.cilogon_token, co_person_id
+    )
     await comanage_client.create_linked_identity(
         co_person_id, username, link_request.cilogon_token
     )
 
+    return {"success": True}
+
+
+@router.post(
+    "/identity/check",
+    tags=["Identity"],
+    summary="Check that an identity can be used to register",
+    description="Check that the login behind a CILogon access token from the link "
+    "client is not already linked to an account. Account creation repeats this "
+    "check; this lets registration report a conflict right after the user logs in.",
+    responses={
+        200: {"description": "The login is not linked to any account"},
+        400: {"description": "The CILogon login is already linked to an account"},
+        403: {"description": "The JWT is invalid"},
+    },
+)
+async def check_identity(
+    link_request: LinkIdentityRequest,
+    _token: Annotated[TokenPayload, Depends(require_otp)],
+):
+    await comanage_client.check_cilogon_identifiers_available(
+        link_request.cilogon_token
+    )
     return {"success": True}
 
 

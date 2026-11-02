@@ -4,6 +4,7 @@ Uses respx to stub the Registry/Core-API responses. Base URL comes from the test
 env (COMANAGE_REGISTRY_BASE_URL=https://comanage.test), COID=2.
 """
 
+import httpx
 import pytest
 from fastapi import HTTPException
 
@@ -206,3 +207,149 @@ async def test_delete_ssh_key_404_when_not_owned(comanage, respx_mock):
     with pytest.raises(HTTPException) as exc:
         await comanage.delete_ssh_key_for_user("ada", 111)
     assert exc.value.status_code == 404
+
+
+# --- check_cilogon_identifiers_available ------------------------------------
+@pytest.fixture
+def cilogon_user(monkeypatch):
+    async def fake_user_info(*args):
+        return {"idp_name": "Uni", "eppn": "ada@uni.edu", "sub": "http://cilogon.org/ada"}
+
+    monkeypatch.setattr(
+        "services.comanage_registry_client.get_token_user_info", fake_user_info
+    )
+
+
+def co_people_for(respx_mock, matches: dict[str, list[dict]]):
+    """Answer co_people.json identifier searches from {identifier: CoPeople}."""
+
+    def respond(request):
+        identifier = request.url.params["search.identifier"]
+        return httpx.Response(200, json={"CoPeople": matches.get(identifier, [])})
+
+    return respx_mock.get(f"{REGISTRY}/co_people.json").mock(side_effect=respond)
+
+
+def identifiers_for(respx_mock, co_person_id, identifiers: list[tuple[str, str]]):
+    return respx_mock.get(
+        f"{REGISTRY}/identifiers.json", params={"copersonid": co_person_id}
+    ).respond(
+        200,
+        json={"Identifiers": [{"Type": t, "Identifier": i} for t, i in identifiers]},
+    )
+
+
+async def test_identifier_check_skipped_without_token(comanage, respx_mock):
+    await comanage.check_cilogon_identifiers_available(None)
+    assert not respx_mock.calls
+
+
+async def test_identifier_check_searches_each_identifier_exactly(
+    comanage, respx_mock, cilogon_user
+):
+    search = co_people_for(respx_mock, {})
+
+    await comanage.check_cilogon_identifiers_available("token")
+
+    searched = {call.request.url.params["search.identifier"] for call in search.calls}
+    assert searched == {"ada@uni.edu", "http://cilogon.org/ada"}
+    assert all(call.request.url.params["coid"] == "2" for call in search.calls)
+
+
+async def test_identifier_check_rejects_identifier_on_another_account(
+    comanage, respx_mock, cilogon_user
+):
+    co_people_for(respx_mock, {"ada@uni.edu": [{"Id": 77, "Status": "Active"}]})
+    identifiers_for(respx_mock, 77, [("accessid", "zfang7"), ("eppn", "ada@uni.edu")])
+
+    with pytest.raises(HTTPException) as exc:
+        await comanage.check_cilogon_identifiers_available("token")
+    assert exc.value.status_code == 400
+    assert exc.value.detail == (
+        "Your Uni login is already linked to ACCESS account zfang7. Please log in "
+        "with that account, or open a help ticket if you need help."
+    )
+
+
+async def test_identifier_check_when_linking_suggests_duplicate_ticket(
+    comanage, respx_mock, cilogon_user
+):
+    co_people_for(respx_mock, {"ada@uni.edu": [{"Id": 77, "Status": "Active"}]})
+    identifiers_for(respx_mock, 77, [("accessid", "zfang7"), ("eppn", "ada@uni.edu")])
+
+    with pytest.raises(HTTPException) as exc:
+        await comanage.check_cilogon_identifiers_available("token", "500")
+    assert exc.value.detail == (
+        "Your Uni login is already linked to ACCESS account zfang7. If you believe "
+        "that account is a duplicate of yours, please open a help ticket."
+    )
+
+
+async def test_identifier_check_ignores_same_value_of_another_type(
+    comanage, respx_mock, cilogon_user
+):
+    # The search matches the value regardless of type; CoManage only rejects
+    # an Identifier when both match.
+    co_people_for(respx_mock, {"ada@uni.edu": [{"Id": 77, "Status": "Active"}]})
+    identifiers_for(respx_mock, 77, [("accessid", "zfang7"), ("mail", "ada@uni.edu")])
+
+    await comanage.check_cilogon_identifiers_available("token")
+
+
+async def test_identifier_check_flags_inactive_account(
+    comanage, respx_mock, cilogon_user
+):
+    # CoManage checks availability regardless of the CoPerson's status.
+    co_people_for(
+        respx_mock, {"http://cilogon.org/ada": [{"Id": 77, "Status": "Deleted"}]}
+    )
+    identifiers_for(
+        respx_mock, 77, [("accessid", "zfang7"), ("oidcsub", "http://cilogon.org/ada")]
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        await comanage.check_cilogon_identifiers_available("token")
+    assert exc.value.detail == (
+        "Your Uni login is already linked to ACCESS account zfang7, which is not "
+        "active. Please open a help ticket."
+    )
+
+
+async def test_identifier_check_reports_own_account(
+    comanage, respx_mock, cilogon_user
+):
+    co_people_for(respx_mock, {"ada@uni.edu": [{"Id": 500, "Status": "Active"}]})
+    identifiers_for(respx_mock, 500, [("accessid", "ada"), ("eppn", "ada@uni.edu")])
+
+    with pytest.raises(HTTPException) as exc:
+        await comanage.check_cilogon_identifiers_available("token", "500")
+    assert exc.value.detail == "Your Uni login is already linked to this ACCESS account."
+
+
+# --- create_new_identifier ---------------------------------------------------
+async def test_create_identifier_403_becomes_400_and_is_logged(
+    comanage, respx_mock, caplog
+):
+    respx_mock.post(f"{REGISTRY}/identifiers.json").respond(
+        403, json={"error": "Identifier in use"}
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        await comanage.create_new_identifier(
+            "ada@uni.edu", "eppn", True, linked_type="CO", linked_id="500"
+        )
+    # A 403 would tell the frontend its JWT is invalid.
+    assert exc.value.status_code == 400
+    assert "ada@uni.edu" in exc.value.detail
+    # CoManage's response body is kept for debugging.
+    assert any("Identifier in use" in r.getMessage() for r in caplog.records)
+
+
+async def test_create_identifier_passes_other_errors_through(comanage, respx_mock):
+    respx_mock.post(f"{REGISTRY}/identifiers.json").respond(500)
+
+    with pytest.raises(HTTPException) as exc:
+        await comanage.create_new_identifier(
+            "ada@uni.edu", "eppn", True, linked_type="CO", linked_id="500"
+        )
+    assert exc.value.status_code == 500

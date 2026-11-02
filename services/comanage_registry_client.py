@@ -15,6 +15,7 @@ from config import (
     COMANAGE_REGISTRY_TIMEOUT,
     COMANAGE_REGISTRY_USER,
 )
+from services.async_utils import gather_all
 from services.cilogon_client import get_token_user_info
 from services.logs_service import obfuscate_email, record_exception
 from services.rest_client import RestClient
@@ -854,7 +855,7 @@ class CoManageRegistryClient(RestClient):
         if not primary_name:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"User {access_id} does not have a primary name",
+                detail=f"User ${access_id} does not have a primary name",
             )
 
         # Check to make sure the identifiers don't already exist:
@@ -862,7 +863,7 @@ class CoManageRegistryClient(RestClient):
             if user.has_org_identity(identifier):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Identifier already exists: {identifier.identifier}",
+                    detail=f"Identifier already exists: ${identifier.identifier}",
                 )
 
         # Create an OrgIdentity record
@@ -873,34 +874,42 @@ class CoManageRegistryClient(RestClient):
         # Link the OrgIdentity to the CoPerson
         await self.create_new_link(co_person_id, org_identity_id)
 
-        await self.create_new_name(
-            firstname=primary_name["given"],
-            lastname=primary_name["family"],
-            org_identity_id=org_identity_id,
-        )
-
-        # Create the Identifier records one at a time. Sending them all at once
-        # has coincided with CoManage-side failures, and one at a time the logs
-        # show which POST failed.
+        # In parallel:
+        # - Create a Name record
+        # - Create the desired Identifier records
+        identifier_creation = []
         for identifier in identifiers:
-            await self.create_new_identifier(
-                identifier=identifier.identifier,
-                type=identifier.type,
-                login=identifier.login,
-                linked_type="Org",
-                linked_id=org_identity_id,
+            identifier_creation.append(
+                self.create_new_identifier(
+                    identifier=identifier.identifier,
+                    type=identifier.type,
+                    login=identifier.login,
+                    linked_type="Org",
+                    linked_id=org_identity_id,
+                )
             )
 
             # If this is not the ACCESS IdP, also add the identifiers to the CoPerson record.
             # (Identifiers for the ACCESS IdP are added to the CoPerson automatically.)
             if cilogon_token:
-                await self.create_new_identifier(
-                    identifier=identifier.identifier,
-                    type=identifier.type,
-                    login=identifier.login,
-                    linked_type="CO",
-                    linked_id=co_person_id,
+                identifier_creation.append(
+                    self.create_new_identifier(
+                        identifier=identifier.identifier,
+                        type=identifier.type,
+                        login=identifier.login,
+                        linked_type="CO",
+                        linked_id=co_person_id,
+                    )
                 )
+
+        await gather_all(
+            self.create_new_name(
+                firstname=primary_name["given"],
+                lastname=primary_name["family"],
+                org_identity_id=org_identity_id,
+            ),
+            *identifier_creation,
+        )
 
     async def get_co_person_id_for_accessid(self, accessid: str) -> str:
         """Return the CoPersonId (string instead of dict) associated with an ACCESS ID.

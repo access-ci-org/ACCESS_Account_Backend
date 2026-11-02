@@ -8,6 +8,7 @@ import httpx
 import pytest
 from fastapi import HTTPException
 
+from config import COMANAGE_REGISTRY_IDENTIFIER_TIMEOUT, COMANAGE_REGISTRY_TIMEOUT
 from services.comanage_registry_client import CoManageRegistryClient, CoManageUser
 
 REGISTRY = "https://comanage.test/registry"
@@ -327,6 +328,26 @@ async def test_identifier_check_reports_own_account(
 
 
 # --- create_new_identifier ---------------------------------------------------
+async def test_create_identifier_uses_longer_timeout(comanage, respx_mock):
+    post = respx_mock.post(f"{REGISTRY}/identifiers.json").respond(201, json={})
+    other = respx_mock.get(f"{REGISTRY}/co_people.json").respond(
+        200, json={"CoPeople": []}
+    )
+
+    await comanage.create_new_identifier(
+        "ada@uni.edu", "eppn", True, linked_type="CO", linked_id="500"
+    )
+    await comanage.get_co_person_id_for_email("ada@example.org")
+
+    assert post.calls.last.request.extensions["timeout"]["read"] == (
+        COMANAGE_REGISTRY_IDENTIFIER_TIMEOUT
+    )
+    assert other.calls.last.request.extensions["timeout"]["read"] == (
+        COMANAGE_REGISTRY_TIMEOUT
+    )
+    assert COMANAGE_REGISTRY_IDENTIFIER_TIMEOUT > COMANAGE_REGISTRY_TIMEOUT
+
+
 async def test_create_identifier_403_becomes_400_and_is_logged(
     comanage, respx_mock, caplog
 ):

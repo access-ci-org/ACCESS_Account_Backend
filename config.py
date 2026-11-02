@@ -62,7 +62,14 @@ COMANAGE_REGISTRY_KRB_AUTH_ID: int = config(
     "COMANAGE_REGISTRY_KRB_AUTH_ID", cast=int, default=1
 )
 COMANAGE_REGISTRY_PASSWORD: Secret = config("COMANAGE_REGISTRY_PASSWORD", cast=Secret)
-COMANAGE_REGISTRY_TIMEOUT: int = config("COMANAGE_REGISTRY_TIMEOUT", default=10)
+COMANAGE_REGISTRY_TIMEOUT: int = config(
+    "COMANAGE_REGISTRY_TIMEOUT", cast=int, default=10
+)
+# Identifier POSTs get a longer timeout: a registration sends them in parallel
+# and they slow down as they pile up, so under load the last can take over 10s.
+COMANAGE_REGISTRY_IDENTIFIER_TIMEOUT: int = config(
+    "COMANAGE_REGISTRY_IDENTIFIER_TIMEOUT", cast=int, default=20
+)
 COMANAGE_REGISTRY_USER: str = config("COMANAGE_REGISTRY_USER")
 
 # Cron Job Configuration

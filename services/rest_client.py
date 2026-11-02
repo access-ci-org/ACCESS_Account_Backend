@@ -35,7 +35,9 @@ class RestClient:
         json: dict | None = None,
         data: dict | None = None,
         params: dict | list | None = None,
+        timeout: float | None = None,
     ) -> dict | list | None:
+        """Send a request. ``timeout`` overrides the client's default for this call."""
         if headers is None:
             headers = {}
         client_kwargs = {}
@@ -62,7 +64,7 @@ class RestClient:
                     headers=request_headers,
                     json=json,
                     params=params,
-                    timeout=self.timeout,
+                    timeout=self.timeout if timeout is None else timeout,
                 )
                 # Log the URL httpx actually built, so `params` show up too.
                 logged_url = str(response.request.url)

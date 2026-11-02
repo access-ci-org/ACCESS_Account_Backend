@@ -10,6 +10,7 @@ from config import (
     CILOGON_LINK_CLIENT_ID,
     COMANAGE_REGISTRY_BASE_URL,
     COMANAGE_REGISTRY_COID,
+    COMANAGE_REGISTRY_IDENTIFIER_TIMEOUT,
     COMANAGE_REGISTRY_KRB_AUTH_ID,
     COMANAGE_REGISTRY_PASSWORD,
     COMANAGE_REGISTRY_TIMEOUT,
@@ -128,10 +129,14 @@ class CoManageRegistryClient(RestClient):
         self.krb_auth_id = krb_auth_id
 
     async def _request(
-        self, method: str, path: str, json: dict | None = None
+        self,
+        method: str,
+        path: str,
+        json: dict | None = None,
+        timeout: float | None = None,
     ) -> dict | list | None:
         url = f"{self.base_url}/registry/{path}"
-        return await self.request(url, method=method, json=json)
+        return await self.request(url, method=method, json=json, timeout=timeout)
 
     @staticmethod
     def _active_co_person_id(result: dict | list | None) -> str | None:
@@ -599,7 +604,10 @@ class CoManageRegistryClient(RestClient):
 
         try:
             response = await self._request(
-                "POST", "identifiers.json", json=identifier_data
+                "POST",
+                "identifiers.json",
+                json=identifier_data,
+                timeout=COMANAGE_REGISTRY_IDENTIFIER_TIMEOUT,
             )
         except HTTPException as exc:
             if exc.status_code != status.HTTP_403_FORBIDDEN:

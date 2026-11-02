@@ -35,6 +35,17 @@ async def test_sends_accept_json_header(respx_mock):
     assert route.calls.last.request.headers["accept"] == "application/json"
 
 
+async def test_timeout_can_be_overridden_per_request(respx_mock):
+    route = respx_mock.get(URL).respond(200, json={})
+    client = RestClient(timeout=2.0)
+
+    await client.request(URL)
+    assert route.calls.last.request.extensions["timeout"]["read"] == 2.0
+
+    await client.request(URL, timeout=20)
+    assert route.calls.last.request.extensions["timeout"]["read"] == 20
+
+
 async def test_basic_auth_added_when_credentials_present(respx_mock):
     route = respx_mock.get(URL).respond(200, json={})
     await RestClient(username="alice", password="secret").request(URL)

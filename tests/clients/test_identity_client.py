@@ -80,6 +80,22 @@ async def test_update_person_tolerates_204_empty_response(identity, respx_mock):
     assert result is None
 
 
+async def test_create_person_tolerates_204_empty_response(identity, respx_mock):
+    respx_mock.post(f"{XRAS}/profiles/v1/people/ada").respond(204)
+    result = await identity.create_person(
+        "ada",
+        first_name="Ada",
+        last_name="Lovelace",
+        email="ada@example.com",
+        organization_id=1,
+        academic_status_id=1,
+        residence_country_id=1,
+        citizenship_country_ids=[1],
+        update_if_exists=True,
+    )
+    assert result is None
+
+
 # --- get_account _expect guard ----------------------------------------------
 async def test_get_account_returns_dict(identity, respx_mock):
     respx_mock.get(f"{XRAS}/profiles/v1/people/ada").respond(

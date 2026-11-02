@@ -200,6 +200,7 @@ class IdentityServiceClient(RestClient):
                 "POST",
                 f"/profiles/v1/people/{quote(access_id, safe='')}",
                 json=person_data,
+                allow_empty_response=True,
             )
         except (httpx.HTTPStatusError, HTTPException) as err:
             status_code = (

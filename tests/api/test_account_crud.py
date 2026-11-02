@@ -1,12 +1,13 @@
 """API tests for /account create / get / update."""
 
+import asyncio
 from unittest.mock import AsyncMock
 
+from factories import make_comanage_user
 from fastapi import HTTPException
 
 import main
 from auth import create_access_token
-from factories import make_comanage_user
 
 BASE = "/api/v1"
 
@@ -57,6 +58,26 @@ def test_create_account_bad_accessid_response(
 
     resp = client.post(f"{BASE}/account", json=CREATE_BODY)
     assert resp.status_code == 400
+
+
+def test_create_account_waits_for_all_steps_before_failing(
+    client, override_auth, mock_comanage, mock_identity
+):
+    override_auth(main.require_otp, typ="otp", sub="ada@example.org", uid=None)
+    _mock_create_happy(mock_comanage, mock_identity)
+    finished = []
+
+    async def slow_tandc(**kwargs):
+        await asyncio.sleep(0.05)
+        finished.append("tandc")
+
+    mock_comanage.create_new_tandc_agreement = AsyncMock(side_effect=slow_tandc)
+    mock_identity.create_person = AsyncMock(side_effect=HTTPException(502, "x"))
+
+    resp = client.post(f"{BASE}/account", json=CREATE_BODY)
+    assert resp.status_code == 502
+    # The slower step finished before the error response went out.
+    assert finished == ["tandc"]
 
 
 def test_create_account_org_domain_mismatch(

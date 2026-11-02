@@ -84,6 +84,7 @@ from services.account_service import (
     identity_client,
     safe_get,
 )
+from services.async_utils import gather_all
 from services.cilogon_client import CILogonClient
 from services.comanage_registry_client import CoManageRegistryClient
 from services.email_service import (
@@ -597,8 +598,10 @@ async def create_account(
         access_id, **identity_data, email=email, update_if_exists=True
     )
 
-    # Await parallel updates
-    await gather(*linked_identities, tandc_agreement, identity_person)
+    # Await parallel updates. `gather_all` lets every step finish before
+    # raising, so no records are still being created after the error
+    # response goes out, and every call shows up in the request's log record.
+    await gather_all(*linked_identities, tandc_agreement, identity_person)
 
     return {"success": True, "access_id": access_id}
 

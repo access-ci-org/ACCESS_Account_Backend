@@ -15,6 +15,7 @@ from config import (
     COMANAGE_REGISTRY_TIMEOUT,
     COMANAGE_REGISTRY_USER,
 )
+from services.async_utils import gather_all
 from services.cilogon_client import get_token_user_info
 from services.logs_service import obfuscate_email
 from services.rest_client import RestClient
@@ -769,7 +770,7 @@ class CoManageRegistryClient(RestClient):
                     )
                 )
 
-        await gather(
+        await gather_all(
             self.create_new_name(
                 firstname=primary_name["given"],
                 lastname=primary_name["family"],

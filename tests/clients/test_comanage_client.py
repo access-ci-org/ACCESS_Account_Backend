@@ -4,8 +4,11 @@ Uses respx to stub the Registry/Core-API responses. Base URL comes from the test
 env (COMANAGE_REGISTRY_BASE_URL=https://comanage.test), COID=2.
 """
 
+import asyncio
+
 import httpx
 import pytest
+from factories import make_comanage_user
 from fastapi import HTTPException
 
 from services.comanage_registry_client import CoManageRegistryClient, CoManageUser
@@ -353,3 +356,72 @@ async def test_create_identifier_passes_other_errors_through(comanage, respx_moc
             "ada@uni.edu", "eppn", True, linked_type="CO", linked_id="500"
         )
     assert exc.value.status_code == 500
+
+
+# --- create_linked_identity -------------------------------------------------
+@pytest.fixture
+def record_creates(comanage, monkeypatch):
+    """Stub the CoManage writes, recording their order and the most in flight."""
+    calls = []
+    in_flight = {"now": 0, "max": 0}
+
+    def recorder(name, result=None):
+        async def fake(*args, **kwargs):
+            in_flight["now"] += 1
+            in_flight["max"] = max(in_flight["max"], in_flight["now"])
+            await asyncio.sleep(0.01)
+            in_flight["now"] -= 1
+            calls.append((name, kwargs.get("type"), kwargs.get("linked_type")))
+            return result
+
+        return fake
+
+    async def user_info(access_id):
+        return make_comanage_user(access_id=access_id)
+
+    monkeypatch.setattr(comanage, "get_user_info", user_info)
+    monkeypatch.setattr(comanage, "create_new_org_identity", recorder("org", 900))
+    monkeypatch.setattr(comanage, "create_new_link", recorder("link"))
+    monkeypatch.setattr(comanage, "create_new_name", recorder("name"))
+    monkeypatch.setattr(comanage, "create_new_identifier", recorder("identifier"))
+    return calls, in_flight
+
+
+async def test_linked_identity_creates_records_one_at_a_time(
+    comanage, cilogon_user, record_creates
+):
+    calls, in_flight = record_creates
+
+    await comanage.create_linked_identity("500", "ada", "token")
+
+    assert in_flight["max"] == 1
+    assert [c[0] for c in calls[:3]] == ["org", "link", "name"]
+    identifiers = [c[1:] for c in calls[3:]]
+    assert len(identifiers) == 4
+    assert {linked for _, linked in identifiers} == {"Org", "CO"}
+
+
+async def test_linked_identity_stops_at_first_failed_identifier(
+    comanage, cilogon_user, record_creates, monkeypatch
+):
+    calls, _ = record_creates
+
+    async def reject(**kwargs):
+        raise HTTPException(400, "rejected")
+
+    monkeypatch.setattr(comanage, "create_new_identifier", reject)
+
+    with pytest.raises(HTTPException):
+        await comanage.create_linked_identity("500", "ada", "token")
+    assert [c[0] for c in calls] == ["org", "link", "name"]
+
+
+async def test_linked_identity_requires_primary_name(comanage, monkeypatch):
+    async def user_info(access_id):
+        return make_comanage_user(access_id=access_id, names=[])
+
+    monkeypatch.setattr(comanage, "get_user_info", user_info)
+
+    with pytest.raises(HTTPException) as exc:
+        await comanage.create_linked_identity("500", "ada")
+    assert exc.value.detail == "User ada does not have a primary name"

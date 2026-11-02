@@ -84,8 +84,9 @@ from services.account_service import (
     identity_client,
     safe_get,
 )
+from services.async_utils import gather_all
 from services.cilogon_client import CILogonClient
-from services.comanage_registry_client import CoManageRegistryClient
+from services.comanage_registry_client import CoManageRegistryClient, CreatedRecords
 from services.email_service import (
     confirm_sns_subscription,
     log_ses_event,
@@ -557,48 +558,64 @@ async def create_account(
             detail="Failed to retrieve ACCESS ID",
         )
 
-    # Get the CoPerson ID for the new user
-    co_person_id = await comanage_client.get_co_person_id_for_email(email)
-    if co_person_id is None:
-        logger.error(
-            f"Could not retrieve CoPerson ID for newly created user {obfuscate_email(email)}"
-        )
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Failed to retrieve CoPerson ID",
-        )
+    # The CoPerson record now exists. If any later step fails, remove what was
+    # created so the user can retry, instead of leaving a partial account that
+    # blocks the retry (or, without an ACCESS ID, lets it create a duplicate).
+    created = CreatedRecords()
+    try:
+        # Get the CoPerson ID for the new user
+        co_person_id = await comanage_client.get_co_person_id_for_email(email)
+        if co_person_id is None:
+            logger.error(
+                f"Could not retrieve CoPerson ID for newly created user {obfuscate_email(email)}"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Failed to retrieve CoPerson ID",
+            )
 
-    # Create an OrgIdentity record for the ACCESS IdP
-    linked_identities = []
-    linked_identities.append(
-        comanage_client.create_linked_identity(co_person_id, access_id)
-    )
-
-    # If the user has a CILogon token from another IdP, create another OrgIdentity
-    # record for that IdP
-    if account_request.cilogon_token:
+        # Create an OrgIdentity record for the ACCESS IdP
+        linked_identities = []
         linked_identities.append(
             comanage_client.create_linked_identity(
-                co_person_id, access_id, account_request.cilogon_token
+                co_person_id,
+                access_id,
+                created=created,
             )
         )
 
-    # Create a terms and conditions agreement
-    tandc_agreement = comanage_client.create_new_tandc_agreement(
-        co_tandc_id=active_tandc["Id"],
-        co_person_id=int(co_person_id),
-    )
+        # If the user has a CILogon token from another IdP, create another OrgIdentity
+        # record for that IdP
+        if account_request.cilogon_token:
+            linked_identities.append(
+                comanage_client.create_linked_identity(
+                    co_person_id,
+                    access_id,
+                    account_request.cilogon_token,
+                    created=created,
+                )
+            )
 
-    # Create or update the person record in the identity service
-    identity_data = dict(account_request)
-    identity_data.pop("cilogon_token", None)
+        # Create a terms and conditions agreement
+        tandc_agreement = comanage_client.create_new_tandc_agreement(
+            co_tandc_id=active_tandc["Id"],
+            co_person_id=int(co_person_id),
+        )
 
-    identity_person = identity_client.create_person(
-        access_id, **identity_data, email=email, update_if_exists=True
-    )
+        # Create or update the person record in the identity service
+        identity_data = dict(account_request)
+        identity_data.pop("cilogon_token", None)
 
-    # Await parallel updates
-    await gather(*linked_identities, tandc_agreement, identity_person)
+        identity_person = identity_client.create_person(
+            access_id, **identity_data, email=email, update_if_exists=True
+        )
+
+        # Await parallel updates. `gather_all` lets every step finish before
+        # raising, so nothing is still being created when the rollback runs.
+        await gather_all(*linked_identities, tandc_agreement, identity_person)
+    except Exception:
+        await comanage_client.rollback_new_user(access_id, created)
+        raise
 
     return {"success": True, "access_id": access_id}
 

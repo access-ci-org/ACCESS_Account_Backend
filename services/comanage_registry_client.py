@@ -1,6 +1,7 @@
 import logging
 from asyncio import gather
 from collections import namedtuple
+from dataclasses import dataclass, field
 from typing import Literal, overload
 from urllib.parse import quote, urlencode
 
@@ -15,8 +16,9 @@ from config import (
     COMANAGE_REGISTRY_TIMEOUT,
     COMANAGE_REGISTRY_USER,
 )
+from services.async_utils import gather_all
 from services.cilogon_client import get_token_user_info
-from services.logs_service import obfuscate_email
+from services.logs_service import obfuscate_email, record_exception
 from services.rest_client import RestClient
 
 # Map CILogon claims to identifier types and login status
@@ -36,6 +38,17 @@ logger.setLevel(logging.INFO)
 
 
 Identifier = namedtuple("Identifier", ["identifier", "type", "login"])
+
+
+@dataclass
+class CreatedRecords:
+    """Records created while registering a new account that a rollback has to
+    remove (see `CoManageRegistryClient.rollback_new_user`)."""
+
+    org_identity_ids: list[str] = field(default_factory=list)
+    # Only Identifiers attached directly to the CoPerson; an OrgIdentity's own
+    # Identifiers are deleted along with it.
+    co_person_identifier_ids: list[str] = field(default_factory=list)
 
 
 class CoManageUser(dict):
@@ -701,7 +714,16 @@ class CoManageRegistryClient(RestClient):
         co_person_id: str,
         access_id: str,
         cilogon_token: str | None = None,
+        created: CreatedRecords | None = None,
     ):
+        """Create an OrgIdentity, link it to the CoPerson, and give it a Name
+        and Identifiers.
+
+        If `created` is given, the ID of each record a rollback would need to
+        remove is added to it as soon as that record exists, so a caller can
+        still roll it back if a later step here fails.
+        """
+
         async def get_cilogon_user_info():
             if cilogon_token:
                 return await get_token_user_info(
@@ -737,9 +759,22 @@ class CoManageRegistryClient(RestClient):
         org_identity_id = await self.create_new_org_identity(
             cilogon_user_info.get("idp_name", None) if cilogon_user_info else None
         )
+        if created is not None:
+            created.org_identity_ids.append(org_identity_id)
 
         # Link the OrgIdentity to the CoPerson
         await self.create_new_link(co_person_id, org_identity_id)
+
+        async def create_co_person_identifier(identifier: Identifier):
+            result = await self.create_new_identifier(
+                identifier=identifier.identifier,
+                type=identifier.type,
+                login=identifier.login,
+                linked_type="CO",
+                linked_id=co_person_id,
+            )
+            if created is not None and result.get("Id") is not None:
+                created.co_person_identifier_ids.append(str(result["Id"]))
 
         # In parallel:
         # - Create a Name record
@@ -759,17 +794,9 @@ class CoManageRegistryClient(RestClient):
             # If this is not the ACCESS IdP, also add the identifiers to the CoPerson record.
             # (Identifiers for the ACCESS IdP are added to the CoPerson automatically.)
             if cilogon_token:
-                identifier_creation.append(
-                    self.create_new_identifier(
-                        identifier=identifier.identifier,
-                        type=identifier.type,
-                        login=identifier.login,
-                        linked_type="CO",
-                        linked_id=co_person_id,
-                    )
-                )
+                identifier_creation.append(create_co_person_identifier(identifier))
 
-        await gather(
+        await gather_all(
             self.create_new_name(
                 firstname=primary_name["given"],
                 lastname=primary_name["family"],
@@ -838,6 +865,74 @@ class CoManageRegistryClient(RestClient):
             "DELETE",
             f"org_identities/{identity_id}.json",
         )
+
+    async def delete_user(self, accessid: str):
+        """Delete a CoPerson record by ACCESS ID via the Core API.
+
+        What this does depends on the registry's Core API configuration. With
+        "expunge on delete" enabled, the CoPerson is purged along with its
+        related records and any OrgIdentities linked only to it. Otherwise it
+        is a soft delete: the CoPerson and its roles are set to Deleted, and
+        everything else (Identifiers, Names, EmailAddresses, ...) stays.
+        """
+        return await self._request(
+            "DELETE",
+            f"api/co/{self.coid}/core/v1/people/{quote(accessid, safe='')}",
+        )
+
+    async def rollback_new_user(self, access_id: str, created: CreatedRecords):
+        """Best-effort removal of a partially created account.
+
+        Called when account creation fails after the CoPerson record exists, so
+        that the user can simply retry: otherwise the leftover CoPerson either
+        blocks the retry ("already exists") or, when it never got an ACCESS ID,
+        lets the retry create a duplicate.
+
+        The registry does not expunge on delete, so `delete_user` only marks the
+        CoPerson Deleted -- deliberately, so failed registrations can still be
+        found and debugged. Its Identifiers would otherwise stay Active, though,
+        and the login identifiers copied from the user's CILogon IdP could then
+        get in the way of their retry. So, in this order:
+
+        1. Delete the Identifiers created on the CoPerson.
+        2. Unlink and delete the OrgIdentities. Links have to go first: they do
+           not cascade from the OrgIdentity, while its own Names and
+           Identifiers do.
+        3. Mark the CoPerson Deleted. It keeps its ACCESS ID, Name and email
+           address, which is how a failed attempt can be looked up later.
+
+        Never raises: each step that fails is attached to the request's log
+        record and the remaining steps still run, so the caller can re-raise
+        the error that actually broke account creation.
+        """
+        for identifier_id in created.co_person_identifier_ids:
+            try:
+                await self.delete_identifier(identifier_id)
+            except Exception:
+                record_exception(
+                    f"Rollback of new account {access_id}: failed to delete "
+                    f"Identifier {identifier_id}"
+                )
+
+        for org_identity_id in created.org_identity_ids:
+            try:
+                for link in await self.get_org_identity_links(org_identity_id):
+                    link_id = link.get("Id") or link.get("meta", {}).get("id")
+                    if link_id is not None:
+                        await self.delete_org_identity_link(link_id)
+                await self.delete_org_identity(org_identity_id)
+            except Exception:
+                record_exception(
+                    f"Rollback of new account {access_id}: failed to delete "
+                    f"OrgIdentity {org_identity_id}"
+                )
+
+        try:
+            await self.delete_user(access_id)
+        except Exception:
+            record_exception(
+                f"Rollback of new account {access_id}: failed to delete CoPerson"
+            )
 
     async def add_ssh_key_for_user(self, accessid: str, public_key: str) -> dict:
         """Adds SSH Key for the CoPerson record."""

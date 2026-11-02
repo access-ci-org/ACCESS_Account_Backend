@@ -1,5 +1,6 @@
 """API tests for /account create / get / update."""
 
+import asyncio
 from unittest.mock import AsyncMock
 
 from fastapi import HTTPException
@@ -7,6 +8,7 @@ from fastapi import HTTPException
 import main
 from auth import create_access_token
 from factories import make_comanage_user
+from services.comanage_registry_client import CreatedRecords
 
 BASE = "/api/v1"
 
@@ -57,6 +59,84 @@ def test_create_account_bad_accessid_response(
 
     resp = client.post(f"{BASE}/account", json=CREATE_BODY)
     assert resp.status_code == 400
+    # Without an ACCESS ID there is nothing to roll back by.
+    mock_comanage.rollback_new_user.assert_not_called()
+
+
+def test_create_account_success_does_not_roll_back(
+    client, override_auth, mock_comanage, mock_identity
+):
+    override_auth(main.require_otp, typ="otp", sub="ada@example.org", uid=None)
+    _mock_create_happy(mock_comanage, mock_identity)
+
+    resp = client.post(f"{BASE}/account", json=CREATE_BODY)
+    assert resp.status_code == 200
+    mock_comanage.rollback_new_user.assert_not_called()
+
+
+def test_create_account_rolls_back_when_a_later_step_fails(
+    client, override_auth, mock_comanage, mock_identity
+):
+    override_auth(main.require_otp, typ="otp", sub="ada@example.org", uid=None)
+    _mock_create_happy(mock_comanage, mock_identity)
+
+    async def create_linked_identity(*args, created, **kwargs):
+        created.org_identity_ids.append("10")
+        created.co_person_identifier_ids.append("20")
+
+    mock_comanage.create_linked_identity = AsyncMock(
+        side_effect=create_linked_identity
+    )
+    mock_identity.create_person = AsyncMock(
+        side_effect=HTTPException(502, "Unexpected empty response")
+    )
+
+    resp = client.post(f"{BASE}/account", json=CREATE_BODY)
+    # The original error still reaches the client...
+    assert resp.status_code == 502
+    # ...after the account, including the records created alongside the
+    # failing step, has been removed.
+    mock_comanage.rollback_new_user.assert_awaited_once_with(
+        "ada123",
+        CreatedRecords(org_identity_ids=["10"], co_person_identifier_ids=["20"]),
+    )
+
+
+def test_create_account_waits_for_all_steps_before_rolling_back(
+    client, override_auth, mock_comanage, mock_identity
+):
+    override_auth(main.require_otp, typ="otp", sub="ada@example.org", uid=None)
+    _mock_create_happy(mock_comanage, mock_identity)
+    events = []
+
+    async def slow_tandc(**kwargs):
+        await asyncio.sleep(0.05)
+        events.append("tandc created")
+
+    async def rollback(*args):
+        events.append("rollback")
+
+    mock_comanage.create_new_tandc_agreement = AsyncMock(side_effect=slow_tandc)
+    mock_comanage.rollback_new_user = AsyncMock(side_effect=rollback)
+    mock_identity.create_person = AsyncMock(side_effect=HTTPException(502, "x"))
+
+    resp = client.post(f"{BASE}/account", json=CREATE_BODY)
+    assert resp.status_code == 502
+    assert events == ["tandc created", "rollback"]
+
+
+def test_create_account_rolls_back_when_co_person_id_lookup_fails(
+    client, override_auth, mock_comanage, mock_identity
+):
+    override_auth(main.require_otp, typ="otp", sub="ada@example.org", uid=None)
+    _mock_create_happy(mock_comanage, mock_identity)
+    mock_comanage.get_co_person_id_for_email = AsyncMock(return_value=None)
+
+    resp = client.post(f"{BASE}/account", json=CREATE_BODY)
+    assert resp.status_code == 400
+    mock_comanage.rollback_new_user.assert_awaited_once_with(
+        "ada123", CreatedRecords()
+    )
 
 
 def test_create_account_org_domain_mismatch(

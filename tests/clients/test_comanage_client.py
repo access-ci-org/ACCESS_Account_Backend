@@ -4,10 +4,17 @@ Uses respx to stub the Registry/Core-API responses. Base URL comes from the test
 env (COMANAGE_REGISTRY_BASE_URL=https://comanage.test), COID=2.
 """
 
+import json
+
+import httpx
 import pytest
 from fastapi import HTTPException
 
-from services.comanage_registry_client import CoManageRegistryClient, CoManageUser
+from services.comanage_registry_client import (
+    CoManageRegistryClient,
+    CoManageUser,
+    CreatedRecords,
+)
 
 REGISTRY = "https://comanage.test/registry"
 
@@ -206,3 +213,119 @@ async def test_delete_ssh_key_404_when_not_owned(comanage, respx_mock):
     with pytest.raises(HTTPException) as exc:
         await comanage.delete_ssh_key_for_user("ada", 111)
     assert exc.value.status_code == 404
+
+
+# --- create_linked_identity / rollback_new_user -----------------------------
+async def test_create_linked_identity_reports_org_identity_before_later_failure(
+    comanage, respx_mock
+):
+    respx_mock.get(f"{REGISTRY}/api/co/2/core/v1/people/ada").respond(
+        200, json=core_person()
+    )
+    respx_mock.post(f"{REGISTRY}/org_identities.json").respond(200, json={"Id": 10})
+    respx_mock.post(f"{REGISTRY}/co_org_identity_links.json").respond(500)
+
+    created = CreatedRecords()
+    with pytest.raises(HTTPException):
+        await comanage.create_linked_identity("123", "ada", created=created)
+    # The link failed, but the OrgIdentity exists and must be reported so the
+    # caller can roll it back.
+    assert created == CreatedRecords(org_identity_ids=["10"])
+
+
+async def test_create_linked_identity_reports_co_person_identifiers(
+    comanage, respx_mock, monkeypatch
+):
+    async def fake_user_info(*args):
+        return {"eppn": "ada@uni.edu", "sub": "http://cilogon.org/ada", "idp_name": "Uni"}
+
+    monkeypatch.setattr(
+        "services.comanage_registry_client.get_token_user_info", fake_user_info
+    )
+    respx_mock.get(f"{REGISTRY}/api/co/2/core/v1/people/ada").respond(
+        200, json=core_person()
+    )
+    respx_mock.post(f"{REGISTRY}/org_identities.json").respond(200, json={"Id": 10})
+    respx_mock.post(f"{REGISTRY}/co_org_identity_links.json").respond(
+        200, json={"Id": 11}
+    )
+    respx_mock.post(f"{REGISTRY}/names.json").respond(200, json={"Id": 12})
+
+    def identifier_response(request):
+        identifier = json.loads(request.content)["Identifiers"][0]
+        if identifier["Person"]["Type"] == "Org":
+            return httpx.Response(200, json={"Id": 30})
+        if identifier["Type"] == "eppn":
+            # CoManage rejecting one CoPerson Identifier, e.g. as already in use
+            return httpx.Response(403)
+        return httpx.Response(200, json={"Id": 20})
+
+    respx_mock.post(f"{REGISTRY}/identifiers.json").mock(
+        side_effect=identifier_response
+    )
+
+    created = CreatedRecords()
+    with pytest.raises(HTTPException):
+        await comanage.create_linked_identity(
+            "123", "ada", cilogon_token="token", created=created
+        )
+    # Only the CoPerson Identifier that was actually created is reported; the
+    # OrgIdentity's own Identifiers are deleted along with the OrgIdentity.
+    assert created == CreatedRecords(
+        org_identity_ids=["10"], co_person_identifier_ids=["20"]
+    )
+
+
+async def test_rollback_new_user_deletes_in_dependency_order(comanage, respx_mock):
+    delete_identifier = respx_mock.delete(f"{REGISTRY}/identifiers/20.json").respond(
+        200
+    )
+    respx_mock.get(f"{REGISTRY}/co_org_identity_links.json").respond(
+        200, json={"CoOrgIdentityLinks": [{"Id": 77}]}
+    )
+    unlink = respx_mock.delete(f"{REGISTRY}/co_org_identity_links/77.json").respond(200)
+    delete_org = respx_mock.delete(f"{REGISTRY}/org_identities/10.json").respond(200)
+    delete_person = respx_mock.delete(
+        f"{REGISTRY}/api/co/2/core/v1/people/ada"
+    ).respond(200)
+
+    await comanage.rollback_new_user(
+        "ada", CreatedRecords(org_identity_ids=["10"], co_person_identifier_ids=["20"])
+    )
+
+    deletes = [
+        call.request.url.path
+        for call in respx_mock.calls
+        if call.request.method == "DELETE"
+    ]
+    assert deletes == [
+        "/registry/identifiers/20.json",
+        # The link has to go before the OrgIdentity can be deleted.
+        "/registry/co_org_identity_links/77.json",
+        "/registry/org_identities/10.json",
+        "/registry/api/co/2/core/v1/people/ada",
+    ]
+    assert all(
+        route.called for route in (delete_identifier, unlink, delete_org, delete_person)
+    )
+
+
+async def test_rollback_new_user_keeps_going_and_never_raises(
+    comanage, respx_mock, caplog
+):
+    respx_mock.delete(f"{REGISTRY}/identifiers/20.json").respond(500)
+    respx_mock.get(f"{REGISTRY}/co_org_identity_links.json").respond(500)
+    delete_person = respx_mock.delete(
+        f"{REGISTRY}/api/co/2/core/v1/people/ada"
+    ).respond(500)
+
+    await comanage.rollback_new_user(
+        "ada", CreatedRecords(org_identity_ids=["10"], co_person_identifier_ids=["20"])
+    )
+
+    # Every earlier step failed, but the CoPerson delete was still tried.
+    assert delete_person.called
+    messages = [r.getMessage() for r in caplog.records]
+    assert any("failed to delete Identifier 20" in m for m in messages)
+    assert any("failed to delete OrgIdentity 10" in m for m in messages)
+    assert any("failed to delete CoPerson" in m for m in messages)

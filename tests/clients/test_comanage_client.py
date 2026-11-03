@@ -8,12 +8,12 @@ import httpx
 import pytest
 from fastapi import HTTPException
 
-from config import (
-    COMANAGE_REGISTRY_CREATE_PERSON_RETRIES,
-    COMANAGE_REGISTRY_IDENTIFIER_TIMEOUT,
-    COMANAGE_REGISTRY_TIMEOUT,
+from config import COMANAGE_REGISTRY_CREATE_PERSON_RETRIES
+from services.comanage_registry_client import (
+    CREATED_PERSON_RECHECK_SECONDS,
+    CoManageRegistryClient,
+    CoManageUser,
 )
-from services.comanage_registry_client import CoManageRegistryClient, CoManageUser
 
 REGISTRY = "https://comanage.test/registry"
 
@@ -332,26 +332,6 @@ async def test_identifier_check_reports_own_account(
 
 
 # --- create_new_identifier ---------------------------------------------------
-async def test_create_identifier_uses_longer_timeout(comanage, respx_mock):
-    post = respx_mock.post(f"{REGISTRY}/identifiers.json").respond(201, json={})
-    other = respx_mock.get(f"{REGISTRY}/co_people.json").respond(
-        200, json={"CoPeople": []}
-    )
-
-    await comanage.create_new_identifier(
-        "ada@uni.edu", "eppn", True, linked_type="CO", linked_id="500"
-    )
-    await comanage.get_co_person_id_for_email("ada@example.org")
-
-    assert post.calls.last.request.extensions["timeout"]["read"] == (
-        COMANAGE_REGISTRY_IDENTIFIER_TIMEOUT
-    )
-    assert other.calls.last.request.extensions["timeout"]["read"] == (
-        COMANAGE_REGISTRY_TIMEOUT
-    )
-    assert COMANAGE_REGISTRY_IDENTIFIER_TIMEOUT > COMANAGE_REGISTRY_TIMEOUT
-
-
 async def test_create_identifier_403_becomes_400_and_is_logged(
     comanage, respx_mock, caplog
 ):
@@ -461,3 +441,69 @@ async def test_create_user_does_not_retry_other_unexpected_identifiers(
 
     assert await create_ada(comanage) == [{"type": "other"}]
     assert post.call_count == 1
+
+
+async def test_create_user_continues_with_person_made_by_timed_out_create(
+    comanage, respx_mock, no_wait, caplog
+):
+    # CoManage can finish the create after we stop waiting for it.
+    post = respx_mock.post(PEOPLE).mock(side_effect=httpx.ReadTimeout("timed out"))
+    respx_mock.get(f"{REGISTRY}/co_people.json").respond(
+        200, json={"CoPeople": [{"Id": 123, "Status": "Active"}]}
+    )
+    respx_mock.get(f"{REGISTRY}/identifiers.json").respond(
+        200, json={"Identifiers": [{"Type": "accessid", "Identifier": "alovelace"}]}
+    )
+
+    assert await create_ada(comanage) == [
+        {"identifier": "alovelace", "type": "accessid"}
+    ]
+    assert post.call_count == 1
+    assert no_wait == []
+    assert any("continuing with it" in r.getMessage() for r in caplog.records)
+
+
+async def test_create_user_rechecks_for_person_after_timeout(
+    comanage, respx_mock, no_wait
+):
+    respx_mock.post(PEOPLE).mock(side_effect=httpx.ReadTimeout("timed out"))
+    lookup = respx_mock.get(f"{REGISTRY}/co_people.json").mock(
+        side_effect=[
+            httpx.Response(200, json={"CoPeople": []}),
+            httpx.Response(200, json={"CoPeople": [{"Id": 123, "Status": "Active"}]}),
+        ]
+    )
+    respx_mock.get(f"{REGISTRY}/identifiers.json").respond(
+        200, json={"Identifiers": [{"Type": "accessid", "Identifier": "alovelace"}]}
+    )
+
+    assert await create_ada(comanage) == [
+        {"identifier": "alovelace", "type": "accessid"}
+    ]
+    assert lookup.call_count == 2
+    assert no_wait == [CREATED_PERSON_RECHECK_SECONDS]
+
+
+async def test_create_user_timeout_raises_503_when_no_person_was_made(
+    comanage, respx_mock, no_wait, caplog
+):
+    post = respx_mock.post(PEOPLE).mock(side_effect=httpx.ReadTimeout("timed out"))
+    respx_mock.get(f"{REGISTRY}/co_people.json").respond(200, json={"CoPeople": []})
+
+    with pytest.raises(HTTPException) as exc:
+        await create_ada(comanage)
+    assert exc.value.status_code == 503
+    assert post.call_count == 1
+    assert any("no CoPerson was found" in r.getMessage() for r in caplog.records)
+
+
+async def test_create_user_does_not_look_for_person_after_other_errors(
+    comanage, respx_mock, no_wait
+):
+    respx_mock.post(PEOPLE).respond(400, json={"error": "bad request"})
+    lookup = respx_mock.get(f"{REGISTRY}/co_people.json")
+
+    with pytest.raises(HTTPException) as exc:
+        await create_ada(comanage)
+    assert exc.value.status_code == 400
+    assert lookup.call_count == 0

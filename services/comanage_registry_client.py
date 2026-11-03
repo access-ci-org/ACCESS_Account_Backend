@@ -12,7 +12,6 @@ from config import (
     COMANAGE_REGISTRY_BASE_URL,
     COMANAGE_REGISTRY_COID,
     COMANAGE_REGISTRY_CREATE_PERSON_RETRIES,
-    COMANAGE_REGISTRY_IDENTIFIER_TIMEOUT,
     COMANAGE_REGISTRY_KRB_AUTH_ID,
     COMANAGE_REGISTRY_PASSWORD,
     COMANAGE_REGISTRY_TIMEOUT,
@@ -37,6 +36,10 @@ CLAIM_TO_IDENTIFIER_MAPPING = [
 
 logger = logging.getLogger("access_account_api")
 logger.setLevel(logging.INFO)
+
+# How long to wait before looking again for a CoPerson that a timed-out create
+# may still be making.
+CREATED_PERSON_RECHECK_SECONDS = 5
 
 
 Identifier = namedtuple("Identifier", ["identifier", "type", "login"])
@@ -135,10 +138,9 @@ class CoManageRegistryClient(RestClient):
         method: str,
         path: str,
         json: dict | None = None,
-        timeout: float | None = None,
     ) -> dict | list | None:
         url = f"{self.base_url}/registry/{path}"
-        return await self.request(url, method=method, json=json, timeout=timeout)
+        return await self.request(url, method=method, json=json)
 
     @staticmethod
     def _active_co_person_id(result: dict | list | None) -> str | None:
@@ -350,9 +352,20 @@ class CoManageRegistryClient(RestClient):
         attempt = 0
         while True:
             attempt += 1
-            result = await self._request(
-                "POST", f"api/co/{self.coid}/core/v1/people", json=new_user_data
-            )
+            try:
+                result = await self._request(
+                    "POST", f"api/co/{self.coid}/core/v1/people", json=new_user_data
+                )
+            except HTTPException as exc:
+                if exc.status_code != status.HTTP_503_SERVICE_UNAVAILABLE:
+                    raise
+                # A timeout doesn't mean the create failed: CoManage may finish it
+                # after we stop waiting. If it did, carry on with that CoPerson so
+                # the user isn't left with an account they can't finish creating.
+                identifiers = await self._find_created_person(email)
+                if identifiers is None:
+                    raise
+                return identifiers
             # A malformed response here means we can't complete account creation
             # for this request, so surface it as a 400 rather than a 502 the way
             # other CoManage response-shape guards do.
@@ -382,6 +395,34 @@ class CoManageRegistryClient(RestClient):
             )
             # A random wait keeps two failed creates from retrying in lockstep.
             await sleep(random.uniform(0.5, 1.5))
+
+    async def _find_created_person(self, email: str) -> list[dict] | None:
+        """Look for a CoPerson that a timed-out create made after all.
+
+        Checks once right away and once more after a short wait, in case
+        CoManage is still finishing the create.
+
+        Returns:
+            The new CoPerson's ACCESS ID in the shape the Core API create returns,
+            or None if no CoPerson with an ACCESS ID was found.
+        """
+        access_id = await self.get_access_id_for_email(email)
+        if not access_id:
+            await sleep(CREATED_PERSON_RECHECK_SECONDS)
+            access_id = await self.get_access_id_for_email(email)
+        if not access_id:
+            logger.error(
+                f"Core API person create for {obfuscate_email(email)} failed (timed "
+                "out or CoManage unavailable) and no CoPerson was found for it"
+            )
+            return None
+
+        logger.warning(
+            f"Core API person create for {obfuscate_email(email)} failed (timed "
+            f"out or CoManage unavailable), but CoPerson {access_id} was created; "
+            "continuing with it"
+        )
+        return [{"identifier": access_id, "type": "accessid"}]
 
     async def update_user(
         self,
@@ -638,10 +679,7 @@ class CoManageRegistryClient(RestClient):
 
         try:
             response = await self._request(
-                "POST",
-                "identifiers.json",
-                json=identifier_data,
-                timeout=COMANAGE_REGISTRY_IDENTIFIER_TIMEOUT,
+                "POST", "identifiers.json", json=identifier_data
             )
         except HTTPException as exc:
             if exc.status_code != status.HTTP_403_FORBIDDEN:

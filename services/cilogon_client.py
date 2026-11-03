@@ -45,14 +45,29 @@ class CILogonClient(RestClient):
 async def get_token_user_info(
     token: str, client_id: str, error_status_code: int
 ) -> dict:
-    """Get user info using an access token."""
+    """Get user info using an access token.
+
+    Raises:
+        HTTPException: ``error_status_code`` if CILogon rejects the token or it
+            was issued to another client; 503 if CILogon can't be reached or
+            fails, since that says nothing about the token.
+    """
+    client = CILogonClient()
     try:
-        user_info = await CILogonClient().get_user_info(token)
-    except (httpx.HTTPStatusError, httpx.RequestError, ssl.SSLError):
+        user_info = await client.get_user_info(token)
+    except httpx.HTTPStatusError as exc:
+        # CILogon answers a bad or expired token with a 4xx. A 5xx means
+        # CILogon itself is failing.
+        if exc.response.status_code >= 500:
+            raise client._unavailable() from exc
         raise HTTPException(
             status_code=error_status_code,
             detail="Invalid token",
-        )
+        ) from exc
+    except (httpx.RequestError, ssl.SSLError, ValueError) as exc:
+        # Timeouts, refused connections and non-JSON bodies (e.g. a
+        # maintenance page) all mean CILogon isn't answering.
+        raise client._unavailable() from exc
     aud = user_info.get("aud")
     if isinstance(aud, list):
         if client_id not in aud:

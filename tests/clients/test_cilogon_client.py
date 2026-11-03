@@ -4,6 +4,7 @@ Token/userinfo URLs come from the test env (https://cilogon.test/...).
 `get_token_user_info` validates the `aud` claim against the expected client id.
 """
 
+import httpx
 import pytest
 from fastapi import HTTPException
 
@@ -69,3 +70,34 @@ async def test_token_user_info_maps_upstream_error_to_invalid_token(respx_mock):
         await get_token_user_info("tok", CILOGON_LINK_CLIENT_ID, 401)
     assert exc.value.status_code == 401
     assert exc.value.detail == "Invalid token"
+
+
+@pytest.mark.parametrize("status_code", [500, 502, 503, 504])
+async def test_token_user_info_maps_cilogon_server_error_to_503(
+    respx_mock, status_code
+):
+    # A failing CILogon says nothing about the token, so don't call it invalid.
+    respx_mock.get(USERINFO_URL).respond(status_code, text="down")
+    with pytest.raises(HTTPException) as exc:
+        await get_token_user_info("tok", CILOGON_LINK_CLIENT_ID, 401)
+    assert exc.value.status_code == 503
+    assert exc.value.detail == "CILogonClient API is unavailable"
+
+
+@pytest.mark.parametrize(
+    "error",
+    [httpx.ConnectTimeout("timed out"), httpx.ReadTimeout("timed out"),
+     httpx.ConnectError("refused")],
+)
+async def test_token_user_info_maps_unreachable_cilogon_to_503(respx_mock, error):
+    respx_mock.get(USERINFO_URL).mock(side_effect=error)
+    with pytest.raises(HTTPException) as exc:
+        await get_token_user_info("tok", CILOGON_LINK_CLIENT_ID, 400)
+    assert exc.value.status_code == 503
+
+
+async def test_token_user_info_maps_non_json_response_to_503(respx_mock):
+    respx_mock.get(USERINFO_URL).respond(200, text="<html>Maintenance</html>")
+    with pytest.raises(HTTPException) as exc:
+        await get_token_user_info("tok", CILOGON_LINK_CLIENT_ID, 400)
+    assert exc.value.status_code == 503

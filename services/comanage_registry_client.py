@@ -935,7 +935,7 @@ class CoManageRegistryClient(RestClient):
         if not primary_name:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"User ${access_id} does not have a primary name",
+                detail=f"User {access_id} does not have a primary name",
             )
 
         # Check to make sure the identifiers don't already exist:
@@ -943,7 +943,7 @@ class CoManageRegistryClient(RestClient):
             if user.has_org_identity(identifier):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Identifier already exists: ${identifier.identifier}",
+                    detail=f"Identifier already exists: {identifier.identifier}",
                 )
 
         # Create an OrgIdentity record

@@ -8,7 +8,11 @@ import httpx
 import pytest
 from fastapi import HTTPException
 
-from config import COMANAGE_REGISTRY_IDENTIFIER_TIMEOUT, COMANAGE_REGISTRY_TIMEOUT
+from config import (
+    COMANAGE_REGISTRY_CREATE_PERSON_RETRIES,
+    COMANAGE_REGISTRY_IDENTIFIER_TIMEOUT,
+    COMANAGE_REGISTRY_TIMEOUT,
+)
 from services.comanage_registry_client import CoManageRegistryClient, CoManageUser
 
 REGISTRY = "https://comanage.test/registry"
@@ -374,3 +378,86 @@ async def test_create_identifier_passes_other_errors_through(comanage, respx_moc
             "ada@uni.edu", "eppn", True, linked_type="CO", linked_id="500"
         )
     assert exc.value.status_code == 500
+
+
+# --- create_new_user ---------------------------------------------------------
+PEOPLE = "https://comanage.test/registry/api/co/2/core/v1/people"
+ACCESS_ID = [{"identifier": "alovelace", "type": "accessid", "login": False, "status": "A"}]
+
+
+@pytest.fixture
+def no_wait(monkeypatch):
+    """Skip the random wait between retries, recording how long it would be."""
+    waits = []
+
+    async def fake_sleep(seconds):
+        waits.append(seconds)
+
+    monkeypatch.setattr("services.comanage_registry_client.sleep", fake_sleep)
+    return waits
+
+
+async def create_ada(comanage):
+    return await comanage.create_new_user("Ada", "Lovelace", "Uni", "ada@example.org")
+
+
+async def test_create_user_returns_identifiers(comanage, respx_mock, no_wait):
+    post = respx_mock.post(PEOPLE).respond(201, json=ACCESS_ID)
+
+    assert await create_ada(comanage) == ACCESS_ID
+    assert post.call_count == 1
+    assert no_wait == []
+
+
+async def test_create_user_retries_after_concurrent_create_failure(
+    comanage, respx_mock, no_wait, caplog
+):
+    # CoManage answers 201 [] and creates nothing when a concurrent create wins.
+    post = respx_mock.post(PEOPLE).mock(
+        side_effect=[httpx.Response(201, json=[]), httpx.Response(201, json=ACCESS_ID)]
+    )
+    lookup = respx_mock.get(f"{REGISTRY}/co_people.json").respond(
+        200, json={"CoPeople": []}
+    )
+
+    assert await create_ada(comanage) == ACCESS_ID
+    assert post.call_count == 2
+    assert lookup.call_count == 1
+    assert len(no_wait) == 1 and 0.5 <= no_wait[0] <= 1.5
+    assert any("concurrent create" in r.getMessage() for r in caplog.records)
+
+
+async def test_create_user_does_not_retry_when_person_was_created(
+    comanage, respx_mock, no_wait, caplog
+):
+    post = respx_mock.post(PEOPLE).respond(201, json=[])
+    respx_mock.get(f"{REGISTRY}/co_people.json").respond(
+        200, json={"CoPeople": [{"Id": 123, "Status": "Active"}]}
+    )
+
+    assert await create_ada(comanage) == []
+    assert post.call_count == 1
+    assert no_wait == []
+    assert any("not retrying" in r.getMessage() for r in caplog.records)
+
+
+async def test_create_user_gives_up_after_retries(
+    comanage, respx_mock, no_wait, caplog
+):
+    post = respx_mock.post(PEOPLE).respond(201, json=[])
+    respx_mock.get(f"{REGISTRY}/co_people.json").respond(200, json={"CoPeople": []})
+
+    assert await create_ada(comanage) == []
+    assert post.call_count == COMANAGE_REGISTRY_CREATE_PERSON_RETRIES + 1
+    assert len(no_wait) == COMANAGE_REGISTRY_CREATE_PERSON_RETRIES
+    assert any("giving up" in r.getMessage() for r in caplog.records)
+
+
+async def test_create_user_does_not_retry_other_unexpected_identifiers(
+    comanage, respx_mock, no_wait
+):
+    # Only the empty list is the concurrent-create failure.
+    post = respx_mock.post(PEOPLE).respond(201, json=[{"type": "other"}])
+
+    assert await create_ada(comanage) == [{"type": "other"}]
+    assert post.call_count == 1

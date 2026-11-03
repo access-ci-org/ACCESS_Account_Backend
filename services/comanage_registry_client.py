@@ -1,5 +1,6 @@
 import logging
-from asyncio import gather
+import random
+from asyncio import gather, sleep
 from collections import namedtuple
 from typing import Literal, overload
 from urllib.parse import quote, urlencode
@@ -10,6 +11,7 @@ from config import (
     CILOGON_LINK_CLIENT_ID,
     COMANAGE_REGISTRY_BASE_URL,
     COMANAGE_REGISTRY_COID,
+    COMANAGE_REGISTRY_CREATE_PERSON_RETRIES,
     COMANAGE_REGISTRY_IDENTIFIER_TIMEOUT,
     COMANAGE_REGISTRY_KRB_AUTH_ID,
     COMANAGE_REGISTRY_PASSWORD,
@@ -341,13 +343,45 @@ class CoManageRegistryClient(RestClient):
             "SshKey": [],
         }
 
-        result = await self._request(
-            "POST", f"api/co/{self.coid}/core/v1/people", json=new_user_data
-        )
-        # A malformed response here means we can't complete account creation
-        # for this request, so surface it as a 400 rather than a 502 the way
-        # other CoManage response-shape guards do.
-        return self._expect(result, list, status_code=400)
+        # When two person creates run at the same time, CoManage can fail one of
+        # them during identifier assignment, roll it back, and still return 201
+        # with an empty list. Nothing is created, so it's safe to try again.
+        attempts = COMANAGE_REGISTRY_CREATE_PERSON_RETRIES + 1
+        attempt = 0
+        while True:
+            attempt += 1
+            result = await self._request(
+                "POST", f"api/co/{self.coid}/core/v1/people", json=new_user_data
+            )
+            # A malformed response here means we can't complete account creation
+            # for this request, so surface it as a 400 rather than a 502 the way
+            # other CoManage response-shape guards do.
+            result = self._expect(result, list, status_code=400)
+            if result != []:
+                return result
+
+            # Make sure nothing was created before retrying, so a retry can't
+            # make a duplicate account.
+            if await self.get_co_person_id_for_email(email):
+                logger.error(
+                    f"Core API person create for {obfuscate_email(email)} returned "
+                    "no identifiers, but a CoPerson was created; not retrying"
+                )
+                return result
+            if attempt == attempts:
+                logger.error(
+                    f"Core API person create for {obfuscate_email(email)} failed "
+                    f"{attempts} times due to concurrent creates; giving up"
+                )
+                return result
+
+            logger.warning(
+                f"Core API person create for {obfuscate_email(email)} failed due to "
+                "a concurrent create (201 with no identifiers, nothing created); "
+                f"retrying ({attempt} of {COMANAGE_REGISTRY_CREATE_PERSON_RETRIES})"
+            )
+            # A random wait keeps two failed creates from retrying in lockstep.
+            await sleep(random.uniform(0.5, 1.5))
 
     async def update_user(
         self,

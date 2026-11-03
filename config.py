@@ -70,6 +70,11 @@ COMANAGE_REGISTRY_TIMEOUT: int = config(
 COMANAGE_REGISTRY_IDENTIFIER_TIMEOUT: int = config(
     "COMANAGE_REGISTRY_IDENTIFIER_TIMEOUT", cast=int, default=20
 )
+# How many times to retry a Core API person create that fails because another
+# create was running at the same time (see create_new_user).
+COMANAGE_REGISTRY_CREATE_PERSON_RETRIES: int = config(
+    "COMANAGE_REGISTRY_CREATE_PERSON_RETRIES", cast=int, default=2
+)
 COMANAGE_REGISTRY_USER: str = config("COMANAGE_REGISTRY_USER")
 
 # Cron Job Configuration

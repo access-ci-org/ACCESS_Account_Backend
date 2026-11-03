@@ -19,6 +19,7 @@ from config import (
 )
 from services.async_utils import gather_all
 from services.cilogon_client import get_token_user_info
+from services.http_errors import ExpectedHTTPException
 from services.logs_service import obfuscate_email, record_exception
 from services.rest_client import RestClient
 
@@ -780,7 +781,7 @@ class CoManageRegistryClient(RestClient):
             logger.warning(
                 f"Account creation failed: email {obfuscate_email(email)} already has ACCESS ID {existing_access_id}"
             )
-            raise HTTPException(
+            raise ExpectedHTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"An ACCESS account already exists for email {email}",
             )
@@ -907,7 +908,9 @@ class CoManageRegistryClient(RestClient):
                 f"CILogon identifiers {[i.type for i in in_use]} already in use by "
                 f"CoPerson {candidate_id} ({candidates[candidate_id]})"
             )
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
+            raise ExpectedHTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail=detail
+            )
 
     async def create_linked_identity(
         self,
@@ -1060,10 +1063,12 @@ class CoManageRegistryClient(RestClient):
         # Get SSH Key type
         public_key = public_key.strip()
         if not public_key:
-            raise HTTPException(status_code=400, detail="Public key cannot be empty.")
+            raise ExpectedHTTPException(
+                status_code=400, detail="Public key cannot be empty."
+            )
         ssh_parts = public_key.split()
         if len(ssh_parts) < 2:
-            raise HTTPException(
+            raise ExpectedHTTPException(
                 status_code=400, detail="Invalid SSH public key format."
             )
         key_type = ssh_parts[0]
@@ -1080,7 +1085,7 @@ class CoManageRegistryClient(RestClient):
         ]
 
         if key_type not in allowed_key_types:
-            raise HTTPException(status_code=400, detail="Invalid SSH key type.")
+            raise ExpectedHTTPException(status_code=400, detail="Invalid SSH key type.")
 
         # Creating json response data
         data = {
@@ -1135,7 +1140,7 @@ class CoManageRegistryClient(RestClient):
         key_exists_for_user = any(str(key.get("Id")) == str(key_id) for key in ssh_keys)
         # If key does not exist, raise 404 error
         if not key_exists_for_user:
-            raise HTTPException(
+            raise ExpectedHTTPException(
                 status_code=404, detail="The requested key does not exist."
             )
 
@@ -1167,6 +1172,16 @@ class CoManageRegistryClient(RestClient):
         Follows the documented V1 workflow: GET existing row, then POST (new) or PUT (existing).
         """
 
+        try:
+            return await self._set_password(coperson_id, new_password)
+        except HTTPException as exc:
+            # Reusing an old password is the user's choice to fix, not a fault.
+            # The frontend recognizes this error by the same text.
+            if "previous password" in str(exc.detail):
+                raise ExpectedHTTPException.from_exception(exc) from exc
+            raise
+
+    async def _set_password(self, coperson_id: str, new_password: str) -> dict:
         krb_id = await self.get_krb_id_for_user(coperson_id)
 
         if krb_id:

@@ -12,6 +12,7 @@ from config import (
     CILOGON_USER_INFO_URL,
     CILOGON_WELL_KNOWN_URL,
 )
+from services.http_errors import ExpectedHTTPException
 from services.rest_client import RestClient
 
 
@@ -60,7 +61,8 @@ async def get_token_user_info(
         # CILogon itself is failing.
         if exc.response.status_code >= 500:
             raise client._unavailable() from exc
-        raise HTTPException(
+        # Usually a login token that expired; the frontend refreshes it.
+        raise ExpectedHTTPException(
             status_code=error_status_code,
             detail="Invalid token",
         ) from exc

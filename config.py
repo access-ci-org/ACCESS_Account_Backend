@@ -96,6 +96,16 @@ RATE_LIMIT_STORAGE_URL: str = config("RATE_LIMIT_STORAGE_URL", default="memory:/
 OTP_CHARACTER_LENGTH: int = config("OTP_CHARACTER_LENGTH", cast=int, default=6)
 OTP_LIFETIME_MINUTES: int = config("OTP_LIFETIME_MINUTES", cast=int, default=30)
 
+# Slack error reports
+# Error responses (4xx/5xx) that aren't a routine part of using the app are
+# posted to this incoming webhook. Leave unset to disable.
+SLACK_ERROR_WEBHOOK_URL = Secret(config("SLACK_ERROR_WEBHOOK_URL", default=""))
+# Most reports each worker process posts per minute; any more are counted and
+# summarized in one message, so an outage doesn't flood the channel.
+SLACK_ERROR_REPORTS_PER_MINUTE: int = config(
+    "SLACK_ERROR_REPORTS_PER_MINUTE", cast=int, default=10
+)
+
 # XRAS Identity Service Configuration
 XRAS_IDENTITY_SERVICE_BASE_URL: str = config("XRAS_IDENTITY_SERVICE_BASE_URL")
 XRAS_IDENTITY_SERVICE_KEY: str = config("XRAS_IDENTITY_SERVICE_KEY")

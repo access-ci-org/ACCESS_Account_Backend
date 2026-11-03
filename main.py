@@ -20,13 +20,15 @@ from fastapi import (
     Request,
     status,
 )
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi_utilities import repeat_every
-from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from sqlalchemy import delete
 from sqlmodel import col
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from auth import (
     TokenPayload,
@@ -95,6 +97,12 @@ from services.email_service import (
     verify_sns_message,
 )
 from services.email_service import ping as ses_ping
+from services.http_errors import (
+    ExpectedHTTPException,
+    handle_http_exception,
+    handle_rate_limit_exceeded,
+    handle_validation_error,
+)
 from services.identity_client import Degree as IdentityDegree
 from services.identity_client import IdentityServiceClient
 from services.idp_service import build_idp_domain_mapping
@@ -193,7 +201,12 @@ app = FastAPI(
 )
 
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # pyright: ignore[reportArgumentType]
+# These handlers build the same responses as FastAPI's and slowapi's own; they
+# also note the error on the request, so the request log can decide whether to
+# report it to Slack.
+app.add_exception_handler(RateLimitExceeded, handle_rate_limit_exceeded)  # pyright: ignore[reportArgumentType]
+app.add_exception_handler(StarletteHTTPException, handle_http_exception)  # pyright: ignore[reportArgumentType]
+app.add_exception_handler(RequestValidationError, handle_validation_error)  # pyright: ignore[reportArgumentType]
 
 # Registered before CORSMiddleware so that CORS ends up the outer of the two:
 # preflight requests are answered by CORS and never reach the request log, while
@@ -295,7 +308,7 @@ async def send_otp(request: Request, body: SendOTPRequest):
         logger.warning(
             f"Rejected OTP request due to invalid email format: {obfuscate_email(email)}"
         )
-        raise HTTPException(400, "Invalid email")
+        raise ExpectedHTTPException(400, "Invalid email")
 
     otp = generate_otp()
     store_otp(email, otp)
@@ -380,7 +393,7 @@ async def verify_otp(request: VerifyOTPRequest):
         logger.warning(
             f"Rejected OTP verification due to invalid email format: {obfuscate_string(email)}"
         )
-        raise HTTPException(400, "Invalid email")
+        raise ExpectedHTTPException(400, "Invalid email")
 
     if len(otp) != 6 or not all(
         c in (string.ascii_uppercase + string.digits) for c in otp
@@ -388,7 +401,7 @@ async def verify_otp(request: VerifyOTPRequest):
         logger.warning(
             f"Rejected OTP verification due to invalid OTP format: {otp} for email: {obfuscate_email(email)}"
         )
-        raise HTTPException(400, "Invalid OTP format")
+        raise ExpectedHTTPException(400, "Invalid OTP format")
 
     # Verify against stored OTP
     verify_stored_otp(email, otp)
@@ -470,7 +483,7 @@ async def request_password_reset(
     # Verify that password meets policy requirements
     policy_result = validate_access_password(request.password)
     if not policy_result.valid:
-        raise HTTPException(
+        raise ExpectedHTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="The password does not conform to the ACCESS password policy.",
         )
@@ -478,7 +491,7 @@ async def request_password_reset(
     # Look up CoPerson ID directly from email
     coperson_id = await comanage_client.get_co_person_id_for_email(email)
     if not coperson_id:
-        raise HTTPException(
+        raise ExpectedHTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No account found for the provided email address.",
         )
@@ -627,9 +640,16 @@ async def create_account(
 )
 async def get_account(
     username: str,
-    _token: Annotated[TokenPayload, Depends(require_username_access)],
+    token: Annotated[TokenPayload, Depends(require_username_access)],
 ):
-    [comanage_user, identity_person] = await get_account_data(username)
+    try:
+        [comanage_user, identity_person] = await get_account_data(username)
+    except HTTPException as exc:
+        # An admin looking up an ACCESS ID that doesn't exist, e.g. a typo when
+        # impersonating, is routine. A user's own account missing is not.
+        if exc.status_code == status.HTTP_404_NOT_FOUND and token.uid != username:
+            raise ExpectedHTTPException.from_exception(exc) from exc
+        raise
 
     # Comanage (preferred) values
     primary_name = comanage_user.get_primary_name()
@@ -835,7 +855,7 @@ async def update_password(
     # Validate the new password against the policy
     policy_result = validate_access_password(request.password)
     if not policy_result.valid:
-        raise HTTPException(
+        raise ExpectedHTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="The password does not conform to the ACCESS password policy.",
         )

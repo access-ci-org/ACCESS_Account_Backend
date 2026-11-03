@@ -15,6 +15,7 @@ from config import (
     XRAS_IDENTITY_SERVICE_KEY,
     XRAS_IDENTITY_SERVICE_REQUESTER,
 )
+from services.http_errors import ExpectedHTTPException
 from services.rest_client import RestClient
 
 
@@ -153,11 +154,17 @@ class IdentityServiceClient(RestClient):
         domains = self._domain_chain(domain)
 
         params = [("domain[]", d) for d in domains]
-        result = await self._request(
-            "GET",
-            "/profiles/v1/organizations",
-            params=params,
-        )
+        try:
+            result = await self._request(
+                "GET",
+                "/profiles/v1/organizations",
+                params=params,
+            )
+        except HTTPException as exc:
+            # Personal email domains like gmail.com are routinely ineligible.
+            if exc.status_code == 400 and "Ineligible domain" in str(exc.detail):
+                raise ExpectedHTTPException.from_exception(exc) from exc
+            raise
         return result if isinstance(result, list) else []
 
     async def get_person(self, access_id: str):
@@ -276,7 +283,7 @@ class IdentityServiceClient(RestClient):
             else f"Organization {organization_id}"
         )
 
-        raise HTTPException(
+        raise ExpectedHTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Domain {domain} does not match organization {organization_name} or is ineligible",
         )

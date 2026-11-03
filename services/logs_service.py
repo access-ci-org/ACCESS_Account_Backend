@@ -1,5 +1,7 @@
+import ipaddress
 import logging
 import re
+import sys
 import time
 import traceback
 from collections.abc import Awaitable, Callable
@@ -11,6 +13,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 from config import DEBUG, LOG_FILE_PATH
+from services.slack_reporter import slack_reporter
 
 # Config logging
 logger = logging.getLogger("access_account_api")
@@ -74,6 +77,29 @@ def obfuscate_emails_in_text(text: str) -> str:
     return _EMAIL_IN_TEXT.sub(mask, text)
 
 
+def mask_ip(host: str | None) -> str:
+    """Hide the middle of an IP address, keeping its first and last parts.
+
+    Every IPv4 address comes out in the same shape (``144.*.*.87``), so
+    repeats from one address still stand out without revealing it. IPv6 keeps
+    its first and last groups (``2607:*:1a2b``). Anything that isn't an IP
+    address is masked like any other string.
+    """
+    if not host:
+        return "-"
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return obfuscate_string(host)
+    if address.version == 6 and address.ipv4_mapped:
+        address = address.ipv4_mapped
+    if address.version == 4:
+        parts = str(address).split(".")
+        return f"{parts[0]}.*.*.{parts[-1]}"
+    groups = address.exploded.split(":")
+    return f"{groups[0].lstrip('0') or '0'}:*:{groups[-1].lstrip('0') or '0'}"
+
+
 # --- Unified per-request logging -------------------------------------------
 #
 # Gunicorn's access and error logs record the IP, URL and status of a request
@@ -121,6 +147,8 @@ class LoggedException:
 
     message: str
     traceback_text: str
+    # The exception's last line, e.g. "ReadTimeout: timed out".
+    summary: str = ""
 
     def render(self) -> str:
         body = indent(self.traceback_text.rstrip(), " " * 7)
@@ -135,6 +163,11 @@ class RequestLog:
     # Backend calls and handled exceptions share one list so that the rendered
     # child lines stay in the order things actually happened.
     entries: list[BackendCall | LoggedException] = field(default_factory=list)
+    # The detail of the error response, if the request ended in one, and
+    # whether that error is a routine part of using the app (see
+    # `record_error_response`).
+    error_detail: str | None = None
+    expected_error: bool = False
 
     @property
     def has_exception(self) -> bool:
@@ -195,8 +228,34 @@ def record_exception(message: str, fallback: logging.Logger = logger) -> None:
         fallback.exception(message)
         return
     context.entries.append(
-        LoggedException(message, obfuscate_emails_in_text(traceback.format_exc()))
+        LoggedException(
+            message,
+            obfuscate_emails_in_text(traceback.format_exc()),
+            obfuscate_emails_in_text(_exception_summary(sys.exc_info()[1])),
+        )
     )
+
+
+def record_error_response(detail: str, expected: bool) -> None:
+    """Note the error response the request in flight is about to return.
+
+    Called by the exception handlers, which see the exception that produced
+    the response; the middleware only sees the finished response. ``expected``
+    marks errors that are a routine part of using the app (a mistyped code, an
+    expired session), which aren't reported to Slack.
+    """
+    context = _request_log.get()
+    if context is None:
+        return
+    context.error_detail = detail
+    context.expected_error = expected
+
+
+def _exception_summary(exc: BaseException | None) -> str:
+    if exc is None:
+        return ""
+    lines = traceback.format_exception_only(exc)
+    return lines[-1].strip() if lines else type(exc).__name__
 
 
 def _format_record(
@@ -217,6 +276,65 @@ def _format_record(
     return "\n".join(lines)
 
 
+# Error details are usually a sentence, but a backend's error body passed through
+# can be a whole HTML page; the full text stays in the log.
+_MAX_DETAIL_LENGTH = 500
+
+
+def _truncate(text: str, limit: int = _MAX_DETAIL_LENGTH) -> str:
+    return text if len(text) <= limit else text[:limit] + "…"
+
+
+def _should_report(context: RequestLog, status: int) -> bool:
+    if status < 400:
+        return False
+    # A traceback is worth seeing even when the error it led to is routine.
+    return context.has_exception or not context.expected_error
+
+
+def _format_slack_report(
+    request: Request,
+    context: RequestLog,
+    status: int,
+    elapsed_ms: float,
+    exception: BaseException | None = None,
+) -> str:
+    """Summarize a failed request for Slack.
+
+    Unlike the log record, this leaves out the backend calls that worked and
+    the tracebacks, and masks the client IP.
+    """
+    url = request.url.path
+    if request.url.query:
+        url = f"{url}?{request.url.query}"
+    client = request.client.host if request.client else None
+    lines = [
+        (
+            f"{status} {request.method} {obfuscate_emails_in_text(url)} · "
+            f"{mask_ip(client)} · {context.user or '-'} · {elapsed_ms:.1f}ms"
+        )
+    ]
+
+    if exception is not None:
+        lines.append(_truncate(obfuscate_emails_in_text(_exception_summary(exception))))
+    elif context.error_detail:
+        lines.append(_truncate(obfuscate_emails_in_text(context.error_detail)))
+
+    for entry in context.entries:
+        if isinstance(entry, LoggedException):
+            lines.append(f"!! {_truncate(entry.message)}")
+            if entry.summary:
+                lines.append(f"   {_truncate(entry.summary)}")
+        elif not isinstance(entry.status, int) or entry.status >= 400:
+            backend_url = entry.url.removeprefix("https://").removeprefix("http://")
+            lines.append(
+                f"-> {entry.method} {backend_url} {entry.status} "
+                f"{entry.elapsed_ms:.1f}ms"
+            )
+
+    return "```\n" + "\n".join(lines) + "\n```"
+
+
 async def log_requests(
     request: Request, call_next: Callable[[Request], Awaitable[Response]]
 ) -> Response:
@@ -234,6 +352,11 @@ async def log_requests(
         # turn it into the 500 the client sees.
         elapsed_ms = (time.perf_counter() - started) * 1000
         access_logger.exception(_format_record(request, context, 500, elapsed_ms))
+        slack_reporter.report(
+            _format_slack_report(
+                request, context, 500, elapsed_ms, exception=sys.exc_info()[1]
+            )
+        )
         raise
     else:
         elapsed_ms = (time.perf_counter() - started) * 1000
@@ -245,6 +368,10 @@ async def log_requests(
         access_logger.log(
             level, _format_record(request, context, response.status_code, elapsed_ms)
         )
+        if _should_report(context, response.status_code):
+            slack_reporter.report(
+                _format_slack_report(request, context, response.status_code, elapsed_ms)
+            )
         return response
     finally:
         _request_log.reset(token)

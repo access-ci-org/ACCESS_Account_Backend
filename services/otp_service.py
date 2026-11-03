@@ -13,6 +13,7 @@ from fastapi import HTTPException
 
 from config import OTP_CHARACTER_LENGTH, OTP_LIFETIME_MINUTES
 from database import OTPEntry, get_session
+from services.http_errors import ExpectedHTTPException
 from services.logs_service import obfuscate_email, record_exception
 
 logger = logging.getLogger("access_account_api.otp")
@@ -52,7 +53,9 @@ def verify_stored_otp(email: str, submitted_otp: str) -> None:
             logger.warning(
                 f"OTP verification failed: no OTP found for email={obfuscate_email(email)}"
             )
-            raise HTTPException(status_code=403, detail="Invalid verification code")
+            raise ExpectedHTTPException(
+                status_code=403, detail="Invalid verification code"
+            )
 
         # Expiration check (30 minutes)
         created_at = entry.created_at
@@ -69,7 +72,7 @@ def verify_stored_otp(email: str, submitted_otp: str) -> None:
             logger.warning(
                 f"OTP verification failed: OTP expired for email={obfuscate_email(email)}"
             )
-            raise HTTPException(
+            raise ExpectedHTTPException(
                 status_code=403,
                 detail="Verification code has expired. Please request a new one.",
             )
@@ -83,7 +86,7 @@ def verify_stored_otp(email: str, submitted_otp: str) -> None:
             session.commit()
 
             logger.warning(f"OTP mismatch for email={obfuscate_email(email)}")
-            raise HTTPException(403, "Invalid verification code")
+            raise ExpectedHTTPException(403, "Invalid verification code")
 
         except InvalidHash:
             # Stored hash is corrupted (should never happen unless storage corrupted)

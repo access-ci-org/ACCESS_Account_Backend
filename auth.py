@@ -17,6 +17,7 @@ from config import (
 )
 from models import TokenPayload
 from services.cilogon_client import get_token_user_info
+from services.http_errors import ExpectedHTTPException
 from services.logs_service import set_request_user
 
 security = HTTPBearer(auto_error=False)
@@ -115,7 +116,7 @@ async def get_current_token(
         HTTPException: If authorization header is missing
     """
     if credentials is None:
-        raise HTTPException(
+        raise ExpectedHTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authenticated",
         )
@@ -142,7 +143,8 @@ async def require_auth(
             payload = decode_otp_token(token)
     except (jwt.InvalidTokenError, jwt.DecodeError, jwt.ExpiredSignatureError) as err:
         logger.warning("JWT decode failed: %s", err)
-        raise HTTPException(
+        # Usually an OTP token that expired while the page sat open.
+        raise ExpectedHTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Invalid token",
         )

@@ -8,6 +8,7 @@ choice-list TTLCache around every test, so cache assertions are deterministic.
 import pytest
 from fastapi import HTTPException
 
+from services.http_errors import ExpectedHTTPException
 from services.identity_client import IdentityServiceClient
 
 XRAS = "https://xras.test"
@@ -171,3 +172,22 @@ async def test_org_does_not_match_domain_raises_400(identity, respx_mock):
     with pytest.raises(HTTPException) as exc:
         await identity.check_organization_matches_domain(7, "example.org")
     assert exc.value.status_code == 400
+
+
+# --- get_organizations_by_domain: ineligible domains are routine -----------
+async def test_ineligible_domain_is_an_expected_error(identity, respx_mock):
+    respx_mock.get(f"{XRAS}/profiles/v1/organizations").respond(
+        400, json={"message": "Ineligible domain used: gmail.com", "result": None}
+    )
+    with pytest.raises(ExpectedHTTPException) as exc:
+        await identity.get_organizations_by_domain("gmail.com")
+    assert exc.value.status_code == 400
+
+
+async def test_other_domain_lookup_errors_are_not_expected(identity, respx_mock):
+    respx_mock.get(f"{XRAS}/profiles/v1/organizations").respond(
+        400, json={"message": "Something else went wrong", "result": None}
+    )
+    with pytest.raises(HTTPException) as exc:
+        await identity.get_organizations_by_domain("example.org")
+    assert not isinstance(exc.value, ExpectedHTTPException)

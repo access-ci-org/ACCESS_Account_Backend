@@ -71,6 +71,8 @@ from models import (
     OidcInfoResponse,
     OidcTokenRequest,
     OidcTokenResponse,
+    ResourceUsernameOrganization,
+    ResourceUsernamesResponse,
     SendOTPRequest,
     SSHKey,
     SSHKeysResponse,
@@ -1073,7 +1075,7 @@ async def delete_identity(
 # SSH Key Routes
 @router.get(
     "/account/{username}/ssh-key",
-    tags=["SSH Keys"],
+    tags=["SSH Keys / Resource Usernames"],
     summary="Get SSH keys",
     description="Get a list of SSH keys associated with this account.",
     responses={
@@ -1109,7 +1111,7 @@ async def get_ssh_keys(
 
 @router.post(
     "/account/{username}/ssh-key",
-    tags=["SSH Keys"],
+    tags=["SSH Keys / Resource Usernames"],
     summary="Add SSH key",
     description="Add an SSH key to the account.",
     responses={
@@ -1142,7 +1144,7 @@ async def add_ssh_key(
 
 @router.delete(
     "/account/{username}/ssh-key/{key_id}",
-    tags=["SSH Keys"],
+    tags=["SSH Keys / Resource Usernames"],
     summary="Delete SSH key",
     description="Delete an SSH key.",
     responses={
@@ -1161,6 +1163,50 @@ async def delete_ssh_key(
     # Call the CoManage API to delete the key
     await comanage_client.delete_ssh_key_for_user(username, key_id)
     return {"success": True}
+
+
+ACCESS_PORTAL_CIDER_RESOURCE_ID = "portal.teragrid"
+
+
+@router.get(
+    "/account/{username}/resource-usernames",
+    tags=["SSH Keys / Resource Usernames"],
+    summary="Get resource usernames",
+    description="Get the usernames assigned to this account on ACCESS resources, grouped by organization.",
+    responses={
+        200: {"description": "Return the list of resource usernames"},
+        403: {
+            "description": "The JWT is invalid or the user does not have permission to access the account"
+        },
+    },
+)
+async def get_resource_usernames(
+    username: str,
+    _token: Annotated[TokenPayload, Depends(require_username_access)],
+) -> ResourceUsernamesResponse:
+    try:
+        site_logins = await identity_client.get_site_logins(username)
+    except HTTPException as exc:
+        # A user without an XRAS person record has no resource usernames
+        if exc.status_code == status.HTTP_404_NOT_FOUND:
+            site_logins = []
+        else:
+            raise
+
+    organizations = []
+    for org in site_logins:
+        organization = ResourceUsernameOrganization.model_validate(org)
+        # Every account has an ACCESS portal login whose username is just the
+        # ACCESS ID, so it adds nothing to the list.
+        organization.logins = [
+            login
+            for login in organization.logins
+            if login.cider_resource_id != ACCESS_PORTAL_CIDER_RESOURCE_ID
+        ]
+        if organization.logins:
+            organizations.append(organization)
+
+    return ResourceUsernamesResponse(organizations=organizations)
 
 
 @router.get(

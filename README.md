@@ -532,6 +532,9 @@ The requested user does not exist.
 ### POST `/account/<username>/ssh-key`
 Add a new SSH key to the account.
 
+### GET `/account/{username}/resource-usernames`
+Get resource usernames attached to ACCESS user
+
 #### Request Headers
 - `Authorization`: containing a JWT of type `login`. The uid claim must match the requested username.
 

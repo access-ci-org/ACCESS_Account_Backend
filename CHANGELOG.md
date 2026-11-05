@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.21.1](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.21.0...v0.21.1) (2026-11-05)
+
+
+### Bug Fixes
+
+* **slack:** treat routine OAuth errors as expected ([3f9c21c](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/3f9c21ce83319a7b93b74ee7de45307ecee1329c))
+
 ## [0.21.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.20.0...v0.21.0) (2026-11-05)
 
 

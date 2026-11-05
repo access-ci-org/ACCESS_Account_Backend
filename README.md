@@ -85,6 +85,7 @@ the same configuration as the API. Run it from this directory:
 
 ```bash
 uv run python cli.py account <ACCESS ID or email> [--verify]
+uv run python cli.py logs search <ACCESS ID or email> [--start DATETIME] [--end DATETIME]
 ```
 
 `account` prints what the Profile, SSH Keys and Resource Usernames, and Linked
@@ -105,6 +106,21 @@ and that the CoManage records match one of the two registration patterns:
 Records that fit a pattern but differ from what this API creates (e.g.
 unexpected Identifier types), and profile values that differ between CoManage
 and the Identity Service, are reported as warnings.
+
+`logs search` shows every entry in the log file (`LOG_FILE_PATH`, or
+`--log-file`) about the user, including its indented backend calls (`->`),
+handled exceptions (`!!`), logged messages (`--`) and tracebacks. A request
+entry names its user (the ACCESS ID, or the obfuscated email before sign-in) in
+a field of its first line, and matches if that field is the user. Entries with
+no user -- requests like the SES email callback, and anything logged outside a
+request -- match if the user appears in their text as a whole word.
+
+Emails are obfuscated in the log, so an email is obfuscated the same way before
+searching; this can also match other addresses that obfuscate the same. Once a
+user has an ACCESS ID, their requests are logged under it, so search by both
+to see everything. `--start` and `--end` take a date or datetime in the
+server's local time (e.g. `2026-11-05` or `"2026-11-05 14:30"`); a date alone
+as `--end` includes that whole day.
 
 ## Authentication
 

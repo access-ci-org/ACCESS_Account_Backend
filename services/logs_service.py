@@ -110,12 +110,16 @@ def mask_ip(host: str | None) -> str:
 #
 #   <time> - INFO - access_account_api.access - <ip> <user> <method> <url> <status> <elapsed>
 #       -> GET  https://registry.access-ci.org/registry/co_people.json?coid=2 200 118.7ms
+#       -- WARNING access_account_api.otp - OTP mismatch for email=j**e@ex******org
 #       !! Unexpected SES error for email=j**e@ex******org: Throttling
 #          Traceback (most recent call last):
 #            ...
 #
 # The whole thing is one log record (one write), so records from concurrent
 # requests and from sibling gunicorn workers can't interleave mid-record.
+# Messages the app logs while serving a request (the `--` lines) are folded in
+# too, by `_fold_into_request`, so nothing about a request ends up in a record
+# of its own that can only be tied back to it by time.
 
 access_logger = logging.getLogger("access_account_api.access")
 
@@ -156,22 +160,58 @@ class LoggedException:
 
 
 @dataclass
+class LoggedMessage:
+    """A message logged by the app while serving a request."""
+
+    levelno: int
+    logger_name: str
+    message: str
+
+    def render(self) -> str:
+        first, *rest = self.message.rstrip().splitlines() or [""]
+        lines = [
+            f"    -- {logging.getLevelName(self.levelno)} {self.logger_name} - {first}"
+        ]
+        lines += [" " * 7 + line for line in rest]
+        return "\n".join(lines)
+
+
+@dataclass
 class RequestLog:
     """Everything gathered about the request currently being served."""
 
     user: str | None = None
-    # Backend calls and handled exceptions share one list so that the rendered
-    # child lines stay in the order things actually happened.
-    entries: list[BackendCall | LoggedException] = field(default_factory=list)
+    # Backend calls, handled exceptions and logged messages share one list so
+    # that the rendered child lines stay in the order things actually happened.
+    entries: list[BackendCall | LoggedException | LoggedMessage] = field(
+        default_factory=list
+    )
     # The detail of the error response, if the request ended in one, and
     # whether that error is a routine part of using the app (see
     # `record_error_response`).
     error_detail: str | None = None
     expected_error: bool = False
+    # Set once the record is written; anything logged after that (e.g. while
+    # the response body streams) has to go out as a record of its own.
+    finished: bool = False
 
     @property
     def has_exception(self) -> bool:
         return any(isinstance(entry, LoggedException) for entry in self.entries)
+
+    @property
+    def levelno(self) -> int:
+        """The level the record goes out at: the highest of its parts.
+
+        A folded-in warning or error, or a handled exception's traceback, keeps
+        the level it would have had as a record of its own -- otherwise
+        level-based alerting stops seeing it the moment it is folded in here.
+        """
+        levels = [logging.INFO]
+        levels += [e.levelno for e in self.entries if isinstance(e, LoggedMessage)]
+        if self.has_exception:
+            levels.append(logging.ERROR)
+        return max(levels)
 
 
 # Holds the RequestLog for the request in flight, or None when there is no
@@ -251,6 +291,29 @@ def record_error_response(detail: str, expected: bool) -> None:
     context.expected_error = expected
 
 
+def _fold_into_request(record: logging.LogRecord) -> bool:
+    """Handler filter: put a message logged mid-request into the request record.
+
+    Returns False -- don't write the record on its own -- when it was folded in.
+    Outside a request (cron jobs, startup hooks) records are written as usual.
+    """
+    context = _request_log.get()
+    if context is None or context.finished or record.name == access_logger.name:
+        return True
+    # The call sites obfuscate the emails in their messages, but a traceback can
+    # carry an address they never saw (same as `record_exception`).
+    message = record.getMessage()
+    if record.exc_info:
+        message += "\n" + obfuscate_emails_in_text(
+            "".join(traceback.format_exception(*record.exc_info))
+        )
+    context.entries.append(LoggedMessage(record.levelno, record.name, message))
+    return False
+
+
+handler.addFilter(_fold_into_request)
+
+
 def _exception_summary(exc: BaseException | None) -> str:
     if exc is None:
         return ""
@@ -301,8 +364,8 @@ def _format_slack_report(
 ) -> str:
     """Summarize a failed request for Slack.
 
-    Unlike the log record, this leaves out the backend calls that worked and
-    the tracebacks, and masks the client IP.
+    Unlike the log record, this leaves out the backend calls that worked, the
+    messages below WARNING and the tracebacks, and masks the client IP.
     """
     url = request.url.path
     if request.url.query:
@@ -325,6 +388,11 @@ def _format_slack_report(
             lines.append(f"!! {_truncate(entry.message)}")
             if entry.summary:
                 lines.append(f"   {_truncate(entry.summary)}")
+        elif isinstance(entry, LoggedMessage):
+            if entry.levelno >= logging.WARNING:
+                level = logging.getLevelName(entry.levelno)
+                first_line = entry.message.strip().partition("\n")[0]
+                lines.append(f"-- {level} {_truncate(first_line)}")
         elif not isinstance(entry.status, int) or entry.status >= 400:
             backend_url = entry.url.removeprefix("https://").removeprefix("http://")
             lines.append(
@@ -351,6 +419,7 @@ async def log_requests(
         # attaching it to the URL and user it came from -- then let Starlette
         # turn it into the 500 the client sees.
         elapsed_ms = (time.perf_counter() - started) * 1000
+        context.finished = True
         access_logger.exception(_format_record(request, context, 500, elapsed_ms))
         slack_reporter.report(
             _format_slack_report(
@@ -360,13 +429,10 @@ async def log_requests(
         raise
     else:
         elapsed_ms = (time.perf_counter() - started) * 1000
-        # A request that handled an exception on its way to a 4xx still carries
-        # a traceback, so the record has to keep the ERROR level those call
-        # sites used to log at -- otherwise level-based alerting stops seeing
-        # them the moment they are folded in here.
-        level = logging.ERROR if context.has_exception else logging.INFO
+        context.finished = True
         access_logger.log(
-            level, _format_record(request, context, response.status_code, elapsed_ms)
+            context.levelno,
+            _format_record(request, context, response.status_code, elapsed_ms),
         )
         if _should_report(context, response.status_code):
             slack_reporter.report(

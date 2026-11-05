@@ -4,14 +4,17 @@ Reads the same configuration as the API (`.env`, or the file named by
 APP_CONFIG), so run it from this directory:
 
     uv run cli.py account <ACCESS ID or email> [--verify]
+    uv run cli.py logs search <ACCESS ID or email> [--start ...] [--end ...]
 """
 
 import asyncio
 from asyncio import gather
+from datetime import datetime, timedelta
 
 import click
 from fastapi import HTTPException, status
 
+from config import LOG_FILE_PATH
 from services.account_service import (
     comanage_client,
     identity_client,
@@ -24,6 +27,7 @@ from services.account_verification import (
     verify_account,
 )
 from services.comanage_registry_client import CoManageUser
+from services.log_search import LogRecord, search_log, search_pattern, search_term
 from services.ssh_key_service import calculate_ssh_fingerprint_sha256
 
 
@@ -153,8 +157,9 @@ def print_profile(access_id: str, data: dict):
     _field(
         "Country of Citizenship",
         ", ".join(
-            _lookup(data["countries"], c.get("countryId"))
+            name
             for c in person.get("citizenships") or []
+            if (name := _lookup(data["countries"], c.get("countryId")))
         ),
     )
     _field(
@@ -321,6 +326,92 @@ def account(user: str, verify: bool):
         print_verification(result)
         if result.failed:
             raise SystemExit(1)
+
+
+@cli.group()
+def logs():
+    """Search the application log."""
+
+
+def _parse_datetime(ctx, param, value: str | None) -> datetime | None:
+    if value is None:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        raise click.BadParameter(
+            f"{value!r} is not a date or datetime, e.g. 2026-11-05 or "
+            "'2026-11-05 14:30'"
+        ) from None
+    if parsed.tzinfo is not None:
+        raise click.BadParameter(
+            "give the time without a time zone, in the server's local time"
+        )
+    # A bare date as the end means through the end of that day.
+    if param.name == "end" and len(value.strip()) == len("YYYY-MM-DD"):
+        parsed += timedelta(days=1)
+    return parsed
+
+
+LEVEL_COLORS = {"WARNING": "yellow", "ERROR": "red", "CRITICAL": "red"}
+
+
+def print_log_record(record: LogRecord, pattern):
+    for number, line in enumerate(record.lines):
+        line = pattern.sub(lambda m: click.style(m[0], bold=True, reverse=True), line)
+        if number == 0:
+            click.secho(line, fg=LEVEL_COLORS.get(record.level or ""))
+        else:
+            click.echo(line)
+
+
+@logs.command("search")
+@click.argument("user")
+@click.option(
+    "--start",
+    callback=_parse_datetime,
+    metavar="DATETIME",
+    help="Only show entries logged at or after this date or datetime.",
+)
+@click.option(
+    "--end",
+    callback=_parse_datetime,
+    metavar="DATETIME",
+    help="Only show entries logged before this datetime, or through this date.",
+)
+@click.option(
+    "--log-file",
+    type=click.Path(exists=True, dir_okay=False),
+    default=LOG_FILE_PATH,
+    show_default=True,
+    help="The log file to search. Defaults to LOG_FILE_PATH.",
+)
+def search_logs(user: str, start: datetime | None, end: datetime | None, log_file: str):
+    """Show every log entry about USER, with its subentries.
+
+    USER is an ACCESS ID, or an email address (if it contains @). Request
+    entries match on the user they were logged under; entries with no user
+    match if USER appears in their text.
+
+    Emails are obfuscated in the log, so an email is obfuscated the same way
+    before searching, and can match other addresses that obfuscate the same.
+    Requests are logged under the email only until the user has an ACCESS ID.
+
+    Times are in the server's local time, as written in the log, e.g.
+    2026-11-05 or "2026-11-05 14:30".
+    """
+    if start and end and start >= end:
+        raise click.BadParameter("--start must be before --end")
+    if "@" in user:
+        click.echo(f"Searching for {search_term(user)}", err=True)
+
+    pattern = search_pattern(user)
+    count = 0
+    with open(log_file, encoding="utf-8", errors="replace") as lines:
+        for record in search_log(lines, user, start, end):
+            print_log_record(record, pattern)
+            count += 1
+    click.echo(f"{count} matching {'entry' if count == 1 else 'entries'}", err=True)
 
 
 if __name__ == "__main__":

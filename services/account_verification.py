@@ -164,14 +164,14 @@ def _check_profile_fields(
         "countryId": "a country of residence",
         "citizenships": "a country of citizenship",
     }
-    has_person = c.check(
+    c.check(
         "Identity Service has a person record",
         identity_person is not None,
         "no person record for this ACCESS ID",
     )
     for key, label in required.items():
         name = f"Identity Service has {label}"
-        if not has_person:
+        if identity_person is None:
             c.skip(name, "no person record")
             continue
         value = identity_person.get(key)
@@ -256,7 +256,7 @@ def _check_co_person(
     c.check(
         "official EmailAddress is verified",
         not unverified,
-        f"not verified: {', '.join(unverified)}",
+        f"not verified: {', '.join(map(str, unverified))}",
     )
 
     c.check(
@@ -309,7 +309,7 @@ def _check_access_org_identity(
     c.check(
         "has no eppn for another ACCESS ID",
         not others,
-        f"also has {', '.join(others)}",
+        f"also has {', '.join(map(str, others))}",
     )
     c.check(
         f"eppn {expected_eppn} is copied to the CoPerson",

@@ -5,6 +5,7 @@ tests/unit/test_slack_reporter.py; here `slack_reporter.report` is replaced so
 each test sees exactly the text that would be posted.
 """
 
+import logging
 from unittest.mock import AsyncMock
 
 import pytest
@@ -99,6 +100,23 @@ def test_recorded_exception_is_reported_even_when_the_error_is_routine(reports):
     assert "!! Could not parse the response" in report
     assert "ValueError: bad value from *@b***m" in report
     assert "Traceback" not in report
+
+
+def test_logged_warnings_are_reported_but_not_info(reports):
+    app = scratch_app()
+    logger = logging.getLogger("access_account_api.email")
+
+    @app.get("/logged")
+    async def _logged():
+        logger.info("Sending verification email")
+        logger.error("SES MessageRejected for email=j**e@ex******org")
+        raise HTTPException(400, "Email was rejected by SES")
+
+    assert TestClient(app).get("/logged").status_code == 400
+
+    (report,) = reports
+    assert "-- ERROR SES MessageRejected for email=j**e@ex******org" in report
+    assert "Sending verification email" not in report
 
 
 def test_long_detail_is_truncated(reports):
@@ -257,9 +275,7 @@ def test_rejected_refresh_token_or_code_is_not_reported(
     client, reports, monkeypatch, detail
 ):
     fake = AsyncMock(side_effect=HTTPException(401, detail))
-    monkeypatch.setattr(
-        main, "CILogonClient", lambda **kw: AsyncMock(get_token=fake)
-    )
+    monkeypatch.setattr(main, "CILogonClient", lambda **kw: AsyncMock(get_token=fake))
 
     response = client.post(f"{BASE}/auth/oauth2/token", json=TOKEN_REQUEST)
     assert response.status_code == 401
@@ -272,11 +288,8 @@ def test_rejected_client_credentials_are_reported(client, reports, monkeypatch):
             401, 'CILogonClient API error: {"error":"invalid_client"}'
         )
     )
-    monkeypatch.setattr(
-        main, "CILogonClient", lambda **kw: AsyncMock(get_token=fake)
-    )
+    monkeypatch.setattr(main, "CILogonClient", lambda **kw: AsyncMock(get_token=fake))
 
     response = client.post(f"{BASE}/auth/oauth2/token", json=TOKEN_REQUEST)
     assert response.status_code == 401
     assert len(reports) == 1
-

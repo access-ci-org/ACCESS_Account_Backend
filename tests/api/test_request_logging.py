@@ -9,6 +9,7 @@ works only because nothing downstream rebinds the var.
 """
 
 import asyncio
+import io
 import logging
 
 import httpx
@@ -16,6 +17,7 @@ import pytest
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
+from services import logs_service
 from services.logs_service import (
     access_logger,
     log_requests,
@@ -319,3 +321,111 @@ def test_recorded_traceback_is_scrubbed_of_emails(records):
     message = records()[0].getMessage()
     assert "jdoe@example.org" not in message
     assert "j**e@ex******org" in message
+
+
+# ---------------------------------------------------------------------------
+# Messages logged mid-request folded into the record
+# ---------------------------------------------------------------------------
+otp_logger = logging.getLogger("access_account_api.otp")
+
+
+@pytest.fixture
+def written(monkeypatch):
+    """Return what the app's own log handler has written so far."""
+    stream = io.StringIO()
+    monkeypatch.setattr(logs_service.handler, "stream", stream)
+    return stream.getvalue
+
+
+def _app_logging(*messages: tuple[int, str]) -> FastAPI:
+    scratch = FastAPI()
+    scratch.middleware("http")(log_requests)
+
+    @scratch.get("/logs")
+    async def _logs():
+        for level, message in messages:
+            otp_logger.log(level, message)
+        return {"ok": True}
+
+    return scratch
+
+
+def test_logged_message_is_indented_under_the_request(records, written):
+    app = _app_logging((logging.WARNING, "OTP mismatch for email=j**e@ex******org"))
+
+    with TestClient(app) as scratch_client:
+        scratch_client.get("/logs")
+
+    (record,) = records()
+    lines = record.getMessage().splitlines()
+    assert lines[1] == (
+        "    -- WARNING access_account_api.otp - OTP mismatch for email=j**e@ex******org"
+    )
+    # Written once, inside the request record, not as a record of its own.
+    assert written().count("OTP mismatch") == 1
+    assert "WARNING - access_account_api.otp" not in written()
+
+
+def test_logged_message_is_not_obfuscated_twice(records):
+    already_obfuscated = "email=j**e@cs.c*********e.edu"
+    app = _app_logging((logging.INFO, already_obfuscated))
+
+    with TestClient(app) as scratch_client:
+        scratch_client.get("/logs")
+
+    assert records()[0].getMessage().splitlines()[1].endswith(already_obfuscated)
+
+
+def test_multiline_message_is_indented(records):
+    app = _app_logging((logging.INFO, "first\nsecond"))
+
+    with TestClient(app) as scratch_client:
+        scratch_client.get("/logs")
+
+    lines = records()[0].getMessage().splitlines()
+    assert lines[1].endswith(" - first")
+    assert lines[2] == "       second"
+
+
+@pytest.mark.parametrize(
+    "levels, expected",
+    [
+        ([logging.INFO], logging.INFO),
+        ([logging.INFO, logging.WARNING], logging.WARNING),
+        ([logging.ERROR, logging.WARNING], logging.ERROR),
+    ],
+)
+def test_record_takes_the_highest_level_logged(records, levels, expected):
+    app = _app_logging(*[(level, "message") for level in levels])
+
+    with TestClient(app) as scratch_client:
+        scratch_client.get("/logs")
+
+    assert records()[0].levelno == expected
+
+
+def test_logged_exception_traceback_is_folded_and_scrubbed(records):
+    scratch = FastAPI()
+    scratch.middleware("http")(log_requests)
+
+    @scratch.get("/exception")
+    async def _exception():
+        try:
+            raise ValueError("rejected jdoe@example.org")
+        except ValueError:
+            otp_logger.exception("Could not send")
+        return {"ok": True}
+
+    with TestClient(scratch) as scratch_client:
+        scratch_client.get("/exception")
+
+    (record,) = records()
+    message = record.getMessage()
+    assert record.levelno == logging.ERROR
+    assert "    -- ERROR access_account_api.otp - Could not send" in message
+    assert "       ValueError: rejected j**e@ex******org" in message
+
+
+def test_messages_outside_a_request_are_written_on_their_own(written):
+    otp_logger.warning("cron job warning")
+    assert "WARNING - access_account_api.otp - cron job warning" in written()

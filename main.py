@@ -72,7 +72,6 @@ from models import (
     OidcInfoResponse,
     OidcTokenRequest,
     OidcTokenResponse,
-    ResourceUsernameOrganization,
     ResourceUsernamesResponse,
     SendOTPRequest,
     SSHKey,
@@ -88,6 +87,7 @@ from services.account_service import (
     get_account_data,
     identity_client,
     safe_get,
+    visible_resource_usernames,
 )
 from services.async_utils import gather_all
 from services.cilogon_client import CILogonClient
@@ -1179,9 +1179,6 @@ async def delete_ssh_key(
     return {"success": True}
 
 
-ACCESS_PORTAL_CIDER_RESOURCE_ID = "portal.teragrid"
-
-
 @router.get(
     "/account/{username}/resource-usernames",
     tags=["SSH Keys / Resource Usernames"],
@@ -1207,20 +1204,9 @@ async def get_resource_usernames(
         else:
             raise
 
-    organizations = []
-    for org in site_logins:
-        organization = ResourceUsernameOrganization.model_validate(org)
-        # Every account has an ACCESS portal login whose username is just the
-        # ACCESS ID, so it adds nothing to the list.
-        organization.logins = [
-            login
-            for login in organization.logins
-            if login.cider_resource_id != ACCESS_PORTAL_CIDER_RESOURCE_ID
-        ]
-        if organization.logins:
-            organizations.append(organization)
-
-    return ResourceUsernamesResponse(organizations=organizations)
+    return ResourceUsernamesResponse(
+        organizations=visible_resource_usernames(site_logins)
+    )
 
 
 @router.get(

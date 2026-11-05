@@ -78,6 +78,34 @@ Once the server is running, you can access the interactive API documentation:
 
 All API routes are prefixed with `/api/v1`.
 
+### Command Line Client
+
+`cli.py` looks up accounts directly in CoManage and the Identity Service, using
+the same configuration as the API. Run it from this directory:
+
+```bash
+uv run python cli.py account <ACCESS ID or email> [--verify]
+```
+
+`account` prints what the Profile, SSH Keys and Resource Usernames, and Linked
+Identities pages would show. Input containing `@` is treated as an email address
+and resolved to the ACCESS ID of the active CoPerson that has it.
+
+With `--verify`, it also runs a series of checks and lists each one with its
+status (PASSED, FAILED, WARNING or SKIPPED), then exits with status 1 if any
+check failed. The checks confirm that every required profile field is present
+and that the CoManage records match one of the two registration patterns:
+
+- **Registered without an existing identity:** a single OrgIdentity, for the
+  ACCESS IdP, with a login eppn of `<ACCESS ID>@access-ci.org`.
+- **Registered with an existing identity:** the ACCESS IdP OrgIdentity plus one
+  per linked IdP, each with a login oidcsub, and their Identifiers copied onto
+  the CoPerson.
+
+Records that fit a pattern but differ from what this API creates (e.g.
+unexpected Identifier types), and profile values that differ between CoManage
+and the Identity Service, are reported as warnings.
+
 ## Authentication
 
 Users can authenticate to the Account API using two methods, which provide different levels of privilege:

@@ -203,11 +203,15 @@ class CoManageRegistryClient(RestClient):
 
         return None
 
-    async def get_user_info(self, accessid: str) -> CoManageUser:
+    async def get_user_info(
+        self, accessid: str, include_inactive: bool = False
+    ) -> CoManageUser:
         """Get full user info for a given ACCESS ID.
 
         Args:
             accessid: The ACCESS ID to search for
+            include_inactive: Return the record even if the CoPerson is not
+                active, instead of raising a 400
 
         Returns:
             Dictionary containing user information
@@ -224,7 +228,7 @@ class CoManageRegistryClient(RestClient):
 
         user_info = CoManageUser(self._expect(response, dict))
 
-        if not user_info["CoPerson"]["status"] == "A":
+        if not include_inactive and not user_info["CoPerson"]["status"] == "A":
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"ACCESS ID is not active: {accessid}",
@@ -256,6 +260,15 @@ class CoManageRegistryClient(RestClient):
                     return tandc
 
         return None
+
+    async def get_tandc_agreements(self, co_person_id: str | int) -> list[dict]:
+        """Return the Terms and Conditions agreements for a CoPerson."""
+        result = await self._request(
+            "GET", f"co_t_and_c_agreements.json?copersonid={co_person_id}"
+        )
+        if isinstance(result, dict):
+            return result.get("CoTAndCAgreements") or []
+        return []
 
     async def create_new_user(
         self,

@@ -26,6 +26,10 @@ class Degree(TypedDict):
 
 INVALID_ACADEMIC_STATUS_CODES = {"N", "UK"}
 
+# Every account has an ACCESS portal site login whose username is just the
+# ACCESS ID, so resource username lists leave it out.
+ACCESS_PORTAL_CIDER_RESOURCE_ID = "portal.teragrid"
+
 
 class IdentityServiceClient(RestClient):
     choice_list_cache = TTLCache(
@@ -179,6 +183,13 @@ class IdentityServiceClient(RestClient):
             f"/profiles/v1/people/{quote(username, safe='')}/site_logins",
         )
         return self._expect(result, list)
+
+    async def get_organization(self, organization_id: int) -> dict:
+        result = await self._request(
+            "GET",
+            f"/profiles/v1/organizations/{organization_id}",
+        )
+        return self._expect(result, dict)
 
     async def create_person(
         self,

@@ -147,11 +147,33 @@ async def test_get_user_info_400_when_inactive(comanage, respx_mock):
     assert exc.value.status_code == 400
 
 
+async def test_get_user_info_include_inactive(comanage, respx_mock):
+    respx_mock.get(f"{REGISTRY}/api/co/2/core/v1/people/ada").respond(
+        200, json=core_person(co_person_status="D")
+    )
+    user = await comanage.get_user_info("ada", include_inactive=True)
+    assert user["CoPerson"]["status"] == "D"
+
+
 async def test_get_user_info_non_dict_raises_502(comanage, respx_mock):
     respx_mock.get(f"{REGISTRY}/api/co/2/core/v1/people/ada").respond(200, json=[1, 2])
     with pytest.raises(HTTPException) as exc:
         await comanage.get_user_info("ada")
     assert exc.value.status_code == 502
+
+
+# --- get_tandc_agreements ---------------------------------------------------
+async def test_get_tandc_agreements(comanage, respx_mock):
+    route = respx_mock.get(f"{REGISTRY}/co_t_and_c_agreements.json").respond(
+        200, json={"CoTAndCAgreements": [{"Id": 1}]}
+    )
+    assert await comanage.get_tandc_agreements(123) == [{"Id": 1}]
+    assert route.calls.last.request.url.params["copersonid"] == "123"
+
+
+async def test_get_tandc_agreements_empty(comanage, respx_mock):
+    respx_mock.get(f"{REGISTRY}/co_t_and_c_agreements.json").respond(204)
+    assert await comanage.get_tandc_agreements(123) == []
 
 
 # --- get_active_tandc -------------------------------------------------------

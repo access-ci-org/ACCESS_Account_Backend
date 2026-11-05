@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.22.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.21.1...v0.22.0) (2026-11-05)
+
+
+### Features
+
+* **cli:** add account verify command ([5193283](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/5193283d49b32ec906ed12ea1f98642aadfe0902))
+* **cli:** add log search command ([3acb4b0](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/3acb4b06d961b32d8decfa9a98a55d8aaa2809af))
+
 ## [0.21.1](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.21.0...v0.21.1) (2026-11-05)
 
 

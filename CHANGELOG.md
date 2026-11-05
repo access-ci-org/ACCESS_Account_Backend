@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.21.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.20.0...v0.21.0) (2026-11-05)
+
+
+### Features
+
+* add resource provider usernames route ([2405aa5](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/2405aa5d996de52a36ef0a3a0579a8654d24aac0))
+* add route to check if linked identity is already in use ([a468fb5](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/a468fb5f2a3f6ac2e9b2fff036da7ee41f1dacb7))
+* **comanage:** attempt to look up timed out CoPerson records ([5c982a2](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/5c982a22aa17860df6f601f59c2289f569c4cbd0))
+* **slack:** report unexpected errors in Slack ([1483fa1](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/1483fa1ab831ac370e085b285a85c949b689c7b5))
+
+
+### Bug Fixes
+
+* **cilogon:** send 503 response when CILogon is unavailable ([e87fa96](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/e87fa962fb0b63f7f60da99e8d6c9b8b5f9d3653))
+* **comanage:** increase the default timeout for identifier creation ([641e627](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/641e627c2472a42113647784238dec6398c1b92d))
+* **comanage:** remove dollar signs from error messages ([7445e45](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/7445e454e6b17a3da4114c1eec76b98807122c6a))
+* **comanage:** retry failed CoPerson create ([d96dd9d](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/d96dd9dd5775f6495d9b2bb2564278dcc32505ad))
+* **comanage:** run identifier creation sequentially to avoid timeouts ([07fcd62](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/07fcd6231c9654f10df5ff7c41695f1586fecf7a))
+* ensure all upstream API requests are logged ([4872276](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/487227603d1f69bda8706f16b8916ac5645ca05b))
+* **identity:** allow empty response from profile create route ([fa46246](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/fa462465222aa37bdb78aa2e38550a80d71d0e67))
+
 ## [0.20.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.19.0...v0.20.0) (2026-10-21)
 
 

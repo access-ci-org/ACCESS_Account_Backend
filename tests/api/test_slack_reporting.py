@@ -236,3 +236,47 @@ def test_rate_limited_request_is_not_reported(client, reports, temp_db):
 
     assert statuses == [200, 200, 200, 200, 429]
     assert reports == []
+
+
+TOKEN_REQUEST = {
+    "clientId": "link-client",
+    "grantType": "refresh_token",
+    "redirectUri": "https://app.example.org/callback",
+    "refreshToken": "expired",
+}
+
+
+@pytest.mark.parametrize(
+    "detail",
+    [
+        'CILogonClient API error: error="invalid_token"\nerror_description="token+not+found"',
+        'CILogonClient API error: {"error":"invalid_grant","error_description":"code used"}',
+    ],
+)
+def test_rejected_refresh_token_or_code_is_not_reported(
+    client, reports, monkeypatch, detail
+):
+    fake = AsyncMock(side_effect=HTTPException(401, detail))
+    monkeypatch.setattr(
+        main, "CILogonClient", lambda **kw: AsyncMock(get_token=fake)
+    )
+
+    response = client.post(f"{BASE}/auth/oauth2/token", json=TOKEN_REQUEST)
+    assert response.status_code == 401
+    assert reports == []
+
+
+def test_rejected_client_credentials_are_reported(client, reports, monkeypatch):
+    fake = AsyncMock(
+        side_effect=HTTPException(
+            401, 'CILogonClient API error: {"error":"invalid_client"}'
+        )
+    )
+    monkeypatch.setattr(
+        main, "CILogonClient", lambda **kw: AsyncMock(get_token=fake)
+    )
+
+    response = client.post(f"{BASE}/auth/oauth2/token", json=TOKEN_REQUEST)
+    assert response.status_code == 401
+    assert len(reports) == 1
+

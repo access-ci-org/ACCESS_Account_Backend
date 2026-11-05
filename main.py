@@ -1,4 +1,5 @@
 import json
+import re
 import ssl
 import string
 import xml.etree.ElementTree as ET
@@ -440,6 +441,11 @@ async def get_oidc_info():
     }
 
 
+# OAuth errors caused by the token or code the client sent. CILogon reports
+# them as a JSON body or as `error="..."` pairs, depending on the error.
+_ROUTINE_OAUTH_ERROR = re.compile(r'\berror"?\s*[:=]\s*"(invalid_token|invalid_grant)"')
+
+
 @router.post(
     "/auth/oauth2/token",
     tags=["Authentication"],
@@ -453,13 +459,21 @@ async def get_oidc_info():
 async def get_oidc_token(token_request: OidcTokenRequest):
     """Receive the CILogon token after successful authentication."""
     cilogon_client = CILogonClient(propagate_errors=True)
-    response = await cilogon_client.get_token(
-        **{
-            k: v.value if isinstance(v, Enum) else v
-            for k, v in token_request.model_dump().items()
-            if v is not None
-        }
-    )
+    try:
+        response = await cilogon_client.get_token(
+            **{
+                k: v.value if isinstance(v, Enum) else v
+                for k, v in token_request.model_dump().items()
+                if v is not None
+            }
+        )
+    except HTTPException as exc:
+        # A refresh token that expired or was revoked, or an authorization code
+        # that was already used, is routine: the frontend just logs the user in
+        # again. Other errors, like invalid_client, mean our config is wrong.
+        if exc.status_code < 500 and _ROUTINE_OAUTH_ERROR.search(str(exc.detail)):
+            raise ExpectedHTTPException.from_exception(exc) from exc
+        raise
 
     # For login, check whether the user is an admin.
     if token_request.client_id == CILOGON_LOGIN_CLIENT_ID:

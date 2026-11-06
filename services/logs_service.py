@@ -355,6 +355,10 @@ def _should_report(context: RequestLog, status: int) -> bool:
     return context.has_exception or not context.expected_error
 
 
+def _backend_call_failed(call: BackendCall) -> bool:
+    return not isinstance(call.status, int) or call.status >= 400
+
+
 def _format_slack_report(
     request: Request,
     context: RequestLog,
@@ -364,8 +368,10 @@ def _format_slack_report(
 ) -> str:
     """Summarize a failed request for Slack.
 
-    Unlike the log record, this leaves out the backend calls that worked, the
-    messages below WARNING and the tracebacks, and masks the client IP.
+    Unlike the log record, this leaves out the messages below WARNING and the
+    tracebacks, and masks the client IP. Backend calls that worked are left out
+    too, unless one of the request's backend calls failed: then every call is
+    listed, so the failure can be read alongside what else the request did.
     """
     url = request.url.path
     if request.url.query:
@@ -377,6 +383,9 @@ def _format_slack_report(
             f"{mask_ip(client)} · {context.user or '-'} · {elapsed_ms:.1f}ms"
         )
     ]
+
+    backend_calls = [e for e in context.entries if isinstance(e, BackendCall)]
+    any_backend_failed = any(_backend_call_failed(c) for c in backend_calls)
 
     if exception is not None:
         lines.append(_truncate(obfuscate_emails_in_text(_exception_summary(exception))))
@@ -393,7 +402,7 @@ def _format_slack_report(
                 level = logging.getLevelName(entry.levelno)
                 first_line = entry.message.strip().partition("\n")[0]
                 lines.append(f"-- {level} {_truncate(first_line)}")
-        elif not isinstance(entry.status, int) or entry.status >= 400:
+        elif any_backend_failed:
             backend_url = entry.url.removeprefix("https://").removeprefix("http://")
             lines.append(
                 f"-> {entry.method} {backend_url} {entry.status} "

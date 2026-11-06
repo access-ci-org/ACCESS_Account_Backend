@@ -44,7 +44,9 @@ def scratch_app() -> FastAPI:
 
 
 # --- What a report contains -------------------------------------------------
-def test_report_masks_ip_and_emails_and_lists_only_failed_backend_calls(reports):
+def test_report_masks_ip_and_emails_and_lists_all_backend_calls_if_one_failed(
+    reports,
+):
     app = scratch_app()
 
     @app.get("/fail")
@@ -63,8 +65,25 @@ def test_report_masks_ip_and_emails_and_lists_only_failed_backend_calls(reports)
     lines = report.strip("`\n").split("\n")
     assert lines[0].startswith("400 GET /fail · 144.*.*.87 · - · ")
     assert lines[1] == "Failed to retrieve ACCESS ID for j**e@ex******com"
-    assert lines[2:] == ["-> POST registry.test/people ReadTimeout 20000.0ms"]
+    assert lines[2:] == [
+        "-> GET registry.test/ok.json 200 12.0ms",
+        "-> POST registry.test/people ReadTimeout 20000.0ms",
+    ]
     assert "80.66" not in report
+
+
+def test_report_leaves_out_backend_calls_if_none_failed(reports):
+    app = scratch_app()
+
+    @app.get("/fail")
+    async def _fail():
+        record_backend_call("GET", "https://registry.test/ok.json", 200, 12.0)
+        raise HTTPException(400, "Failed to retrieve CoPerson ID")
+
+    TestClient(app).get("/fail")
+
+    (report,) = reports
+    assert "registry.test" not in report
 
 
 def test_unhandled_error_reports_the_exception(reports):

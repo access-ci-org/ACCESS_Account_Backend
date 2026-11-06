@@ -253,25 +253,33 @@ def record_backend_call(
     )
 
 
-def record_exception(message: str, fallback: logging.Logger = logger) -> None:
+def record_exception(
+    message: str,
+    fallback: logging.Logger = logger,
+    exc: BaseException | None = None,
+) -> None:
     """Attach the exception being handled to the request in flight.
 
     A drop-in replacement for `logger.exception(message)` at call sites that
     catch and convert an error rather than letting it propagate. Must be called
-    from inside an `except` block, same as `logger.exception`.
+    from inside an `except` block, same as `logger.exception`, unless `exc` is
+    given: then that exception is recorded instead.
 
     Outside a request -- cron jobs, startup hooks -- there is nothing to attach
     to, so this falls back to logging a standalone record on `fallback`.
     """
+    if exc is None:
+        exc = sys.exc_info()[1]
     context = _request_log.get()
     if context is None:
-        fallback.exception(message)
+        fallback.error(message, exc_info=exc)
         return
+    traceback_text = "".join(traceback.format_exception(exc)) if exc else ""
     context.entries.append(
         LoggedException(
             message,
-            obfuscate_emails_in_text(traceback.format_exc()),
-            obfuscate_emails_in_text(_exception_summary(sys.exc_info()[1])),
+            obfuscate_emails_in_text(traceback_text),
+            obfuscate_emails_in_text(_exception_summary(exc)),
         )
     )
 

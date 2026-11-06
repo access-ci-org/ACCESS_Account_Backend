@@ -692,7 +692,44 @@ class CoManageRegistryClient(RestClient):
         }
 
         try:
-            response = await self._request(
+            response = await self._post_identifier(identifier_data, identifier, type)
+        except HTTPException as exc:
+            if exc.status_code != status.HTTP_500_INTERNAL_SERVER_ERROR:
+                raise
+            # CoManage sometimes answers an empty 500 when several Identifiers are
+            # added to the same person at once (as `create_linked_identity` does),
+            # and saves nothing. Make sure nothing was saved before trying again,
+            # so a retry can't add a duplicate.
+            existing_id = await self._find_identifier_id(
+                identifier, type, linked_type, linked_id
+            )
+            if existing_id is not None:
+                logger.warning(
+                    f"CoManage answered 500 adding {type} Identifier {identifier} "
+                    f"to {linked_type} {linked_id}, but it was added; continuing"
+                )
+                return {
+                    "ResponseType": "NewObject",
+                    "Version": "1.0",
+                    "ObjectType": "Identifier",
+                    "Id": existing_id,
+                }
+
+            logger.warning(
+                f"CoManage answered 500 adding {type} Identifier {identifier} to "
+                f"{linked_type} {linked_id} and didn't add it; retrying once"
+            )
+            # A random wait keeps failed adds from retrying in lockstep.
+            await sleep(random.uniform(0.5, 1.5))
+            response = await self._post_identifier(identifier_data, identifier, type)
+
+        return self._expect(response, dict)
+
+    async def _post_identifier(
+        self, identifier_data: dict, identifier: str, type: str
+    ) -> dict | list | None:
+        try:
+            return await self._request(
                 "POST", "identifiers.json", json=identifier_data
             )
         except HTTPException as exc:
@@ -711,7 +748,35 @@ class CoManageRegistryClient(RestClient):
                 "It may already be linked to another ACCESS account",
             ) from exc
 
-        return self._expect(response, dict)
+    async def _find_identifier_id(
+        self, identifier: str, type: str, linked_type: str, linked_id: str
+    ) -> str | None:
+        """Return the Id of a non-deleted Identifier on a CoPerson or OrgIdentity.
+
+        Args:
+            identifier: The identifier value
+            type: The identifier type
+            linked_type: "CO" for a CoPerson, "Org" for an OrgIdentity
+            linked_id: The Id of the CoPerson or OrgIdentity
+
+        Returns:
+            The Identifier's Id, or None if the person has no such Identifier
+        """
+        param = "copersonid" if linked_type == "CO" else "orgidentityid"
+        result = await self._request(
+            "GET", f"identifiers.json?{param}={quote(str(linked_id), safe='')}"
+        )
+        existing = result.get("Identifiers") or [] if isinstance(result, dict) else []
+        for e in existing:
+            if (
+                e.get("Type") == type
+                and e.get("Identifier") == identifier
+                # Anything but an explicit Deleted counts, so a status we don't
+                # expect can't lead to adding a duplicate.
+                and e.get("Status") != "Deleted"
+            ):
+                return str(e.get("Id"))
+        return None
 
     async def create_new_tandc_agreement(
         self, co_tandc_id: int, co_person_id: int

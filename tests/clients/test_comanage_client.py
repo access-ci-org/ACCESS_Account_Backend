@@ -354,6 +354,18 @@ async def test_identifier_check_reports_own_account(
 
 
 # --- create_new_identifier ---------------------------------------------------
+@pytest.fixture
+def no_wait(monkeypatch):
+    """Skip the random wait between retries, recording how long it would be."""
+    waits = []
+
+    async def fake_sleep(seconds):
+        waits.append(seconds)
+
+    monkeypatch.setattr("services.comanage_registry_client.sleep", fake_sleep)
+    return waits
+
+
 async def test_create_identifier_403_becomes_400_and_is_logged(
     comanage, respx_mock, caplog
 ):
@@ -373,30 +385,110 @@ async def test_create_identifier_403_becomes_400_and_is_logged(
 
 
 async def test_create_identifier_passes_other_errors_through(comanage, respx_mock):
-    respx_mock.post(f"{REGISTRY}/identifiers.json").respond(500)
+    respx_mock.post(f"{REGISTRY}/identifiers.json").respond(502)
 
     with pytest.raises(HTTPException) as exc:
         await comanage.create_new_identifier(
             "ada@uni.edu", "eppn", True, linked_type="CO", linked_id="500"
         )
+    assert exc.value.status_code == 503
+
+
+NEW_IDENTIFIER = {
+    "ResponseType": "NewObject",
+    "Version": "1.0",
+    "ObjectType": "Identifier",
+    "Id": "900",
+}
+
+
+def existing_identifiers(*identifiers):
+    return {
+        "Identifiers": [
+            {"Id": id_, "Type": type_, "Identifier": value, "Status": status_}
+            for id_, type_, value, status_ in identifiers
+        ]
+    }
+
+
+async def create_ada_eppn(comanage, linked_type="CO", linked_id="500"):
+    return await comanage.create_new_identifier(
+        "ada@uni.edu", "eppn", True, linked_type=linked_type, linked_id=linked_id
+    )
+
+
+@pytest.mark.parametrize(
+    "linked_type,param", [("CO", "copersonid"), ("Org", "orgidentityid")]
+)
+async def test_create_identifier_retries_once_after_500_that_added_nothing(
+    comanage, respx_mock, no_wait, caplog, linked_type, param
+):
+    post = respx_mock.post(f"{REGISTRY}/identifiers.json").mock(
+        side_effect=[httpx.Response(500), httpx.Response(201, json=NEW_IDENTIFIER)]
+    )
+    lookup = respx_mock.get(
+        f"{REGISTRY}/identifiers.json", params={param: "500"}
+    ).respond(
+        200,
+        json=existing_identifiers(
+            ("1", "eppn", "ada@other.edu", "Active"),
+            ("2", "eppn", "ada@uni.edu", "Deleted"),
+        ),
+    )
+
+    assert await create_ada_eppn(comanage, linked_type) == NEW_IDENTIFIER
+    assert post.call_count == 2
+    assert lookup.call_count == 1
+    assert len(no_wait) == 1 and 0.5 <= no_wait[0] <= 1.5
+    assert any("retrying once" in r.getMessage() for r in caplog.records)
+
+
+async def test_create_identifier_does_not_retry_after_500_that_added_it(
+    comanage, respx_mock, no_wait, caplog
+):
+    post = respx_mock.post(f"{REGISTRY}/identifiers.json").respond(500)
+    respx_mock.get(f"{REGISTRY}/identifiers.json").respond(
+        200, json=existing_identifiers(("900", "eppn", "ada@uni.edu", "Active"))
+    )
+
+    assert (await create_ada_eppn(comanage))["Id"] == "900"
+    assert post.call_count == 1
+    assert no_wait == []
+    assert any("but it was added" in r.getMessage() for r in caplog.records)
+
+
+async def test_create_identifier_gives_up_after_second_500(
+    comanage, respx_mock, no_wait
+):
+    post = respx_mock.post(f"{REGISTRY}/identifiers.json").respond(500)
+    respx_mock.get(f"{REGISTRY}/identifiers.json").respond(
+        200, json={"Identifiers": []}
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        await create_ada_eppn(comanage)
     assert exc.value.status_code == 500
+    assert post.call_count == 2
+
+
+async def test_create_identifier_retry_rejected_as_in_use_becomes_400(
+    comanage, respx_mock, no_wait
+):
+    respx_mock.post(f"{REGISTRY}/identifiers.json").mock(
+        side_effect=[httpx.Response(500), httpx.Response(403)]
+    )
+    respx_mock.get(f"{REGISTRY}/identifiers.json").respond(
+        200, json={"Identifiers": []}
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        await create_ada_eppn(comanage)
+    assert exc.value.status_code == 400
 
 
 # --- create_new_user ---------------------------------------------------------
 PEOPLE = "https://comanage.test/registry/api/co/2/core/v1/people"
 ACCESS_ID = [{"identifier": "alovelace", "type": "accessid", "login": False, "status": "A"}]
-
-
-@pytest.fixture
-def no_wait(monkeypatch):
-    """Skip the random wait between retries, recording how long it would be."""
-    waits = []
-
-    async def fake_sleep(seconds):
-        waits.append(seconds)
-
-    monkeypatch.setattr("services.comanage_registry_client.sleep", fake_sleep)
-    return waits
 
 
 async def create_ada(comanage):

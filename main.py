@@ -446,6 +446,23 @@ async def get_oidc_info():
 _ROUTINE_OAUTH_ERROR = re.compile(r'\berror"?\s*[:=]\s*"(invalid_token|invalid_grant)"')
 
 
+# Enough of a code or refresh token to show its shape: a valid CILogon code
+# starts "https://cilogon.org/oauth2/", so the prefix shows double encoding
+# ("https%3A") and the length shows truncation. Never log more than this:
+# the rest is the secret.
+_GRANT_PREFIX_LENGTH = 8
+
+
+def _describe_grant(value: str | None) -> str:
+    if value is None:
+        return "no code or refresh token"
+    return (
+        f"length={len(value)} prefix={value[:_GRANT_PREFIX_LENGTH]!r} "
+        f"percent_encoded={'%' in value} "
+        f"whitespace={any(c.isspace() for c in value)}"
+    )
+
+
 @router.post(
     "/auth/oauth2/token",
     tags=["Authentication"],
@@ -473,6 +490,15 @@ async def get_oidc_token(token_request: OidcTokenRequest):
         # again. Other errors, like invalid_client, mean our config is wrong.
         if exc.status_code < 500 and _ROUTINE_OAUTH_ERROR.search(str(exc.detail)):
             raise ExpectedHTTPException.from_exception(exc) from exc
+        # CILogon has answered some codes with 500 "could not create the
+        # authorization grant". Log the shape of what we sent, so a code
+        # mangled on the way to our callback can be told from a CILogon fault.
+        if exc.status_code >= 500:
+            grant = token_request.code or token_request.refresh_token
+            logger.warning(
+                f"CILogon token request failed for grant_type="
+                f"{token_request.grant_type.value}: {_describe_grant(grant)}"
+            )
         raise
 
     # For login, check whether the user is an admin.

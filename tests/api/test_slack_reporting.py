@@ -312,3 +312,48 @@ def test_rejected_client_credentials_are_reported(client, reports, monkeypatch):
     response = client.post(f"{BASE}/auth/oauth2/token", json=TOKEN_REQUEST)
     assert response.status_code == 401
     assert len(reports) == 1
+
+
+def test_cilogon_5xx_reports_the_shape_of_the_code_but_not_the_code(
+    client, reports, monkeypatch
+):
+    code = "https%3A%2F%2Fcilogon.org%2Foauth2%2Fdeadbeefcafef00d?type=authzGrant"
+    fake = AsyncMock(
+        side_effect=HTTPException(
+            500,
+            'CILogonClient API error: error="server_error"\n'
+            'error_description="+could+not+create+the+authorization+grant"',
+        )
+    )
+    monkeypatch.setattr(main, "CILogonClient", lambda **kw: AsyncMock(get_token=fake))
+
+    response = client.post(
+        f"{BASE}/auth/oauth2/token",
+        json={
+            "clientId": "link-client",
+            "grantType": "authorization_code",
+            "redirectUri": "https://app.example.org/callback",
+            "code": code,
+        },
+    )
+    assert response.status_code == 500
+    assert len(reports) == 1
+    assert (
+        f"grant_type=authorization_code: length={len(code)} prefix='https%3A' "
+        "percent_encoded=True whitespace=False"
+    ) in reports[0]
+    assert "deadbeef" not in reports[0]
+
+
+def test_cilogon_4xx_does_not_log_the_shape_of_the_code(client, reports, monkeypatch):
+    fake = AsyncMock(
+        side_effect=HTTPException(
+            401, 'CILogonClient API error: {"error":"invalid_client"}'
+        )
+    )
+    monkeypatch.setattr(main, "CILogonClient", lambda **kw: AsyncMock(get_token=fake))
+
+    response = client.post(f"{BASE}/auth/oauth2/token", json=TOKEN_REQUEST)
+    assert response.status_code == 401
+    assert len(reports) == 1
+    assert "prefix=" not in reports[0]

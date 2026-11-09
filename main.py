@@ -94,6 +94,8 @@ from services.cilogon_client import CILogonClient
 from services.comanage_registry_client import CoManageRegistryClient
 from services.email_service import (
     confirm_sns_subscription,
+    get_email_from_body,
+    is_valid_email,
     log_ses_event,
     send_verification_email,
     ses,
@@ -131,11 +133,6 @@ limiter = Limiter(
     storage_uri=RATE_LIMIT_STORAGE_URL,
     strategy="fixed-window",
 )
-
-
-def get_email_from_body(request: Request) -> str:
-    # FastAPI caches the parsed JSON body, so this is safe to read synchronously.
-    return getattr(request, "_json", {}).get("email", "").strip().lower()
 
 
 # IDP by Domain
@@ -307,9 +304,10 @@ async def send_otp(request: Request, body: SendOTPRequest):
     # Unauthenticated route: the user is named by the request body, not a token.
     set_request_user(None, email)
 
-    if "@" not in email:
+    if not is_valid_email(email):
+        # obfuscate_email() assumes a well-formed address, so mask the whole string.
         logger.warning(
-            f"Rejected OTP request due to invalid email format: {obfuscate_email(email)}"
+            f"Rejected OTP request due to invalid email format: {obfuscate_string(email)}"
         )
         raise ExpectedHTTPException(400, "Invalid email")
 
@@ -351,14 +349,16 @@ async def send_otp(request: Request, body: SendOTPRequest):
             )
             raise HTTPException(400, "SES account sending is paused")
 
-        except ses.exceptions.InvalidParameterValue:
-            logger.error(
-                f"SES InvalidParameterValue for email={obfuscate_email(email)}"
-            )
-            raise HTTPException(400, "Invalid email or SES parameter value")
-
         except ClientError as e:
             code = e.response["Error"]["Code"]
+            # SES has no modeled exception class for this code, so it can only
+            # be told apart by the code. It's how SES rejects an address it
+            # can't parse ("Illegal address").
+            if code == "InvalidParameterValue":
+                logger.error(
+                    f"SES InvalidParameterValue for email={obfuscate_email(email)}"
+                )
+                raise HTTPException(400, "Invalid email or SES parameter value")
             record_exception(
                 f"Unexpected SES error for email={obfuscate_email(email)}: {code}"
             )
@@ -391,8 +391,8 @@ async def verify_otp(request: VerifyOTPRequest):
     # Unauthenticated route: the user is named by the request body, not a token.
     set_request_user(None, email)
 
-    if "@" not in email:
-        # obfuscate_email() needs an "@" to split on, so mask the whole string.
+    if not is_valid_email(email):
+        # obfuscate_email() assumes a well-formed address, so mask the whole string.
         logger.warning(
             f"Rejected OTP verification due to invalid email format: {obfuscate_string(email)}"
         )

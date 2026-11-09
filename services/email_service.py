@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import binascii
+import hashlib
 import logging
 import re
 import time
@@ -13,6 +14,7 @@ from cryptography import x509
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
+from fastapi import Request
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from config import (
@@ -52,6 +54,32 @@ async def ping() -> int:
     """Make a free, read-only SES request and return the HTTP status code."""
     response = await asyncio.to_thread(ses.get_send_quota)
     return response["ResponseMetadata"]["HTTPStatusCode"]
+
+
+# A single plain address: a dot-atom local part (no quoted strings, comments,
+# or display names) and a dotted hostname. Stricter than RFC 5322 on purpose:
+# SES rejects much of what RFC 5322 allows, and the rest of the app takes the
+# domain to be everything after the "@", which only holds for addresses like
+# these. Expects input that has already been stripped and lowercased.
+_EMAIL_PATTERN = re.compile(
+    r"[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*"
+    r"@(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9-]{2,63}"
+)
+
+
+def is_valid_email(email: str) -> bool:
+    return len(email) <= 254 and _EMAIL_PATTERN.fullmatch(email) is not None
+
+
+def get_email_from_body(request: Request) -> str:
+    # FastAPI caches the parsed JSON body, so this is safe to read synchronously.
+    email = getattr(request, "_json", {}).get("email", "")
+    if not isinstance(email, str):
+        email = ""
+    # Hashed because the limiter uses the key as a memcached key, which can't
+    # contain whitespace or be longer than 250 bytes -- and the body is
+    # whatever the client sent, checked only after the limiter has run.
+    return hashlib.sha256(email.strip().lower().encode()).hexdigest()
 
 
 def send_verification_email(email, otp):

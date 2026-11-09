@@ -13,6 +13,7 @@ import pytest
 from fastapi import HTTPException
 
 import main
+from services.email_service import get_email_from_body, is_valid_email
 from config import CILOGON_LINK_CLIENT_ID, CILOGON_LOGIN_CLIENT_ID, JWT_SECRET_KEY, \
     JWT_ALGORITHM, JWT_AUDIENCE, JWT_ISSUER
 
@@ -30,6 +31,68 @@ def test_send_otp_success(client, temp_db):
 
 def test_send_otp_rejects_email_without_at(client, temp_db):
     resp = client.post(f"{BASE}/auth/send-otp", json={"email": "not-an-email"})
+    assert resp.status_code == 400
+
+
+# Shapes seen probing the API: lists, display names, comments, quoted local parts.
+MALFORMED_EMAILS = [
+    "a@example.com,b@example.edu",
+    "a@example.com, b@example.edu",
+    "a@example.com; b@example.edu",
+    "a@example.com (b@example.edu)",
+    "b@example.edu <a@example.com>",
+    '"a@example.com"@example.edu',
+    "a@b@example.com",
+    "a@localhost",
+    "a..b@example.com",
+    "a@-example.com",
+]
+
+
+@pytest.mark.parametrize("email", MALFORMED_EMAILS)
+def test_send_otp_rejects_malformed_email(client, temp_db, monkeypatch, email):
+    send = MagicMock()
+    monkeypatch.setattr(main, "send_verification_email", send)
+    monkeypatch.setattr(main, "DEBUG", False)
+
+    resp = client.post(f"{BASE}/auth/send-otp", json={"email": email})
+    assert resp.status_code == 400
+    send.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "email", ["ada@example.org", "Ada.Lovelace+otp@Mail.Example.co.uk", "a_b-c@xn--bcher-kva.ch"]
+)
+def test_is_valid_email_accepts_plain_addresses(email):
+    assert is_valid_email(email.lower())
+
+
+def test_email_rate_limit_key_is_memcache_safe():
+    # memcached keys can't contain whitespace or exceed 250 bytes.
+    request = SimpleNamespace(_json={"email": "a@example.com, b@example.edu" + "x" * 300})
+    key = get_email_from_body(request)  # pyright: ignore[reportArgumentType]
+    assert len(key) == 64 and key.isalnum()
+
+
+def test_email_rate_limit_key_ignores_case_and_whitespace():
+    def key(email):
+        return get_email_from_body(SimpleNamespace(_json={"email": email}))  # pyright: ignore[reportArgumentType]
+
+    assert key(" Ada@Example.org ") == key("ada@example.org")
+    assert key(None) == key("")
+
+
+def test_send_otp_ses_invalid_parameter_value_returns_400(client, temp_db, monkeypatch):
+    from botocore.exceptions import ClientError
+
+    error = ClientError(
+        {"Error": {"Code": "InvalidParameterValue", "Message": "Illegal address"}},
+        "SendEmail",
+    )
+    monkeypatch.setattr(main, "send_verification_email", MagicMock(side_effect=error))
+    monkeypatch.setattr(main, "DEBUG", False)
+
+    resp = client.post(f"{BASE}/auth/send-otp", json={"email": "ada@example.org"})
     assert resp.status_code == 400
 
 
@@ -56,6 +119,16 @@ def test_verify_otp_invalid_email(client):
         f"{BASE}/auth/verify-otp", json={"email": "bad", "otp": "ABC234"}
     )
     assert resp.status_code == 400
+
+
+@pytest.mark.parametrize("email", MALFORMED_EMAILS)
+def test_verify_otp_rejects_malformed_email(client, monkeypatch, email):
+    verify = MagicMock(return_value=None)
+    monkeypatch.setattr(main, "verify_stored_otp", verify)
+
+    resp = client.post(f"{BASE}/auth/verify-otp", json={"email": email, "otp": "ABC234"})
+    assert resp.status_code == 400
+    verify.assert_not_called()
 
 
 def test_verify_otp_invalid_format(client):

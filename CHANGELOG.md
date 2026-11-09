@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.23.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.22.0...v0.23.0) (2026-11-09)
+
+
+### Features
+
+* **email:** strengthen email validation ([7cae6dd](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/7cae6ddb2885eb730bd6b5980cb51529c6ff8bf2))
+* **logs:** improve logging for failed authorization grants ([8cd2459](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/8cd2459ee510449728b9a9722c4b9c67aaaa3c43))
+
+
+### Bug Fixes
+
+* **comanage:** retry identifier adds that fail with a 500 ([99e5dbb](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/99e5dbbc9007d2a082234b5738cbd7208af6e3ba))
+* **logs:** log all exceptions, not just the first ([7a38a2a](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/7a38a2acdcfdc8f9ce690af957be4d83c032f7d6))
+* **slack:** send all upstream requests when any of them fail ([05e87da](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/05e87daf1542bfc4ea339a8cf4ab6a80d1efc1df))
+
 ## [0.22.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.21.1...v0.22.0) (2026-11-05)
 
 

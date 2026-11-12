@@ -8,6 +8,7 @@ from config import (
     CILOGON_LINK_CLIENT_SECRET,
     CILOGON_LOGIN_CLIENT_ID,
     CILOGON_LOGIN_CLIENT_SECRET,
+    CILOGON_TIMEOUT,
     CILOGON_TOKEN_URL,
     CILOGON_USER_INFO_URL,
     CILOGON_WELL_KNOWN_URL,
@@ -17,6 +18,9 @@ from services.rest_client import RestClient
 
 
 class CILogonClient(RestClient):
+    def __init__(self, timeout=CILOGON_TIMEOUT, propagate_errors=False):
+        super().__init__(timeout=timeout, propagate_errors=propagate_errors)
+
     async def get_token(self, **kwargs) -> dict:
         """Get tokens"""
         data = dict(**kwargs)

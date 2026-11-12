@@ -29,6 +29,13 @@ async def test_get_token_injects_client_secret_for_known_client(respx_mock):
     assert "client_secret=" in body
 
 
+async def test_requests_use_configured_timeout(respx_mock):
+    # CILOGON_TIMEOUT=7 in the test env, not RestClient's 2s default.
+    route = respx_mock.post(TOKEN_URL).respond(200, json={"access_token": "abc"})
+    await CILogonClient().get_token(client_id="whatever")
+    assert route.calls.last.request.extensions["timeout"]["read"] == 7
+
+
 # --- get_user_info ----------------------------------------------------------
 async def test_get_user_info_sends_bearer_and_returns_dict(respx_mock):
     route = respx_mock.get(USERINFO_URL).respond(200, json={"sub": "user@idp"})

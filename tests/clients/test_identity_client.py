@@ -19,6 +19,13 @@ def identity():
     return IdentityServiceClient(propagate_errors=True)
 
 
+async def test_requests_use_configured_timeout(identity, respx_mock):
+    # XRAS_IDENTITY_SERVICE_TIMEOUT=8 in the test env, not RestClient's 2s default.
+    route = respx_mock.get(f"{XRAS}/profiles/v1/countries").respond(200, json=[])
+    await identity.get_countries()
+    assert route.calls.last.request.extensions["timeout"]["read"] == 8
+
+
 # --- get_countries: sorting + auth headers ----------------------------------
 async def test_get_countries_sorts_united_states_first(identity, respx_mock):
     respx_mock.get(f"{XRAS}/profiles/v1/countries").respond(

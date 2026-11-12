@@ -14,6 +14,7 @@ from config import (
     XRAS_IDENTITY_SERVICE_BASE_URL,
     XRAS_IDENTITY_SERVICE_KEY,
     XRAS_IDENTITY_SERVICE_REQUESTER,
+    XRAS_IDENTITY_SERVICE_TIMEOUT,
 )
 from services.http_errors import ExpectedHTTPException
 from services.rest_client import RestClient
@@ -36,8 +37,8 @@ class IdentityServiceClient(RestClient):
         maxsize=3, ttl=3600
     )  # Cache for choice lists lasts an hour
 
-    def __init__(self, propagate_errors=False):
-        super().__init__(propagate_errors=propagate_errors)
+    def __init__(self, timeout=XRAS_IDENTITY_SERVICE_TIMEOUT, propagate_errors=False):
+        super().__init__(timeout=timeout, propagate_errors=propagate_errors)
         self.base_url = XRAS_IDENTITY_SERVICE_BASE_URL
         self.headers = {
             "XA-REQUESTER": XRAS_IDENTITY_SERVICE_REQUESTER,

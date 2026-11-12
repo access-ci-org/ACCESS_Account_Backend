@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.23.1](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.23.0...v0.23.1) (2026-11-12)
+
+
+### Bug Fixes
+
+* increase default timeout for CILogon and identity service ([6449648](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/6449648831ab49e81bb9c05c644aa2d6f809008f))
+* **logs:** improve logging for missing OAuth codes ([6fe1af9](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/6fe1af9ac8cbe3b90e5d0c7ea2c790eb413d637e))
+
 ## [0.23.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.22.0...v0.23.0) (2026-11-09)
 
 

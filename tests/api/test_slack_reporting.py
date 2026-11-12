@@ -339,10 +339,68 @@ def test_cilogon_5xx_reports_the_shape_of_the_code_but_not_the_code(
     assert response.status_code == 500
     assert len(reports) == 1
     assert (
-        f"grant_type=authorization_code: length={len(code)} prefix='https%3A' "
+        f": code length={len(code)} prefix='https%3A' "
         "percent_encoded=True whitespace=False"
     ) in reports[0]
     assert "deadbeef" not in reports[0]
+
+
+CILOGON_GRANT_500 = HTTPException(
+    500,
+    'CILogonClient API error: error="server_error"\n'
+    'error_description="+could+not+create+the+authorization+grant"',
+)
+
+
+@pytest.mark.parametrize(
+    ("body", "described"),
+    [
+        ({"code": ""}, "empty code"),
+        ({}, "no code"),
+        ({"grantType": "refresh_token", "refreshToken": ""}, "empty refresh token"),
+    ],
+)
+def test_cilogon_5xx_tells_an_empty_grant_from_a_missing_one(
+    client, reports, monkeypatch, body, described
+):
+    fake = AsyncMock(side_effect=CILOGON_GRANT_500)
+    monkeypatch.setattr(main, "CILogonClient", lambda **kw: AsyncMock(get_token=fake))
+
+    response = client.post(
+        f"{BASE}/auth/oauth2/token",
+        json={
+            "clientId": "cilogon-link-client-id",
+            "grantType": "authorization_code",
+            "redirectUri": "https://app.example.org/callback",
+            **body,
+        },
+    )
+    assert response.status_code == 500
+    # The reason ends the warning line.
+    assert f": {described}\n" in reports[0]
+
+
+def test_cilogon_5xx_reports_the_client_redirect_uri_and_browser(
+    client, reports, monkeypatch
+):
+    fake = AsyncMock(side_effect=CILOGON_GRANT_500)
+    monkeypatch.setattr(main, "CILogonClient", lambda **kw: AsyncMock(get_token=fake))
+
+    response = client.post(
+        f"{BASE}/auth/oauth2/token",
+        json={
+            "clientId": "cilogon-login-client-id",
+            "grantType": "authorization_code",
+            "redirectUri": "https://app.example.org/auth-token/login",
+            "code": "",
+        },
+        headers={"User-Agent": "Mozilla/5.0 Test"},
+    )
+    assert response.status_code == 500
+    assert (
+        "client=login redirect_uri='https://app.example.org/auth-token/login' "
+        "user_agent='Mozilla/5.0 Test': empty code"
+    ) in reports[0]
 
 
 def test_cilogon_4xx_does_not_log_the_shape_of_the_code(client, reports, monkeypatch):

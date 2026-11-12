@@ -70,6 +70,7 @@ from models import (
     JWTResponse,
     LinkIdentityRequest,
     OidcInfoResponse,
+    OidcGrantType,
     OidcTokenRequest,
     OidcTokenResponse,
     ResourceUsernamesResponse,
@@ -446,21 +447,30 @@ async def get_oidc_info():
 _ROUTINE_OAUTH_ERROR = re.compile(r'\berror"?\s*[:=]\s*"(invalid_token|invalid_grant)"')
 
 
-# Enough of a code or refresh token to show its shape: a valid CILogon code
-# starts "https://cilogon.org/oauth2/", so the prefix shows double encoding
-# ("https%3A") and the length shows truncation. Never log more than this:
-# the rest is the secret.
+# Enough of a code or refresh token to show its shape. CILogon issues them as
+# base32 of a "https://cilogon.org/oauth2/..." URI (prefix "NB2HI4DT"), and
+# also accepts the URI itself, so the prefix shows mangling such as double
+# encoding ("https%3A") and the length shows truncation. Never log more than
+# this: the rest is the secret.
 _GRANT_PREFIX_LENGTH = 8
 
 
-def _describe_grant(value: str | None) -> str:
+def _describe_grant(name: str, value: str | None) -> str:
     if value is None:
-        return "no code or refresh token"
+        return f"no {name}"
+    if not value:
+        return f"empty {name}"
     return (
-        f"length={len(value)} prefix={value[:_GRANT_PREFIX_LENGTH]!r} "
+        f"{name} length={len(value)} prefix={value[:_GRANT_PREFIX_LENGTH]!r} "
         f"percent_encoded={'%' in value} "
         f"whitespace={any(c.isspace() for c in value)}"
     )
+
+
+def _client_name(client_id: str) -> str:
+    """Name a CILogon client ID as the frontend does, or flag it as unknown."""
+    names = {CILOGON_LINK_CLIENT_ID: "link", CILOGON_LOGIN_CLIENT_ID: "login"}
+    return names.get(client_id, f"unknown ({client_id!r})")
 
 
 @router.post(
@@ -473,7 +483,7 @@ def _describe_grant(value: str | None) -> str:
     },
     response_model=OidcTokenResponse,
 )
-async def get_oidc_token(token_request: OidcTokenRequest):
+async def get_oidc_token(token_request: OidcTokenRequest, request: Request):
     """Receive the CILogon token after successful authentication."""
     cilogon_client = CILogonClient(propagate_errors=True)
     try:
@@ -492,12 +502,19 @@ async def get_oidc_token(token_request: OidcTokenRequest):
             raise ExpectedHTTPException.from_exception(exc) from exc
         # CILogon has answered some codes with 500 "could not create the
         # authorization grant". Log the shape of what we sent, so a code
-        # mangled on the way to our callback can be told from a CILogon fault.
+        # mangled on the way to our callback can be told from a CILogon fault,
+        # plus the client and browser to send CILogon support.
         if exc.status_code >= 500:
-            grant = token_request.code or token_request.refresh_token
+            if token_request.grant_type == OidcGrantType.refresh_token:
+                grant = _describe_grant("refresh token", token_request.refresh_token)
+            else:
+                grant = _describe_grant("code", token_request.code)
             logger.warning(
                 f"CILogon token request failed for grant_type="
-                f"{token_request.grant_type.value}: {_describe_grant(grant)}"
+                f"{token_request.grant_type.value} "
+                f"client={_client_name(token_request.client_id)} "
+                f"redirect_uri={token_request.redirect_uri!r} "
+                f"user_agent={request.headers.get('user-agent')!r}: {grant}"
             )
         raise
 

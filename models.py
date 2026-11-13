@@ -276,6 +276,10 @@ class OidcTokenRequest(BaseSchema):
     grant_type: OidcGrantType
     redirect_uri: str
     refresh_token: str | None = None
+    # The `error` and `error_description` CILogon put on the callback URL
+    # instead of a code, passed on so the failure gets logged here.
+    error: str | None = Field(default=None, max_length=100)
+    error_description: str | None = Field(default=None, max_length=1000)
 
 
 class OidcTokenResponse(BaseSchema):

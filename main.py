@@ -480,17 +480,57 @@ def _client_name(client_id: str) -> str:
     description="Receive the CILogon token after a successful authentication.",
     responses={
         200: {"description": "Return the OIDC tokens"},
+        400: {
+            "description": "CILogon redirected back with an error, or there was "
+            "no code or refresh token to exchange"
+        },
     },
     response_model=OidcTokenResponse,
 )
 async def get_oidc_token(token_request: OidcTokenRequest, request: Request):
     """Receive the CILogon token after successful authentication."""
+    context = (
+        f"client={_client_name(token_request.client_id)} "
+        f"redirect_uri={token_request.redirect_uri!r} "
+        f"user_agent={request.headers.get('user-agent')!r}"
+    )
+    if token_request.grant_type == OidcGrantType.refresh_token:
+        grant_name, grant = "refresh token", token_request.refresh_token
+    else:
+        grant_name, grant = "code", token_request.code
+
+    # CILogon reports a failed login (e.g. the user cancelled, or the IdP
+    # failed) by redirecting back with `error` instead of a code. Log it here,
+    # since CILogon itself only answers a missing code with an opaque 500.
+    if token_request.error:
+        logger.warning(
+            f"CILogon callback returned an error {context}: "
+            f"error={token_request.error!r} "
+            f"error_description={token_request.error_description!r}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Authentication failed: "
+            f"{token_request.error_description or token_request.error}",
+        )
+    if not grant:
+        logger.warning(
+            f"Token request for grant_type={token_request.grant_type.value} "
+            f"{context}: {_describe_grant(grant_name, grant)}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Authentication failed: no {grant_name} was received.",
+        )
+
     cilogon_client = CILogonClient(propagate_errors=True)
     try:
         response = await cilogon_client.get_token(
             **{
                 k: v.value if isinstance(v, Enum) else v
-                for k, v in token_request.model_dump().items()
+                for k, v in token_request.model_dump(
+                    exclude={"error", "error_description"}
+                ).items()
                 if v is not None
             }
         )
@@ -505,16 +545,10 @@ async def get_oidc_token(token_request: OidcTokenRequest, request: Request):
         # mangled on the way to our callback can be told from a CILogon fault,
         # plus the client and browser to send CILogon support.
         if exc.status_code >= 500:
-            if token_request.grant_type == OidcGrantType.refresh_token:
-                grant = _describe_grant("refresh token", token_request.refresh_token)
-            else:
-                grant = _describe_grant("code", token_request.code)
             logger.warning(
                 f"CILogon token request failed for grant_type="
-                f"{token_request.grant_type.value} "
-                f"client={_client_name(token_request.client_id)} "
-                f"redirect_uri={token_request.redirect_uri!r} "
-                f"user_agent={request.headers.get('user-agent')!r}: {grant}"
+                f"{token_request.grant_type.value} {context}: "
+                f"{_describe_grant(grant_name, grant)}"
             )
         raise
 

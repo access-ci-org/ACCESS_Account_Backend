@@ -360,7 +360,7 @@ CILOGON_GRANT_500 = HTTPException(
         ({"grantType": "refresh_token", "refreshToken": ""}, "empty refresh token"),
     ],
 )
-def test_cilogon_5xx_tells_an_empty_grant_from_a_missing_one(
+def test_missing_grant_is_reported_without_asking_cilogon(
     client, reports, monkeypatch, body, described
 ):
     fake = AsyncMock(side_effect=CILOGON_GRANT_500)
@@ -375,7 +375,10 @@ def test_cilogon_5xx_tells_an_empty_grant_from_a_missing_one(
             **body,
         },
     )
-    assert response.status_code == 500
+    assert response.status_code == 400
+    assert response.json()["detail"].startswith("Authentication failed: no ")
+    fake.assert_not_called()
+    assert len(reports) == 1
     # The reason ends the warning line.
     assert f": {described}\n" in reports[0]
 
@@ -392,15 +395,66 @@ def test_cilogon_5xx_reports_the_client_redirect_uri_and_browser(
             "clientId": "cilogon-login-client-id",
             "grantType": "authorization_code",
             "redirectUri": "https://app.example.org/auth-token/login",
-            "code": "",
+            "code": "abc",
         },
         headers={"User-Agent": "Mozilla/5.0 Test"},
     )
     assert response.status_code == 500
     assert (
         "client=login redirect_uri='https://app.example.org/auth-token/login' "
-        "user_agent='Mozilla/5.0 Test': empty code"
+        "user_agent='Mozilla/5.0 Test': code length=3"
     ) in reports[0]
+
+
+@pytest.mark.parametrize(
+    ("description", "detail"),
+    [
+        ("The user cancelled.", "Authentication failed: The user cancelled."),
+        (None, "Authentication failed: access_denied"),
+    ],
+)
+def test_callback_error_is_reported_without_asking_cilogon(
+    client, reports, monkeypatch, description, detail
+):
+    fake = AsyncMock(side_effect=CILOGON_GRANT_500)
+    monkeypatch.setattr(main, "CILogonClient", lambda **kw: AsyncMock(get_token=fake))
+
+    response = client.post(
+        f"{BASE}/auth/oauth2/token",
+        json={
+            "clientId": "cilogon-login-client-id",
+            "grantType": "authorization_code",
+            "redirectUri": "https://app.example.org/auth-token/login",
+            "error": "access_denied",
+            "errorDescription": description,
+        },
+        headers={"User-Agent": "Mozilla/5.0 Test"},
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == detail
+    fake.assert_not_called()
+    assert len(reports) == 1
+    assert (
+        "CILogon callback returned an error client=login "
+        "redirect_uri='https://app.example.org/auth-token/login' "
+        "user_agent='Mozilla/5.0 Test': error='access_denied' "
+        f"error_description={description!r}\n"
+    ) in reports[0]
+
+
+def test_callback_error_fields_are_not_sent_to_cilogon(client, monkeypatch):
+    fake = AsyncMock(
+        return_value={"access_token": "a", "id_token": "i", "refresh_token": "r"}
+    )
+    monkeypatch.setattr(main, "CILogonClient", lambda **kw: AsyncMock(get_token=fake))
+
+    client.post(
+        f"{BASE}/auth/oauth2/token",
+        json={**TOKEN_REQUEST, "error": "", "errorDescription": "ignored"},
+    )
+    fake.assert_called_once()
+    assert "error" not in fake.call_args.kwargs
+    assert "error_description" not in fake.call_args.kwargs
 
 
 def test_cilogon_4xx_does_not_log_the_shape_of_the_code(client, reports, monkeypatch):

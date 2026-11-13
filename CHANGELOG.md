@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.24.0](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.23.1...v0.24.0) (2026-11-13)
+
+
+### Features
+
+* **logs:** log OIDC errors from CILogon ([0355ad2](https://github.com/access-ci-org/ACCESS_Account_Backend/commit/0355ad26ad241d4907771b66fc17a3241387ab38))
+
 ## [0.23.1](https://github.com/access-ci-org/ACCESS_Account_Backend/compare/v0.23.0...v0.23.1) (2026-11-12)
 
 
